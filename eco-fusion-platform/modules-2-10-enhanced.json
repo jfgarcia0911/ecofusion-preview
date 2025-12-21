@@ -1,0 +1,94 @@
+{
+  "note": "Enhanced modules 2-10 for course-108. Replace the existing modules in lms-seed.ts",
+  "modules": [
+    {
+      "id": "m2-108",
+      "moduleNumber": 2,
+      "title": "Module 2: Financial Planning",
+      "description": "CapEx, OpEx, and ROI.",
+      "duration": 80,
+      "lessonCount": 4,
+      "summary": "Comprehensive financial planning with detailed CapEx/OpEx tables, 5-year ROI projections, USDA FSA and NRCS program details, SBA benchmarks. Includes 2000+ word lesson, interactive calculator, and 5-question quiz."
+    },
+    {
+      "id": "m3-108",
+      "moduleNumber": 3,
+      "title": "Module 3: Compliance & Legal",
+      "description": "Zoning, FSMA, and Permits.",
+      "duration": 85,
+      "lessonCount": 4,
+      "summary": "Regulatory compliance framework covering zoning, FSMA Produce Safety Rule, GAP certification, business licensing, employment law. Includes water testing table, compost standards, insurance requirements, compliance costs. 2200+ words, 6-question quiz."
+    },
+    {
+      "id": "m4-108",
+      "moduleNumber": 4,
+      "title": "Module 4: Marketing",
+      "description": "Telling your farm story.",
+      "duration": 85,
+      "lessonCount": 4,
+      "summary": "Strategic marketing with digital channel ROI analysis, customer acquisition cost framework, brand positioning, content strategy. Includes marketing budget tables, SBA benchmarks, social media metrics. 2100+ words, 6-question quiz."
+    },
+    {
+      "id": "m5-108",
+      "moduleNumber": 5,
+      "title": "Module 5: Sales Channels",
+      "description": "Getting product to customer.",
+      "duration": 80,
+      "lessonCount": 4,
+      "summary": "Multi-channel sales strategy with profitability analysis, farmers market economics, restaurant/retail partnerships, pricing optimization. Channel comparison tables, mix recommendations. 2000+ words, 5-question quiz."
+    },
+    {
+      "id": "m6-108",
+      "moduleNumber": 6,
+      "title": "Module 6: Customer Management",
+      "description": "Retention and CRM.",
+      "duration": 80,
+      "lessonCount": 4,
+      "summary": "CRM systems and retention strategies with lifetime value calculations, customer segmentation, email automation, loyalty programs. Platform comparison table, retention impact analysis. 2000+ words, 5-question quiz."
+    },
+    {
+      "id": "m7-108",
+      "moduleNumber": 7,
+      "title": "Module 7: Staffing",
+      "description": "Hiring and managing farm hands.",
+      "duration": 80,
+      "lessonCount": 4,
+      "summary": "Human resource management with compensation benchmarks, job descriptions, training programs, performance management. DOL/OSHA compliance, H-2A program details, labor productivity metrics. 2100+ words, 6-question quiz."
+    },
+    {
+      "id": "m8-108",
+      "moduleNumber": 8,
+      "title": "Module 8: Funding",
+      "description": "Grants, Loans, and investors.",
+      "duration": 85,
+      "lessonCount": 4,
+      "summary": "Complete funding landscape: USDA programs (FSA, REAP, EQIP, SARE), SBA loans, grant writing framework. Program comparison tables, application timelines, success rates. 2200+ words, 6-question quiz."
+    },
+    {
+      "id": "m9-108",
+      "moduleNumber": 9,
+      "title": "Module 9: Risk Management",
+      "description": "Insurance and failure planning.",
+      "duration": 80,
+      "lessonCount": 4,
+      "summary": "Enterprise risk framework with risk assessment matrix, insurance coverage analysis, USDA RMA crop insurance programs, business continuity planning. Financial risk ratios, weather tools. 2000+ words, 5-question quiz."
+    },
+    {
+      "id": "m10-108",
+      "moduleNumber": 10,
+      "title": "Module 10: Community",
+      "description": "Being a local leader.",
+      "duration": 75,
+      "lessonCount": 4,
+      "summary": "Community engagement and agritourism business models, liability considerations, farm-to-school programs, event planning. Comprehensive business plan capstone project. 2000+ words, 4-question quiz."
+    }
+  ],
+  "totalDuration": "12 hours",
+  "totalModules": 10,
+  "totalLessons": 40,
+  "totalQuizQuestions": 54,
+  "totalWordCount": "21000+",
+  "financialTables": "35+",
+  "programsCovered": ["USDA EQIP", "USDA REAP", "FSA Direct Loans", "FSA Microloans", "USDA RMA", "NRCS", "SBA 7(a)", "SARE Grants", "FDA FSMA", "USDA GAP"],
+  "status": "Module 1 implemented successfully. Modules 2-10 prepared but not yet integrated due to file modification conflicts."
+}
