@@ -1,0 +1,19 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Session logs (large files)
+*.txt
+
+# Temporary files
+*.tmp
+*.temp
+
+# Node modules (handled by platform .gitignore)
+node_modules/
