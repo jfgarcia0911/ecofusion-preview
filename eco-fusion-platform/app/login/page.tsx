@@ -30,7 +30,7 @@ export default function LoginPage() {
 
                     <div className="mt-8 text-center">
                         <p className="text-xs text-white/30">
-                            Don't have an account? <Link href="#" className="text-accent hover:underline">Contact Admin</Link>
+                            Don&apos;t have an account? <Link href="#" className="text-accent hover:underline">Contact Admin</Link>
                         </p>
                     </div>
                 </div>

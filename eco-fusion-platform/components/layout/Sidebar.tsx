@@ -14,7 +14,13 @@ const navItems = [
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList },
 ];
 
-export default function Sidebar({ user }: { user?: any }) {
+interface User {
+    name?: string | null;
+    image?: string | null;
+    role?: string;
+}
+
+export default function Sidebar({ user }: { user?: User }) {
     const pathname = usePathname();
 
     return (
@@ -48,7 +54,7 @@ export default function Sidebar({ user }: { user?: any }) {
             <div className="p-4 border-t border-white/10 space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20">
                     {user?.image ? (
-                        <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full" />
+                        <img src={user.image} alt={user.name ?? "User"} className="w-8 h-8 rounded-full" />
                     ) : (
                         <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold">
                             {user?.name?.[0] || "U"}

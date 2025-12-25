@@ -64,7 +64,7 @@ export default function IntelligencePage() {
                     <div className="flex-1 bg-black/20 rounded-xl p-4 mb-4 text-sm text-white/50 overflow-y-auto space-y-4">
                         <div className="flex flex-col items-start">
                             <div className="bg-accent/20 text-white rounded-2xl rounded-tl-none px-4 py-3 max-w-[90%] border border-accent/10">
-                                <p>Hello! I'm monitoring all 3 zones. Everything looks stable, but humidity in Zone A is trending upwards. How can I help?</p>
+                                <p>Hello! I&apos;m monitoring all 3 zones. Everything looks stable, but humidity in Zone A is trending upwards. How can I help?</p>
                             </div>
                             <span className="text-[10px] text-white/30 mt-1 ml-2">EcoFusion AI • Just now</span>
                         </div>

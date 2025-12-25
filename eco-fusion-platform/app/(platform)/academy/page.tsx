@@ -4,12 +4,14 @@ import Link from "next/link";
 import { BookOpen, Trophy, Clock, Medal, PlayCircle, Star } from "lucide-react";
 import { COURSES } from "@/lib/data/lms-seed";
 import { useLmsStore } from "@/lib/stores/use-lms-store";
-import clsx from "clsx";
 
 export default function AcademyDashboard() {
-    // Hydration safe state
+    // Hydration safe state - intentional pattern for SSR/client sync
     const [isClient, setIsClient] = useState(false);
-    useEffect(() => setIsClient(true), []);
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsClient(true);
+    }, []);
 
     const { xp, completedCourses, getCourseProgress } = useLmsStore();
 
