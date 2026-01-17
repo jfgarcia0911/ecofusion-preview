@@ -76,4 +76,4 @@ See [LICENSE](../LICENSE) and [COPYRIGHT](../COPYRIGHT) in the project root for 
 ## Contact
 
 - **GitHub:** [@twinn129](https://github.com/twinn129)
-- **Email:** bradford@llayd.com
+- **Email:** support@llayd.com

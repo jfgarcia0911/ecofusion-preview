@@ -86,7 +86,7 @@ See [LICENSE](LICENSE) for full license terms and [COPYRIGHT](COPYRIGHT) for det
 ## Contact
 
 - **GitHub:** [@twinn129](https://github.com/twinn129)
-- **Email:** bradford@llayd.com
+- **Email:** support@llayd.com
 
 ---
 
