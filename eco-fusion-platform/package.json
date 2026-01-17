@@ -1,7 +1,27 @@
 {
   "name": "eco-fusion-platform",
   "version": "0.1.0",
+  "description": "EcoFusion - Sustainable Agriculture Education Platform",
   "private": true,
+  "author": {
+    "name": "Bradford Phillips",
+    "email": "bradford@llayd.com"
+  },
+  "contributors": [
+    {
+      "name": "Bradford Phillips",
+      "email": "bradford@llayd.com"
+    }
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/twinn129/EcoFusion.git"
+  },
+  "homepage": "https://github.com/twinn129/EcoFusion#readme",
+  "bugs": {
+    "url": "https://github.com/twinn129/EcoFusion/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

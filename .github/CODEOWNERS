@@ -1,0 +1,21 @@
+# CODEOWNERS - EcoFusion Project
+# This file defines the default owners for all code in this repository.
+# These owners will be requested for review when someone opens a pull request.
+
+# Global owners - responsible for all code in the repository
+* @twinn129
+
+# Platform code
+/eco-fusion-platform/ @twinn129
+
+# Education curriculum
+/education/ @twinn129
+
+# Business strategy documentation
+/Business Strategy/ @twinn129
+
+# Configuration files
+*.json @twinn129
+*.yaml @twinn129
+*.yml @twinn129
+*.config.* @twinn129

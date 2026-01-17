@@ -1,0 +1,95 @@
+COPYRIGHT NOTICE
+
+EcoFusion - Sustainable Agriculture Education Platform
+
+Copyright (c) 2024-2026 LLAYD LLC. All rights reserved.
+
+================================================================================
+
+OWNERSHIP INFORMATION
+
+Legal Entity:       LLAYD LLC
+Primary Author:     Bradford Phillips
+Project Name:       EcoFusion
+Repository:         https://github.com/twinn129/EcoFusion
+
+================================================================================
+
+INTELLECTUAL PROPERTY
+
+This software and all associated documentation, educational content, curriculum
+materials, and business strategy documents are the intellectual property of
+LLAYD LLC.
+
+The EcoFusion platform includes:
+
+1. SOFTWARE COMPONENTS
+   - Next.js web application (eco-fusion-platform/)
+   - Authentication and authorization systems
+   - Dashboard and analytics modules
+   - Learning management system (LMS) features
+
+2. EDUCATIONAL CONTENT
+   - 74 comprehensive courses across 5 certification levels
+   - Course curriculum and lesson materials
+   - Quizzes, assessments, and examinations
+   - Cheat sheets, handouts, and reference materials
+   - Instructor training frameworks
+
+3. BUSINESS DOCUMENTATION
+   - Strategic planning documents
+   - Business methodology implementations
+   - Operational frameworks
+
+================================================================================
+
+LICENSE
+
+This project is licensed under the MIT License. See the LICENSE file in the
+root directory for full license terms.
+
+================================================================================
+
+CONTACT
+
+For licensing inquiries, partnership opportunities, or permissions beyond the
+scope of the MIT License, please contact:
+
+LLAYD LLC
+Bradford Phillips
+Email: bradford@llayd.com
+GitHub: @twinn129
+
+================================================================================
+
+TRADEMARKS
+
+"EcoFusion" and the EcoFusion logo are trademarks of LLAYD LLC.
+
+================================================================================
+
+THIRD-PARTY ATTRIBUTIONS
+
+This project incorporates the following third-party software and frameworks:
+
+- Next.js (MIT License) - https://nextjs.org/
+- React (MIT License) - https://reactjs.org/
+- Tailwind CSS (MIT License) - https://tailwindcss.com/
+- Framer Motion (MIT License) - https://www.framer.com/motion/
+- Lucide Icons (ISC License) - https://lucide.dev/
+- Recharts (MIT License) - https://recharts.org/
+- Zustand (MIT License) - https://zustand-demo.pmnd.rs/
+- NextAuth.js (ISC License) - https://next-auth.js.org/
+
+Business strategy documentation references methodologies from:
+- Tony Robbins (Business Mastery)
+- Alex Hormozi (Acquisition.com)
+- Russell Brunson (ClickFunnels)
+
+These references are for educational and implementation purposes only and do
+not imply endorsement or affiliation.
+
+================================================================================
+
+Last Updated: January 2026
+Document Version: 1.0
