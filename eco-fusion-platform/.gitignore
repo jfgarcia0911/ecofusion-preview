@@ -40,3 +40,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Old/backup directories
+/.next-old/
+/node_modules_corrupt/
+
+# Backup files
+*.bak
+
+# Server logs
+server.log

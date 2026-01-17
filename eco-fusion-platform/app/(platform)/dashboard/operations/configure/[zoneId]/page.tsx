@@ -29,9 +29,7 @@ export default function ZoneConfigurationPage() {
     ]);
 
     useEffect(() => {
-        // Initialize zone data based on route parameter
         if (isNewZone) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalZone({
                 id: `zone-${Date.now()}`,
                 name: "New Zone",
@@ -42,7 +40,6 @@ export default function ZoneConfigurationPage() {
             });
         } else {
             const found = zones.find(z => z.id === zoneId);
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             if (found) setLocalZone(found);
         }
     }, [zones, zoneId, isNewZone]);
@@ -110,7 +107,7 @@ export default function ZoneConfigurationPage() {
                         {["wifi", "bluetooth", "wired"].map((type) => (
                             <button
                                 key={type}
-                                onClick={() => setLocalZone({ ...localZone, sensors: { ...localZone.sensors, type: type as "wifi" | "bluetooth" | "wired" } })}
+                                onClick={() => setLocalZone({ ...localZone, sensors: { ...localZone.sensors, type: type as any } })}
                                 className={clsx("flex flex-col items-center justify-center p-3 rounded-xl border transition-all",
                                     localZone.sensors.type === type
                                         ? "bg-secondary/20 border-secondary text-white"
@@ -128,7 +125,7 @@ export default function ZoneConfigurationPage() {
                             <span className="text-sm font-medium text-white/70">Protocol</span>
                             <select
                                 value={localZone.sensors.protocol}
-                                onChange={(e) => setLocalZone({ ...localZone, sensors: { ...localZone.sensors, protocol: e.target.value as "mqtt" | "http" | "ble" | "serial" } })}
+                                onChange={(e) => setLocalZone({ ...localZone, sensors: { ...localZone.sensors, protocol: e.target.value as any } })}
                                 className="bg-white/5 border border-white/10 rounded text-xs text-white px-2 py-1"
                             >
                                 <option value="mqtt">MQTT (IoT)</option>
