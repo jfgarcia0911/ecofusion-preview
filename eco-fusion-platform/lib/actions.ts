@@ -1,4 +1,3 @@
-
 'use server';
 
 import { signIn, signOut } from '@/auth';
@@ -21,6 +20,10 @@ export async function authenticate(
         }
         throw error;
     }
+}
+
+export async function googleSignIn() {
+    await signIn('google', { redirectTo: '/dashboard/executive' });
 }
 
 export async function logout() {

@@ -1,17 +1,18 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle } from "lucide-react";
 import clsx from "clsx";
 
 const navItems = [
-    { name: "Executive", href: "/dashboard/executive", icon: LayoutDashboard },
-    { name: "Operations", href: "/dashboard/operations", icon: Activity },
-    { name: "Business Units", href: "/dashboard/phases", icon: Layers },
-    { name: "Academy (LMS)", href: "/academy", icon: BookOpen }, // Added LMS
-    { name: "Intelligence", href: "/dashboard/intelligence", icon: Brain },
-    { name: "Employees", href: "/business/employees", icon: Users },
-    { name: "Tasks", href: "/business/tasks", icon: ClipboardList },
+    { name: "Executive", href: "/dashboard/executive", icon: LayoutDashboard, tourId: "nav-executive" },
+    { name: "Operations", href: "/dashboard/operations", icon: Activity, tourId: "nav-operations" },
+    { name: "Business Units", href: "/dashboard/phases", icon: Layers, tourId: "nav-phases" },
+    { name: "Academy (LMS)", href: "/academy", icon: BookOpen, tourId: "nav-academy" },
+    { name: "Intelligence", href: "/dashboard/intelligence", icon: Brain, tourId: "nav-intelligence" },
+    { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
+    { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
+    { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 
 interface User {
@@ -24,7 +25,7 @@ export default function Sidebar({ user }: { user?: User }) {
     const pathname = usePathname();
 
     return (
-        <aside className="w-64 border-r border-white/10 glass-panel flex flex-col z-20">
+        <aside data-tour="sidebar" className="w-64 border-r border-white/10 glass-panel flex flex-col z-20">
             <div className="p-6">
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
                     EcoFusion
@@ -38,6 +39,7 @@ export default function Sidebar({ user }: { user?: User }) {
                         <Link
                             key={item.href}
                             href={item.href}
+                            data-tour={item.tourId}
                             className={clsx(
                                 "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
                                 isActive

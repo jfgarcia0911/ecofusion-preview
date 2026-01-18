@@ -1,9 +1,8 @@
-
-import LoginForm from './login-form';
+import SignupForm from './signup-form';
 import { Leaf } from 'lucide-react';
 import Link from 'next/link';
 
-export default function LoginPage() {
+export default function SignupPage() {
     return (
         <main className="flex items-center justify-center min-h-screen relative overflow-hidden bg-primary font-sans">
             {/* Background Ambience */}
@@ -22,15 +21,15 @@ export default function LoginPage() {
                         <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-accent/20">
                             <Leaf className="text-primary" size={24} strokeWidth={2.5} />
                         </div>
-                        <h1 className="text-3xl font-bold text-white mb-1">Welcome Back</h1>
-                        <p className="text-white/50 text-sm">Sign in to EcoFusion Platform</p>
+                        <h1 className="text-3xl font-bold text-white mb-1">Create Account</h1>
+                        <p className="text-white/50 text-sm">Join EcoFusion Platform</p>
                     </div>
 
-                    <LoginForm />
+                    <SignupForm />
 
                     <div className="mt-8 text-center">
                         <p className="text-xs text-white/30">
-                            Don&apos;t have an account? <Link href="/signup" className="text-accent hover:underline">Create one</Link>
+                            Already have an account? <Link href="/login" className="text-accent hover:underline">Sign In</Link>
                         </p>
                     </div>
                 </div>

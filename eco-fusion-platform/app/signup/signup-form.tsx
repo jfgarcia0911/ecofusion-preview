@@ -1,8 +1,9 @@
 'use client';
 
-import { useActionState } from 'react';
-import { authenticate, googleSignIn } from '@/lib/actions';
-import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { googleSignIn } from '@/lib/actions';
+import { Lock, Mail, User, ArrowRight, Loader2 } from 'lucide-react';
 
 function GoogleIcon({ className }: { className?: string }) {
     return (
@@ -27,15 +28,66 @@ function GoogleIcon({ className }: { className?: string }) {
     );
 }
 
-export default function LoginForm() {
-    const [errorMessage, formAction, isPending] = useActionState(
-        authenticate,
-        undefined,
-    );
+export default function SignupForm() {
+    const router = useRouter();
+    const [isPending, setIsPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        setIsPending(true);
+        setError(null);
+
+        const formData = new FormData(e.currentTarget);
+        const name = formData.get('name') as string;
+        const email = formData.get('email') as string;
+        const password = formData.get('password') as string;
+        const confirmPassword = formData.get('confirmPassword') as string;
+
+        if (password !== confirmPassword) {
+            setError('Passwords do not match');
+            setIsPending(false);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setError(data.error || 'Something went wrong');
+                setIsPending(false);
+                return;
+            }
+
+            router.push('/login?registered=true');
+        } catch {
+            setError('Something went wrong');
+            setIsPending(false);
+        }
+    }
 
     return (
         <div className="space-y-6">
-            <form action={formAction} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2">
+                    <label className="text-sm font-medium text-white/70 flex items-center gap-2">
+                        <User size={14} /> Full Name
+                    </label>
+                    <input
+                        className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
+                        id="name"
+                        type="text"
+                        name="name"
+                        placeholder="Enter your full name"
+                        required
+                    />
+                </div>
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                         <Mail size={14} /> Email
@@ -53,35 +105,39 @@ export default function LoginForm() {
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                         <Lock size={14} /> Password
                     </label>
-                    <div className="relative">
-                        <input
-                            className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
-                            id="password"
-                            type="password"
-                            name="password"
-                            placeholder="Enter your password"
-                            required
-                            minLength={6}
-                        />
-                    </div>
+                    <input
+                        className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
+                        id="password"
+                        type="password"
+                        name="password"
+                        placeholder="Create a password (min 8 characters)"
+                        required
+                        minLength={8}
+                    />
                 </div>
-
-                <div className="flex items-center justify-between text-xs text-white/50">
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors">
-                        <input type="checkbox" className="rounded bg-white/10 border-white/10 text-accent focus:ring-accent" />
-                        <span>Remember me</span>
+                <div className="space-y-2">
+                    <label className="text-sm font-medium text-white/70 flex items-center gap-2">
+                        <Lock size={14} /> Confirm Password
                     </label>
-                    <a href="#" className="hover:text-accent transition-colors">Forgot password?</a>
+                    <input
+                        className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
+                        id="confirmPassword"
+                        type="password"
+                        name="confirmPassword"
+                        placeholder="Confirm your password"
+                        required
+                        minLength={8}
+                    />
                 </div>
 
                 <button
+                    type="submit"
                     className="w-full py-3 px-4 bg-accent text-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-                    aria-disabled={isPending}
                     disabled={isPending}
                 >
                     {isPending ? <Loader2 className="animate-spin" size={20} /> : (
                         <>
-                            Sign In <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                            Create Account <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                         </>
                     )}
                 </button>
@@ -91,9 +147,9 @@ export default function LoginForm() {
                     aria-live="polite"
                     aria-atomic="true"
                 >
-                    {errorMessage && (
+                    {error && (
                         <p className="text-sm text-red-400 flex items-center gap-2 bg-red-500/10 px-3 py-1 rounded-lg w-full justify-center border border-red-500/20">
-                            {errorMessage}
+                            {error}
                         </p>
                     )}
                 </div>

@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
 
 export default async function DashboardLayout({
     children,
@@ -8,6 +10,16 @@ export default async function DashboardLayout({
     children: React.ReactNode;
 }) {
     const session = await auth();
+
+    // Check if user needs onboarding
+    let showOnboarding = false;
+    if (session?.user?.id) {
+        const user = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { onboardingComplete: true },
+        });
+        showOnboarding = !user?.onboardingComplete;
+    }
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
@@ -21,6 +33,7 @@ export default async function DashboardLayout({
                     </main>
                 </div>
             </div>
+            <OnboardingWrapper initialShowTour={showOnboarding} />
         </div>
     );
 }
