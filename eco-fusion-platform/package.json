@@ -31,6 +31,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "tsx scripts/create-admin.ts",
+    "db:seed-training": "tsx scripts/seed-training-courses.ts",
     "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
