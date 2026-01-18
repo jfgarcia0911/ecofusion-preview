@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -19,6 +19,7 @@ const baseNavItems = [
     { name: "Sales", href: "/sales", icon: ShoppingCart, tourId: "nav-sales" },
     { name: "Academy (LMS)", href: "/academy", icon: BookOpen, tourId: "nav-academy" },
     { name: "Intelligence", href: "/dashboard/intelligence", icon: Brain, tourId: "nav-intelligence" },
+    { name: "AI Assistant", href: "/assistant", icon: Bot, tourId: "nav-assistant" },
 ];
 
 // Admin-only navigation items
