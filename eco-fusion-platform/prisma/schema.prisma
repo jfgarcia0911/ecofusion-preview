@@ -41,6 +41,15 @@ model User {
   coursesAssignedBy  CourseAssignment[] @relation("AssignedByCourses")
   completedCourses   CourseCompletion[] @relation("CompletedCourses")
   completedLessons   LessonCompletion[] @relation("CompletedLessons")
+
+  // Inventory & Sales relations
+  fishStocks         FishStock[]
+  plantCrops         PlantCrop[]
+  growthParameters   GrowthParameter[]
+  harvests           Harvest[]
+  salesInventory     SalesInventory[]
+  sales              Sale[]
+  integrationSettings IntegrationSettings?
 }
 
 model Account {
@@ -91,6 +100,8 @@ model Zone {
 
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   metrics SensorReading[]
+  fishStocks FishStock[]
+  plantCrops PlantCrop[]
 }
 
 // Sensor readings for zones
@@ -313,6 +324,221 @@ model DashboardData {
   alertCount       Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// INVENTORY & PRODUCTION MANAGEMENT
+// ==========================================
+
+// Fish stock/inventory per zone
+model FishStock {
+  id              String    @id @default(cuid())
+  userId          String
+  zoneId          String
+  species         String    // e.g., "Tilapia", "Catfish", "Trout"
+  quantity        Int
+  avgWeight       Float?    // Average weight in grams
+  ageWeeks        Int?      // Age in weeks
+  dateAdded       DateTime  @default(now())
+  expectedHarvest DateTime?
+  status          String    @default("growing") // "growing", "ready", "harvested"
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zone       Zone            @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  growthLogs FishGrowthLog[]
+  harvests   Harvest[]
+}
+
+// Fish growth tracking log
+model FishGrowthLog {
+  id          String   @id @default(cuid())
+  fishStockId String
+  recordedAt  DateTime @default(now())
+  avgWeight   Float    // Weight at time of recording
+  mortality   Int      @default(0) // Fish lost
+  feedUsed    Float?   // kg of feed
+  notes       String?
+
+  fishStock FishStock @relation(fields: [fishStockId], references: [id], onDelete: Cascade)
+}
+
+// Plant crop inventory per zone
+model PlantCrop {
+  id              String    @id @default(cuid())
+  userId          String
+  zoneId          String
+  cropType        String    // e.g., "Lettuce", "Basil", "Tomatoes"
+  variety         String?   // e.g., "Butterhead", "Genovese"
+  quantity        Int       // Number of plants
+  plantedDate     DateTime
+  expectedHarvest DateTime?
+  status          String    @default("growing") // "seedling", "growing", "ready", "harvested"
+  location        String?   // Specific grow bed/area
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zone       Zone             @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  growthLogs PlantGrowthLog[]
+  harvests   Harvest[]
+}
+
+// Plant growth tracking log
+model PlantGrowthLog {
+  id          String   @id @default(cuid())
+  plantCropId String
+  recordedAt  DateTime @default(now())
+  heightCm    Float?   // Average height
+  healthScore Int?     // 1-10 scale
+  losses      Int      @default(0) // Plants lost
+  notes       String?
+
+  plantCrop PlantCrop @relation(fields: [plantCropId], references: [id], onDelete: Cascade)
+}
+
+// Growth parameter templates for species/crop types
+model GrowthParameter {
+  id            String   @id @default(cuid())
+  userId        String
+  type          String   // "fish" or "plant"
+  species       String   // e.g., "Tilapia" or "Lettuce"
+  variety       String?
+
+  // Growth timeline
+  seedlingDays  Int?     // Days in seedling stage (plants)
+  growingDays   Int      // Days to maturity
+  harvestWeight Float?   // Expected weight at harvest (fish: grams, plants: grams)
+
+  // Environmental parameters
+  optimalTempMin Float?
+  optimalTempMax Float?
+  optimalPh      Float?
+
+  // Yield expectations
+  expectedYield Float?   // Expected output per unit
+  yieldUnit     String?  // "kg", "heads", "bunches"
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Harvest records
+model Harvest {
+  id          String    @id @default(cuid())
+  userId      String
+  harvestDate DateTime  @default(now())
+  type        String    // "fish" or "plant"
+  fishStockId String?
+  plantCropId String?
+  quantity    Float     // Amount harvested
+  unit        String    // "kg", "heads", "bunches"
+  quality     String?   // "A", "B", "C" grade
+  destination String    @default("inventory") // "inventory", "sale", "waste"
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fishStock FishStock? @relation(fields: [fishStockId], references: [id])
+  plantCrop PlantCrop? @relation(fields: [plantCropId], references: [id])
+  saleItems SaleItem[]
+  salesInventory SalesInventory[]
+}
+
+// ==========================================
+// SALES MANAGEMENT
+// ==========================================
+
+// Sales inventory (items ready for sale)
+model SalesInventory {
+  id          String    @id @default(cuid())
+  userId      String
+  productName String
+  productType String    // "fish", "produce", "other"
+  quantity    Float
+  unit        String    // "kg", "heads", "bunches"
+  unitPrice   Float
+  harvestId   String?   // Optional link to harvest
+  addedDate   DateTime  @default(now())
+  expiryDate  DateTime?
+  status      String    @default("available") // "available", "reserved", "sold", "expired"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  harvest   Harvest?  @relation(fields: [harvestId], references: [id])
+  saleItems SaleItem[]
+}
+
+// Sales transactions
+model Sale {
+  id            String    @id @default(cuid())
+  userId        String
+  saleDate      DateTime  @default(now())
+  customerName  String?
+  customerEmail String?
+  customerPhone String?
+  subtotal      Float
+  tax           Float     @default(0)
+  discount      Float     @default(0)
+  total         Float
+  paymentMethod String?   // "cash", "card", "invoice"
+  status        String    @default("completed") // "pending", "completed", "cancelled"
+  notes         String?
+
+  // CRM Integration
+  crmCustomerId String?   // Satistio/GoHighLevel contact ID
+  crmSynced     Boolean   @default(false)
+  crmSyncedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items SaleItem[]
+}
+
+// Sale line items
+model SaleItem {
+  id              String  @id @default(cuid())
+  saleId          String
+  inventoryItemId String?
+  harvestId       String?
+  productName     String
+  quantity        Float
+  unit            String
+  unitPrice       Float
+  total           Float
+
+  sale          Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  inventoryItem SalesInventory? @relation(fields: [inventoryItemId], references: [id])
+  harvest       Harvest?        @relation(fields: [harvestId], references: [id])
+}
+
+// ==========================================
+// CRM INTEGRATION SETTINGS
+// ==========================================
+
+// Integration settings for CRM (Satistio/GoHighLevel)
+model IntegrationSettings {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  provider   String    // "gohighlevel"
+  apiKey     String?   // Stored encrypted
+  locationId String?
+  isEnabled  Boolean   @default(false)
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

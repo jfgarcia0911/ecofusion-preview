@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -15,6 +15,8 @@ const baseNavItems = [
     { name: "Executive", href: "/dashboard/executive", icon: LayoutDashboard, tourId: "nav-executive" },
     { name: "Operations", href: "/dashboard/operations", icon: Activity, tourId: "nav-operations" },
     { name: "Business Units", href: "/dashboard/phases", icon: Layers, tourId: "nav-phases" },
+    { name: "Inventory", href: "/inventory", icon: Package, tourId: "nav-inventory" },
+    { name: "Sales", href: "/sales", icon: ShoppingCart, tourId: "nav-sales" },
     { name: "Academy (LMS)", href: "/academy", icon: BookOpen, tourId: "nav-academy" },
     { name: "Intelligence", href: "/dashboard/intelligence", icon: Brain, tourId: "nav-intelligence" },
 ];
@@ -24,6 +26,7 @@ const adminNavItems = [
     { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
     { name: "Training Mgmt", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
     { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
+    { name: "Integrations", href: "/settings/integrations", icon: Settings, tourId: "nav-integrations" },
 ];
 
 // User-only navigation items
