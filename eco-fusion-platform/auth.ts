@@ -50,6 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     name: user.name,
                     email: user.email,
                     image: user.image,
+                    role: user.role,
                 };
             },
         }),
@@ -59,12 +60,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         async session({ session, token }) {
             if (token.sub && session.user) {
                 session.user.id = token.sub;
+                session.user.role = token.role as string;
             }
             return session;
         },
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger }) {
             if (user) {
                 token.sub = user.id;
+                token.role = user.role;
+            }
+            // Refresh role from database on update
+            if (trigger === 'update' && token.sub) {
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: token.sub },
+                    select: { role: true },
+                });
+                if (dbUser) {
+                    token.role = dbUser.role;
+                }
             }
             return token;
         },

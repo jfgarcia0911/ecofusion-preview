@@ -1,9 +1,22 @@
 import { Bell, Search } from "lucide-react";
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import UserMenu from "./UserMenu";
+import NotificationBell from "./NotificationBell";
 
 export default async function Header() {
     const session = await auth();
+
+    // Fetch unread notification count
+    let unreadCount = 0;
+    if (session?.user?.id) {
+        unreadCount = await prisma.notification.count({
+            where: {
+                userId: session.user.id,
+                read: false,
+            },
+        });
+    }
 
     return (
         <header data-tour="header" className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-6 z-10">
@@ -18,10 +31,7 @@ export default async function Header() {
                 </div>
             </div>
             <div className="flex items-center gap-4">
-                <button className="relative p-2 rounded-full hover:bg-white/10 transition-colors">
-                    <Bell size={20} className="text-white/70" />
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                </button>
+                <NotificationBell initialCount={unreadCount} />
                 {session?.user && (
                     <div data-tour="user-menu">
                         <UserMenu user={session.user} />

@@ -1,19 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar } from "lucide-react";
 import clsx from "clsx";
-
-const navItems = [
-    { name: "Executive", href: "/dashboard/executive", icon: LayoutDashboard, tourId: "nav-executive" },
-    { name: "Operations", href: "/dashboard/operations", icon: Activity, tourId: "nav-operations" },
-    { name: "Business Units", href: "/dashboard/phases", icon: Layers, tourId: "nav-phases" },
-    { name: "Academy (LMS)", href: "/academy", icon: BookOpen, tourId: "nav-academy" },
-    { name: "Intelligence", href: "/dashboard/intelligence", icon: Brain, tourId: "nav-intelligence" },
-    { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
-    { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
-    { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
-];
 
 interface User {
     name?: string | null;
@@ -21,8 +10,42 @@ interface User {
     role?: string;
 }
 
+// Base navigation items for all users
+const baseNavItems = [
+    { name: "Executive", href: "/dashboard/executive", icon: LayoutDashboard, tourId: "nav-executive" },
+    { name: "Operations", href: "/dashboard/operations", icon: Activity, tourId: "nav-operations" },
+    { name: "Business Units", href: "/dashboard/phases", icon: Layers, tourId: "nav-phases" },
+    { name: "Academy (LMS)", href: "/academy", icon: BookOpen, tourId: "nav-academy" },
+    { name: "Intelligence", href: "/dashboard/intelligence", icon: Brain, tourId: "nav-intelligence" },
+];
+
+// Admin-only navigation items
+const adminNavItems = [
+    { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
+    { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
+];
+
+// User-only navigation items
+const userNavItems = [
+    { name: "My Schedule", href: "/schedules", icon: Calendar, tourId: "nav-schedules" },
+];
+
+// Common items for all users
+const commonNavItems = [
+    { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
+    { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
+];
+
 export default function Sidebar({ user }: { user?: User }) {
     const pathname = usePathname();
+    const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+
+    // Build nav items based on role
+    const navItems = [
+        ...baseNavItems,
+        ...(isAdmin ? adminNavItems : userNavItems),
+        ...commonNavItems,
+    ];
 
     return (
         <aside data-tour="sidebar" className="w-64 border-r border-white/10 glass-panel flex flex-col z-20">
@@ -68,7 +91,6 @@ export default function Sidebar({ user }: { user?: User }) {
                     </div>
                 </div>
                 <form action={async () => {
-                    // Dynamic import to avoid cycles or client/server issues if actions imported directly
                     const { logout } = await import("@/lib/actions");
                     await logout();
                 }}>

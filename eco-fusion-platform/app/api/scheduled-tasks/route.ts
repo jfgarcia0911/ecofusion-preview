@@ -1,0 +1,137 @@
+import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
+import { prisma } from '@/lib/prisma';
+
+// GET - Fetch scheduled tasks (admin sees all, users see their own)
+export async function GET() {
+    try {
+        const session = await auth();
+
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+
+        const tasks = await prisma.scheduledTask.findMany({
+            where: isAdmin ? {} : { assigneeId: session.user.id },
+            include: {
+                assignee: {
+                    select: { id: true, name: true, email: true, image: true },
+                },
+                creator: {
+                    select: { id: true, name: true },
+                },
+            },
+            orderBy: { scheduledFor: 'asc' },
+        });
+
+        return NextResponse.json(tasks);
+    } catch (error) {
+        console.error('Failed to fetch scheduled tasks:', error);
+        return NextResponse.json({ error: 'Failed to fetch scheduled tasks' }, { status: 500 });
+    }
+}
+
+// POST - Create new scheduled task (admin only)
+export async function POST(request: Request) {
+    try {
+        const session = await auth();
+
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        if (!isAdmin) {
+            return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+        }
+
+        const data = await request.json();
+        const { assigneeId, title, description, scheduledFor, dueDate, priority, zone, notifyBefore } = data;
+
+        if (!assigneeId || !title || !scheduledFor || !dueDate) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        const task = await prisma.scheduledTask.create({
+            data: {
+                creatorId: session.user.id,
+                assigneeId,
+                title,
+                description,
+                scheduledFor: new Date(scheduledFor),
+                dueDate: new Date(dueDate),
+                priority: priority ?? 'medium',
+                zone,
+                notifyBefore: notifyBefore ?? 30,
+            },
+            include: {
+                assignee: {
+                    select: { id: true, name: true, email: true, image: true },
+                },
+            },
+        });
+
+        // Create notification for the assigned user
+        await prisma.notification.create({
+            data: {
+                userId: assigneeId,
+                title: 'New Task Assigned',
+                message: `You have been assigned a new task: "${title}"`,
+                type: 'task',
+                link: '/schedules',
+            },
+        });
+
+        return NextResponse.json(task);
+    } catch (error) {
+        console.error('Failed to create scheduled task:', error);
+        return NextResponse.json({ error: 'Failed to create scheduled task' }, { status: 500 });
+    }
+}
+
+// PATCH - Update task status
+export async function PATCH(request: Request) {
+    try {
+        const session = await auth();
+
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const data = await request.json();
+        const { taskId, status } = data;
+
+        if (!taskId || !status) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify user is assigned to this task or is admin
+        const task = await prisma.scheduledTask.findUnique({
+            where: { id: taskId },
+        });
+
+        if (!task) {
+            return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+        }
+
+        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        if (!isAdmin && task.assigneeId !== session.user.id) {
+            return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+        }
+
+        const updatedTask = await prisma.scheduledTask.update({
+            where: { id: taskId },
+            data: {
+                status,
+                completedAt: status === 'completed' ? new Date() : null,
+            },
+        });
+
+        return NextResponse.json(updatedTask);
+    } catch (error) {
+        console.error('Failed to update task:', error);
+        return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+    }
+}
