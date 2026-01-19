@@ -9,12 +9,13 @@ interface OnboardingTourProps {
     onComplete: () => void;
 }
 
+// Tour steps that target elements present for all users
 const tourSteps: Step[] = [
     {
         target: 'body',
         content: (
             <div className="text-center">
-                <h2 className="text-xl font-bold mb-2">Welcome to EcoFusion! 🌱</h2>
+                <h2 className="text-xl font-bold mb-2">Welcome to EcoFusion!</h2>
                 <p>Let&apos;s take a quick tour to help you get started with your integrated farming platform.</p>
             </div>
         ),
@@ -82,16 +83,6 @@ const tourSteps: Step[] = [
         placement: 'right',
     },
     {
-        target: '[data-tour="nav-employees"]',
-        content: (
-            <div>
-                <h3 className="font-bold mb-2">Employee Management</h3>
-                <p>Manage your team, track schedules, assign roles, and monitor workforce performance.</p>
-            </div>
-        ),
-        placement: 'right',
-    },
-    {
         target: '[data-tour="nav-tasks"]',
         content: (
             <div>
@@ -135,7 +126,7 @@ const tourSteps: Step[] = [
         target: 'body',
         content: (
             <div className="text-center">
-                <h2 className="text-xl font-bold mb-2">You&apos;re All Set! 🎉</h2>
+                <h2 className="text-xl font-bold mb-2">You&apos;re All Set!</h2>
                 <p className="mb-2">Start by exploring the Executive Dashboard to see your operation overview.</p>
                 <p className="text-sm text-white/70">You can restart this tour anytime from your profile settings.</p>
             </div>
@@ -189,6 +180,8 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
             showSkipButton
             showProgress
             scrollToFirstStep
+            disableScrolling
+            spotlightClicks
             callback={handleCallback}
             styles={{
                 options: {
