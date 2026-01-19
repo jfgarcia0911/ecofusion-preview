@@ -42,7 +42,7 @@ const commonNavItems = [
 ];
 
 export default function Sidebar({ user }: { user?: User }) {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? '';
     const isAdmin = user?.role === 'admin' || user?.role === 'manager';
 
     // Build nav items based on role

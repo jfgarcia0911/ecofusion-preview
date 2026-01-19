@@ -49,7 +49,7 @@ interface LessonCompletion {
 export default function CoursePlayerPage() {
     const params = useParams();
     const router = useRouter();
-    const courseId = params.courseId as string;
+    const courseId = params?.courseId as string | undefined;
 
     const [course, setCourse] = useState<Course | null>(null);
     const [completedLessons, setCompletedLessons] = useState<LessonCompletion[]>([]);
@@ -61,7 +61,9 @@ export default function CoursePlayerPage() {
     const [completing, setCompleting] = useState(false);
 
     useEffect(() => {
-        fetchCourse();
+        if (courseId) {
+            fetchCourse();
+        }
     }, [courseId]);
 
     const fetchCourse = async () => {

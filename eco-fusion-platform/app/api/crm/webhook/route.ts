@@ -1,13 +1,62 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
+
+/**
+ * Verifies the webhook signature from GoHighLevel
+ * The signature is an HMAC SHA256 hash of the request body
+ */
+function verifyWebhookSignature(signature: string | null, body: string): boolean {
+  const webhookSecret = process.env.GOHIGHLEVEL_WEBHOOK_SECRET;
+
+  // If no secret is configured, log warning and allow (for development)
+  if (!webhookSecret) {
+    console.warn('GOHIGHLEVEL_WEBHOOK_SECRET not configured - webhook verification disabled');
+    return true;
+  }
+
+  // If secret is configured but no signature provided, reject
+  if (!signature) {
+    return false;
+  }
+
+  const expectedSignature = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(body)
+    .digest('hex');
+
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+  } catch {
+    // Buffer lengths don't match
+    return false;
+  }
+}
 
 // POST - Receive webhooks from GoHighLevel
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
+    // Get raw body for signature verification
+    const body = await request.text();
 
-    // Log webhook for debugging
-    console.log('CRM Webhook received:', JSON.stringify(data, null, 2));
+    // Verify webhook signature
+    const signature = request.headers.get('x-signature') || request.headers.get('x-ghl-signature');
+    if (!verifyWebhookSignature(signature, body)) {
+      console.error('Webhook signature verification failed');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
+    // Parse the JSON body
+    const data = JSON.parse(body);
+
+    // Log webhook for debugging (redact sensitive data in production)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('CRM Webhook received:', JSON.stringify(data, null, 2));
+    }
 
     const { type, locationId, contact, opportunity } = data;
 

@@ -1,20 +1,17 @@
 "use client";
 import { useParams } from "next/navigation";
 import { BUSINESS_PHASES } from "@/lib/constants";
-import { DollarSign, AlertCircle, Plus, Trash2, Check } from "lucide-react";
+import { DollarSign, AlertCircle, Plus, Trash2, Check, Loader2 } from "lucide-react";
 import KpiCard from "@/components/widgets/KpiCard";
 import PhaseSettingsModal from "@/components/modals/PhaseSettingsModal";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useState, useEffect, useCallback } from "react";
 import clsx from "clsx";
 
-// Mock Data for graphs (would be dynamic based on ID in real app)
-const mockRevenueData = [
-    { name: 'Week 1', revenue: 1200 },
-    { name: 'Week 2', revenue: 1800 },
-    { name: 'Week 3', revenue: 1500 },
-    { name: 'Week 4', revenue: 2200 },
-];
+interface RevenueData {
+    name: string;
+    revenue: number;
+}
 
 interface Task {
     id: string;
@@ -41,6 +38,11 @@ export default function PhaseDetailPage() {
     const [assignee, setAssignee] = useState("");
     const [loading, setLoading] = useState(true);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
+    const [totalRevenue, setTotalRevenue] = useState(0);
+    const [revenueLoading, setRevenueLoading] = useState(true);
+    const [efficiency, setEfficiency] = useState<number | null>(null);
+    const [metricsLoading, setMetricsLoading] = useState(true);
 
     const fetchTasks = useCallback(async () => {
         if (!id) return;
@@ -69,10 +71,43 @@ export default function PhaseDetailPage() {
         }
     }, []);
 
+    const fetchRevenue = useCallback(async () => {
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/phases/${id}/revenue`);
+            if (response.ok) {
+                const data = await response.json();
+                setRevenueData(data.weeklyData);
+                setTotalRevenue(data.totalRevenue);
+            }
+        } catch (err) {
+            console.error("Error fetching revenue:", err);
+        } finally {
+            setRevenueLoading(false);
+        }
+    }, [id]);
+
+    const fetchMetrics = useCallback(async () => {
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/phases/${id}/metrics`);
+            if (response.ok) {
+                const data = await response.json();
+                setEfficiency(data.efficiency);
+            }
+        } catch (err) {
+            console.error("Error fetching metrics:", err);
+        } finally {
+            setMetricsLoading(false);
+        }
+    }, [id]);
+
     useEffect(() => {
         fetchTasks();
         fetchEmployees();
-    }, [fetchTasks, fetchEmployees]);
+        fetchRevenue();
+        fetchMetrics();
+    }, [fetchTasks, fetchEmployees, fetchRevenue, fetchMetrics]);
 
     if (!phase) return <div className="text-white">Phase not found</div>;
 
@@ -158,24 +193,40 @@ export default function PhaseDetailPage() {
                             <DollarSign size={18} className="text-accent" />
                             Revenue Performance
                         </h3>
-                        <span className="text-2xl font-bold text-white">$6,700 <span className="text-xs text-white/50 font-normal">this month</span></span>
+                        {revenueLoading ? (
+                            <Loader2 className="animate-spin text-white/50" size={24} />
+                        ) : (
+                            <span className="text-2xl font-bold text-white">
+                                ${totalRevenue.toLocaleString()} <span className="text-xs text-white/50 font-normal">this month</span>
+                            </span>
+                        )}
                     </div>
                     <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={mockRevenueData}>
-                                <defs>
-                                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                                <Tooltip contentStyle={{ backgroundColor: '#0B2219', borderColor: 'rgba(255,255,255,0.1)', color: '#fff' }} />
-                                <Area type="monotone" dataKey="revenue" stroke="#4ade80" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        {revenueLoading ? (
+                            <div className="flex items-center justify-center h-full">
+                                <Loader2 className="animate-spin text-accent" size={32} />
+                            </div>
+                        ) : revenueData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-white/50">
+                                No revenue data for this period
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={revenueData}>
+                                    <defs>
+                                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="rgba(255,255,255,0.3)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                                    <Tooltip contentStyle={{ backgroundColor: '#0B2219', borderColor: 'rgba(255,255,255,0.1)', color: '#fff' }} />
+                                    <Area type="monotone" dataKey="revenue" stroke="#4ade80" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
                 </div>
 
@@ -184,16 +235,30 @@ export default function PhaseDetailPage() {
                     <div className="glass-card p-6">
                         <h3 className="text-sm font-bold text-white/70 uppercase mb-4">Phase Efficiency</h3>
                         <div className="flex items-center justify-center py-4">
-                            <div className="relative w-32 h-32">
-                                <svg className="w-full h-full transform -rotate-90">
-                                    <circle cx="64" cy="64" r="60" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="transparent" />
-                                    <circle cx="64" cy="64" r="60" stroke="#4ade80" strokeWidth="8" fill="transparent" strokeDasharray="377" strokeDashoffset="40" strokeLinecap="round" />
-                                </svg>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-3xl font-bold text-white">89%</span>
-                                    <span className="text-[10px] text-white/50 uppercase">Optimization</span>
+                            {metricsLoading ? (
+                                <Loader2 className="animate-spin text-accent" size={32} />
+                            ) : (
+                                <div className="relative w-32 h-32">
+                                    <svg className="w-full h-full transform -rotate-90">
+                                        <circle cx="64" cy="64" r="60" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="transparent" />
+                                        <circle
+                                            cx="64"
+                                            cy="64"
+                                            r="60"
+                                            stroke="#4ade80"
+                                            strokeWidth="8"
+                                            fill="transparent"
+                                            strokeDasharray="377"
+                                            strokeDashoffset={377 - (377 * (efficiency ?? 0)) / 100}
+                                            strokeLinecap="round"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-3xl font-bold text-white">{efficiency ?? 0}%</span>
+                                        <span className="text-[10px] text-white/50 uppercase">Optimization</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

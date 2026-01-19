@@ -108,6 +108,8 @@ model SensorReading {
   humidity    Float?
   timestamp   DateTime @default(now())
   zone        Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([zoneId, timestamp])
 }
 
 model ZoneAlertThreshold {
@@ -410,8 +412,8 @@ model Harvest {
   notes          String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
-  fishStock      FishStock?       @relation(fields: [fishStockId], references: [id])
-  plantCrop      PlantCrop?       @relation(fields: [plantCropId], references: [id])
+  fishStock      FishStock?       @relation(fields: [fishStockId], references: [id], onDelete: SetNull)
+  plantCrop      PlantCrop?       @relation(fields: [plantCropId], references: [id], onDelete: SetNull)
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   saleItems      SaleItem[]
   salesInventory SalesInventory[]

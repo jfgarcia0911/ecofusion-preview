@@ -80,13 +80,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'At least one item is required' }, { status: 400 });
     }
 
-    // Calculate totals
+    // Validate items and check inventory
     let subtotal = 0;
+    const inventoryChecks: { itemId: string; productName: string; requested: number }[] = [];
+
     for (const item of items) {
       if (!item.productName || !item.quantity || item.unitPrice === undefined) {
         return NextResponse.json({ error: 'Invalid item data' }, { status: 400 });
       }
+      if (item.quantity <= 0) {
+        return NextResponse.json({ error: `Invalid quantity for ${item.productName}` }, { status: 400 });
+      }
       subtotal += item.quantity * item.unitPrice;
+
+      // Track inventory items that need validation
+      if (item.inventoryItemId) {
+        inventoryChecks.push({
+          itemId: item.inventoryItemId,
+          productName: item.productName,
+          requested: item.quantity,
+        });
+      }
+    }
+
+    // Verify sufficient inventory for all items
+    if (inventoryChecks.length > 0) {
+      const inventoryItems = await prisma.salesInventory.findMany({
+        where: {
+          id: { in: inventoryChecks.map(i => i.itemId) },
+          userId: session.user.id,
+        },
+      });
+
+      const inventoryMap = new Map(inventoryItems.map(item => [item.id, item]));
+
+      for (const check of inventoryChecks) {
+        const inventory = inventoryMap.get(check.itemId);
+        if (!inventory) {
+          return NextResponse.json({
+            error: `Inventory item not found: ${check.productName}`,
+          }, { status: 404 });
+        }
+        if (inventory.quantity < check.requested) {
+          return NextResponse.json({
+            error: `Insufficient stock for ${check.productName}. Available: ${inventory.quantity}, Requested: ${check.requested}`,
+          }, { status: 400 });
+        }
+      }
     }
 
     const taxAmount = tax || 0;

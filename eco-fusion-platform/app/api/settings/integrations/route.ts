@@ -1,15 +1,25 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
-// Simple encryption/decryption for API keys (in production, use proper encryption)
+/**
+ * Encrypts an API key using AES-256-GCM
+ */
 function encryptApiKey(key: string): string {
-  // Base64 encode with a simple transformation
-  return Buffer.from(key).toString('base64');
+  return encrypt(key);
 }
 
+/**
+ * Decrypts an API key. Handles both new encrypted format and legacy base64 format.
+ */
 function decryptApiKey(encrypted: string): string {
   try {
+    // Check if it's in the new encrypted format (iv:authTag:data)
+    if (isEncrypted(encrypted)) {
+      return decrypt(encrypted);
+    }
+    // Legacy: try base64 decode for migration purposes
     return Buffer.from(encrypted, 'base64').toString('utf-8');
   } catch {
     return '';

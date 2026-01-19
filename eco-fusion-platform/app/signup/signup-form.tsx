@@ -1,9 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { googleSignIn } from '@/lib/actions';
-import { Lock, Mail, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
+
+interface PasswordStrength {
+    score: number;
+    strength: 'weak' | 'fair' | 'good' | 'strong';
+    checks: {
+        length: boolean;
+        uppercase: boolean;
+        lowercase: boolean;
+        number: boolean;
+        special: boolean;
+    };
+}
+
+function calculatePasswordStrength(password: string): PasswordStrength {
+    const checks = {
+        length: password.length >= 10,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[!@#$%^&*(),.?":{}|<>_\-+=[\]\\/'`;~]/.test(password),
+    };
+
+    const passedChecks = Object.values(checks).filter(Boolean).length;
+    let score = passedChecks * 20;
+
+    // Bonus for longer passwords
+    if (password.length >= 12) score += 5;
+    if (password.length >= 14) score += 5;
+
+    score = Math.min(100, score);
+
+    let strength: PasswordStrength['strength'];
+    if (score >= 80) strength = 'strong';
+    else if (score >= 60) strength = 'good';
+    else if (score >= 40) strength = 'fair';
+    else strength = 'weak';
+
+    return { score, strength, checks };
+}
 
 function GoogleIcon({ className }: { className?: string }) {
     return (
@@ -34,6 +73,10 @@ export default function SignupForm() {
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [password, setPassword] = useState('');
+    const [showRequirements, setShowRequirements] = useState(false);
+
+    const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -43,11 +86,19 @@ export default function SignupForm() {
         const formData = new FormData(e.currentTarget);
         const name = formData.get('name') as string;
         const email = formData.get('email') as string;
-        const password = formData.get('password') as string;
         const confirmPassword = formData.get('confirmPassword') as string;
 
         if (password !== confirmPassword) {
             setError('Passwords do not match');
+            setIsPending(false);
+            return;
+        }
+
+        // Client-side validation
+        if (!passwordStrength.checks.length || !passwordStrength.checks.uppercase ||
+            !passwordStrength.checks.lowercase || !passwordStrength.checks.number ||
+            !passwordStrength.checks.special) {
+            setError('Please meet all password requirements');
             setIsPending(false);
             return;
         }
@@ -113,9 +164,12 @@ export default function SignupForm() {
                             id="password"
                             type={showPassword ? "text" : "password"}
                             name="password"
-                            placeholder="Create a password (min 8 characters)"
+                            placeholder="Create a strong password"
                             required
-                            minLength={8}
+                            minLength={10}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onFocus={() => setShowRequirements(true)}
                         />
                         <button
                             type="button"
@@ -125,6 +179,62 @@ export default function SignupForm() {
                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                         </button>
                     </div>
+
+                    {/* Password Strength Indicator */}
+                    {password.length > 0 && (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full transition-all duration-300 ${
+                                            passwordStrength.strength === 'strong' ? 'bg-green-500' :
+                                            passwordStrength.strength === 'good' ? 'bg-blue-500' :
+                                            passwordStrength.strength === 'fair' ? 'bg-yellow-500' :
+                                            'bg-red-500'
+                                        }`}
+                                        style={{ width: `${passwordStrength.score}%` }}
+                                    />
+                                </div>
+                                <span className={`text-xs font-medium ${
+                                    passwordStrength.strength === 'strong' ? 'text-green-500' :
+                                    passwordStrength.strength === 'good' ? 'text-blue-500' :
+                                    passwordStrength.strength === 'fair' ? 'text-yellow-500' :
+                                    'text-red-500'
+                                }`}>
+                                    {passwordStrength.strength.charAt(0).toUpperCase() + passwordStrength.strength.slice(1)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Password Requirements */}
+                    {showRequirements && (
+                        <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1.5">
+                            <p className="text-xs text-white/50 font-medium mb-2">Password requirements:</p>
+                            {[
+                                { key: 'length', label: 'At least 10 characters' },
+                                { key: 'uppercase', label: 'One uppercase letter (A-Z)' },
+                                { key: 'lowercase', label: 'One lowercase letter (a-z)' },
+                                { key: 'number', label: 'One number (0-9)' },
+                                { key: 'special', label: 'One special character (!@#$%^&*)' },
+                            ].map(({ key, label }) => (
+                                <div key={key} className="flex items-center gap-2">
+                                    {passwordStrength.checks[key as keyof typeof passwordStrength.checks] ? (
+                                        <Check size={12} className="text-green-500" />
+                                    ) : (
+                                        <X size={12} className="text-white/30" />
+                                    )}
+                                    <span className={`text-xs ${
+                                        passwordStrength.checks[key as keyof typeof passwordStrength.checks]
+                                            ? 'text-green-500'
+                                            : 'text-white/50'
+                                    }`}>
+                                        {label}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
@@ -138,7 +248,7 @@ export default function SignupForm() {
                             name="confirmPassword"
                             placeholder="Confirm your password"
                             required
-                            minLength={8}
+                            minLength={10}
                         />
                         <button
                             type="button"
