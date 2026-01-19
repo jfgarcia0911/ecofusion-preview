@@ -53,8 +53,9 @@ export async function POST(request: Request) {
         );
     } catch (error) {
         console.error("Registration error:", error);
+        const errorMessage = error instanceof Error ? error.message : "Something went wrong";
         return NextResponse.json(
-            { error: "Something went wrong" },
+            { error: errorMessage },
             { status: 500 }
         );
     }
