@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { googleSignIn } from '@/lib/actions';
-import { Lock, Mail, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 
 function GoogleIcon({ className }: { className?: string }) {
     return (
@@ -32,6 +32,8 @@ export default function SignupForm() {
     const router = useRouter();
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -105,29 +107,47 @@ export default function SignupForm() {
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                         <Lock size={14} /> Password
                     </label>
-                    <input
-                        className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
-                        id="password"
-                        type="password"
-                        name="password"
-                        placeholder="Create a password (min 8 characters)"
-                        required
-                        minLength={8}
-                    />
+                    <div className="relative">
+                        <input
+                            className="w-full px-4 py-3 pr-12 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            name="password"
+                            placeholder="Create a password (min 8 characters)"
+                            required
+                            minLength={8}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                        >
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                    </div>
                 </div>
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                         <Lock size={14} /> Confirm Password
                     </label>
-                    <input
-                        className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
-                        id="confirmPassword"
-                        type="password"
-                        name="confirmPassword"
-                        placeholder="Confirm your password"
-                        required
-                        minLength={8}
-                    />
+                    <div className="relative">
+                        <input
+                            className="w-full px-4 py-3 pr-12 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
+                            id="confirmPassword"
+                            type={showConfirmPassword ? "text" : "password"}
+                            name="confirmPassword"
+                            placeholder="Confirm your password"
+                            required
+                            minLength={8}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                        >
+                            {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                    </div>
                 </div>
 
                 <button
