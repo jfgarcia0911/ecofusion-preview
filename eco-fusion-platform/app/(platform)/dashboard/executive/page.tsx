@@ -1,8 +1,39 @@
+"use client";
+import { useState } from "react";
 import KpiCard from "@/components/widgets/KpiCard";
 import RevenueChart from "@/components/widgets/RevenueChart";
+import AlertWidget from "@/components/widgets/AlertWidget";
+import AlertDetailModal from "@/components/modals/AlertDetailModal";
 import { DollarSign, Fish, Leaf, Zap } from "lucide-react";
 
+interface Alert {
+    id: string;
+    title: string;
+    message: string;
+    severity: "info" | "warning" | "critical";
+    status: "active" | "acknowledged" | "resolved";
+    type: string;
+    createdAt: string;
+    resolvedAt?: string | null;
+    resolution?: string | null;
+    zone?: { id: string; name: string } | null;
+    assignee?: { id: string; name: string; email: string } | null;
+}
+
 export default function ExecutiveDashboard() {
+    const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const handleAlertClick = (alert: Alert) => {
+        setSelectedAlert(alert);
+        setModalOpen(true);
+    };
+
+    const handleAlertUpdated = () => {
+        setRefreshKey(prev => prev + 1);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -30,33 +61,21 @@ export default function ExecutiveDashboard() {
                 <div className="lg:col-span-2">
                     <RevenueChart />
                 </div>
-                <div className="glass-card p-6">
-                    <h3 className="text-lg font-bold mb-4 text-white">Critical Alerts</h3>
-                    <div className="space-y-4">
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-3 items-start">
-                            <div className="w-2 h-2 mt-2 rounded-full bg-red-500 animate-pulse" />
-                            <div>
-                                <p className="text-sm font-medium text-red-200">Cold Storage Warning</p>
-                                <p className="text-xs text-red-200/50">Temp dropped below 30°F in Zone B</p>
-                            </div>
-                        </div>
-                        <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex gap-3 items-start">
-                            <div className="w-2 h-2 mt-2 rounded-full bg-yellow-500" />
-                            <div>
-                                <p className="text-sm font-medium text-yellow-200">Inventory Low</p>
-                                <p className="text-xs text-yellow-200/50">Fish feed stock below 15%</p>
-                            </div>
-                        </div>
-                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-3 items-start">
-                            <div className="w-2 h-2 mt-2 rounded-full bg-blue-500" />
-                            <div>
-                                <p className="text-sm font-medium text-blue-200">New Employee Onboarding</p>
-                                <p className="text-xs text-blue-200/50">Pending approval for J. Doe</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <AlertWidget
+                    key={refreshKey}
+                    title="Critical Alerts"
+                    limit={5}
+                    showOnlyActive={true}
+                    onAlertClick={handleAlertClick}
+                />
             </div>
+
+            <AlertDetailModal
+                isOpen={modalOpen}
+                onClose={() => setModalOpen(false)}
+                alert={selectedAlert}
+                onAlertUpdated={handleAlertUpdated}
+            />
         </div>
     );
 }

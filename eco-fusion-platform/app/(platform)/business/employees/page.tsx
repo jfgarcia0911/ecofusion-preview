@@ -1,13 +1,71 @@
-import { User, Mail, Phone, Calendar } from "lucide-react";
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import { User, Mail, Plus, UserPlus, X } from "lucide-react";
+import Modal from "@/components/ui/Modal";
 
-const employees = [
-    { id: 1, name: "Sarah Jenkins", role: "Lead Grower", email: "sarah@ecofusion.com", status: "Active" },
-    { id: 2, name: "Mike Ross", role: "Aquaculture Specialist", email: "mike@ecofusion.com", status: "Active" },
-    { id: 3, name: "David Kim", role: "Operations Manager", email: "david@ecofusion.com", status: "On Leave" },
-    { id: 4, name: "Jessica Chen", role: "Harvest Technician", email: "jessica@ecofusion.com", status: "Active" },
-];
+interface Employee {
+    id: string;
+    name: string;
+    role: string;
+    email: string;
+    phone: string | null;
+    status: string;
+}
 
 export default function EmployeesPage() {
+    const [employees, setEmployees] = useState<Employee[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newEmployee, setNewEmployee] = useState({
+        name: "",
+        role: "",
+        email: "",
+        phone: "",
+    });
+    const [saving, setSaving] = useState(false);
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const response = await fetch("/api/employees");
+            if (response.ok) {
+                const data = await response.json();
+                setEmployees(data);
+            }
+        } catch (err) {
+            console.error("Error fetching employees:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchEmployees();
+    }, [fetchEmployees]);
+
+    const handleAddEmployee = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newEmployee.name || !newEmployee.role || !newEmployee.email) return;
+
+        setSaving(true);
+        try {
+            const response = await fetch("/api/employees", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newEmployee),
+            });
+            if (response.ok) {
+                const emp = await response.json();
+                setEmployees([...employees, emp]);
+                setNewEmployee({ name: "", role: "", email: "", phone: "" });
+                setShowAddModal(false);
+            }
+        } catch (err) {
+            console.error("Error creating employee:", err);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -17,42 +75,135 @@ export default function EmployeesPage() {
                     </h1>
                     <p className="text-white/50 mt-1">Manage staff and permissions</p>
                 </div>
-                <button className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 transition-colors cursor-pointer">
+                <button
+                    onClick={() => setShowAddModal(true)}
+                    className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 transition-colors cursor-pointer flex items-center gap-2"
+                >
+                    <UserPlus size={18} />
                     Add Employee
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {employees.map(emp => (
-                    <div key={emp.id} className="glass-card p-6 flex flex-col items-center text-center group hover:border-accent/30 transition-all">
-                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4 text-3xl font-bold text-white/20 group-hover:bg-accent/20 group-hover:text-accent transition-colors">
-                            {emp.name.charAt(0)}
+            {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="glass-card p-6 animate-pulse">
+                            <div className="w-20 h-20 rounded-full bg-white/10 mx-auto mb-4" />
+                            <div className="h-6 bg-white/10 rounded w-3/4 mx-auto mb-2" />
+                            <div className="h-4 bg-white/5 rounded w-1/2 mx-auto" />
                         </div>
-                        <h3 className="text-xl font-bold text-white">{emp.name}</h3>
-                        <p className="text-accent text-sm font-medium mb-4">{emp.role}</p>
+                    ))}
+                </div>
+            ) : employees.length === 0 ? (
+                <div className="glass-card p-12 text-center">
+                    <UserPlus size={48} className="mx-auto mb-4 text-white/30" />
+                    <h3 className="text-xl font-bold text-white mb-2">No employees yet</h3>
+                    <p className="text-white/50 mb-6">Add your first employee to get started</p>
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 transition-colors"
+                    >
+                        Add Employee
+                    </button>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {employees.map(emp => (
+                        <div key={emp.id} className="glass-card p-6 flex flex-col items-center text-center group hover:border-accent/30 transition-all">
+                            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4 text-3xl font-bold text-white/20 group-hover:bg-accent/20 group-hover:text-accent transition-colors">
+                                {emp.name.charAt(0)}
+                            </div>
+                            <h3 className="text-xl font-bold text-white">{emp.name}</h3>
+                            <p className="text-accent text-sm font-medium mb-4">{emp.role}</p>
 
-                        <div className="w-full space-y-3 pt-4 border-t border-white/10 text-sm text-white/60">
-                            <div className="flex items-center gap-3">
-                                <Mail size={16} className="text-white/30" />
-                                {emp.email}
+                            <div className="w-full space-y-3 pt-4 border-t border-white/10 text-sm text-white/60">
+                                <div className="flex items-center gap-3">
+                                    <Mail size={16} className="text-white/30" />
+                                    {emp.email}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <User size={16} className="text-white/30" />
+                                    ID: {emp.id.slice(0, 8)}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-2 rounded-full ${emp.status === 'Active' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                                    {emp.status}
+                                </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <User size={16} className="text-white/30" />
-                                ID: EF-00{emp.id}
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className={`w-2 h-2 rounded-full ${emp.status === 'Active' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                                {emp.status}
-                            </div>
-                        </div>
 
-                        <div className="mt-6 flex gap-3 w-full">
-                            <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">View Profile</button>
-                            <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">Edit</button>
+                            <div className="mt-6 flex gap-3 w-full">
+                                <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">View Profile</button>
+                                <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">Edit</button>
+                            </div>
                         </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Add Employee Modal */}
+            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Employee">
+                <form onSubmit={handleAddEmployee} className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-white/70">Name *</label>
+                        <input
+                            type="text"
+                            value={newEmployee.name}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent/50"
+                            placeholder="John Doe"
+                            required
+                        />
                     </div>
-                ))}
-            </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-white/70">Role *</label>
+                        <input
+                            type="text"
+                            value={newEmployee.role}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent/50"
+                            placeholder="Operations Manager"
+                            required
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-white/70">Email *</label>
+                        <input
+                            type="email"
+                            value={newEmployee.email}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent/50"
+                            placeholder="john@example.com"
+                            required
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-white/70">Phone</label>
+                        <input
+                            type="tel"
+                            value={newEmployee.phone}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent/50"
+                            placeholder="(555) 123-4567"
+                        />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowAddModal(false)}
+                            className="flex-1 py-3 border border-white/10 rounded-lg text-white hover:bg-white/5 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="flex-1 py-3 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50"
+                        >
+                            {saving ? "Adding..." : "Add Employee"}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

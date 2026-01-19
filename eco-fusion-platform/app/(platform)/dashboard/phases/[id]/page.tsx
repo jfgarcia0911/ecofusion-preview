@@ -1,10 +1,11 @@
 "use client";
 import { useParams } from "next/navigation";
 import { BUSINESS_PHASES } from "@/lib/constants";
-import { DollarSign, AlertCircle, Plus } from "lucide-react";
+import { DollarSign, AlertCircle, Plus, Trash2, Check } from "lucide-react";
 import KpiCard from "@/components/widgets/KpiCard";
+import PhaseSettingsModal from "@/components/modals/PhaseSettingsModal";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import clsx from "clsx";
 
 // Mock Data for graphs (would be dynamic based on ID in real app)
@@ -15,25 +16,115 @@ const mockRevenueData = [
     { name: 'Week 4', revenue: 2200 },
 ];
 
+interface Task {
+    id: string;
+    text: string;
+    completed: boolean;
+    assignee: string | null;
+}
+
+interface Employee {
+    id: string;
+    name: string;
+    role: string;
+    status: string;
+}
+
 export default function PhaseDetailPage() {
-    const { id } = useParams();
+    const params = useParams();
+    const id = params?.id as string | undefined;
     const phase = BUSINESS_PHASES.find(p => p.id === id);
 
-    const [tasks, setTasks] = useState([
-        { id: 1, text: "Safety inspection", completed: false, assignee: "Mike Ross" },
-        { id: 2, text: "Inventory check", completed: true, assignee: "Sarah Jenkins" },
-    ]);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [newTask, setNewTask] = useState("");
     const [assignee, setAssignee] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+
+    const fetchTasks = useCallback(async () => {
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/phases/${id}/tasks`);
+            if (response.ok) {
+                const data = await response.json();
+                setTasks(data);
+            }
+        } catch (err) {
+            console.error("Error fetching tasks:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [id]);
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const response = await fetch("/api/employees");
+            if (response.ok) {
+                const data = await response.json();
+                setEmployees(data);
+            }
+        } catch (err) {
+            console.error("Error fetching employees:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchTasks();
+        fetchEmployees();
+    }, [fetchTasks, fetchEmployees]);
 
     if (!phase) return <div className="text-white">Phase not found</div>;
 
-    const addTask = (e: React.FormEvent) => {
+    const addTask = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newTask.trim()) return;
-        setTasks([...tasks, { id: Date.now(), text: newTask, completed: false, assignee: assignee || "Unassigned" }]);
-        setNewTask("");
-        setAssignee("");
+        if (!newTask.trim() || !id) return;
+
+        try {
+            const response = await fetch(`/api/phases/${id}/tasks`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: newTask, assignee: assignee || null }),
+            });
+            if (response.ok) {
+                const task = await response.json();
+                setTasks([task, ...tasks]);
+                setNewTask("");
+                setAssignee("");
+            }
+        } catch (err) {
+            console.error("Error creating task:", err);
+        }
+    };
+
+    const toggleTask = async (taskId: string, completed: boolean) => {
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/phases/${id}/tasks`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ taskId, completed }),
+            });
+            if (response.ok) {
+                setTasks(tasks.map(t => t.id === taskId ? { ...t, completed } : t));
+            }
+        } catch (err) {
+            console.error("Error updating task:", err);
+        }
+    };
+
+    const deleteTask = async (taskId: string) => {
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/phases/${id}/tasks?taskId=${taskId}`, {
+                method: "DELETE",
+            });
+            if (response.ok) {
+                setTasks(tasks.filter(t => t.id !== taskId));
+            }
+        } catch (err) {
+            console.error("Error deleting task:", err);
+        }
     };
 
     return (
@@ -51,7 +142,10 @@ export default function PhaseDetailPage() {
                     </div>
                     <p className="text-white/50 mt-1 ml-11">{phase.description}</p>
                 </div>
-                <button className="px-4 py-2 border border-white/10 rounded-lg text-sm text-white/70 hover:bg-white/5">
+                <button
+                    onClick={() => setSettingsOpen(true)}
+                    className="px-4 py-2 border border-white/10 rounded-lg text-sm text-white/70 hover:bg-white/5 transition-colors"
+                >
                     Phase Settings
                 </button>
             </div>
@@ -132,10 +226,9 @@ export default function PhaseDetailPage() {
                                     className="bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none flex-1"
                                 >
                                     <option value="">Assign to Employee...</option>
-                                    <option value="Sarah Jenkins">Sarah Jenkins</option>
-                                    <option value="Mike Ross">Mike Ross</option>
-                                    <option value="David Kim">David Kim</option>
-                                    <option value="Jessica Chen">Jessica Chen</option>
+                                    {employees.filter(e => e.status === "Active").map(emp => (
+                                        <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                    ))}
                                 </select>
                                 <button type="submit" className="px-4 py-2 bg-secondary/20 text-secondary hover:bg-secondary/30 rounded-xl transition-colors font-bold">
                                     <Plus size={20} />
@@ -144,17 +237,47 @@ export default function PhaseDetailPage() {
                         </form>
 
                         <div className="space-y-3">
-                            {tasks.map(task => (
-                                <div key={task.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-4 h-4 rounded border ${task.completed ? 'bg-secondary border-secondary' : 'border-white/30'}`} />
-                                        <span className={task.completed ? "text-white/30 line-through" : "text-white"}>{task.text}</span>
-                                    </div>
-                                    <div className="text-xs px-2 py-1 rounded bg-white/10 text-white/70">
-                                        {task.assignee}
-                                    </div>
+                            {loading ? (
+                                <div className="space-y-3">
+                                    {[1, 2].map(i => (
+                                        <div key={i} className="p-3 rounded-xl bg-white/5 animate-pulse h-12" />
+                                    ))}
                                 </div>
-                            ))}
+                            ) : tasks.length === 0 ? (
+                                <div className="text-center py-8 text-white/50">
+                                    <p className="text-sm">No tasks yet. Add your first task above.</p>
+                                </div>
+                            ) : (
+                                tasks.map(task => (
+                                    <div key={task.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors group">
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => toggleTask(task.id, !task.completed)}
+                                                className={clsx(
+                                                    "w-5 h-5 rounded border flex items-center justify-center transition-colors",
+                                                    task.completed ? "bg-secondary border-secondary" : "border-white/30 hover:border-secondary"
+                                                )}
+                                            >
+                                                {task.completed && <Check size={12} className="text-primary" />}
+                                            </button>
+                                            <span className={task.completed ? "text-white/30 line-through" : "text-white"}>{task.text}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {task.assignee && (
+                                                <div className="text-xs px-2 py-1 rounded bg-white/10 text-white/70">
+                                                    {task.assignee}
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => deleteTask(task.id)}
+                                                className="p-1 rounded hover:bg-red-500/20 text-white/30 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
 
@@ -162,21 +285,34 @@ export default function PhaseDetailPage() {
                     <div className="border-l border-white/10 pl-8">
                         <h3 className="text-sm font-bold text-white/50 uppercase mb-4">Assigned Team Members</h3>
                         <div className="space-y-4">
-                            {["Sarah Jenkins", "Mike Ross", "David Kim"].map((name, i) => (
-                                <div key={i} className="flex items-center gap-3">
+                            {employees.filter(e => e.status === "Active").slice(0, 5).map((emp) => (
+                                <div key={emp.id} className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-white/50">
-                                        {name.charAt(0)}
+                                        {emp.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-white">{name}</p>
-                                        <p className="text-xs text-secondary">Active on site</p>
+                                        <p className="text-sm font-bold text-white">{emp.name}</p>
+                                        <p className="text-xs text-secondary">{emp.role}</p>
                                     </div>
                                 </div>
                             ))}
+                            {employees.length === 0 && (
+                                <p className="text-sm text-white/50">No employees found</p>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Settings Modal */}
+            {id && (
+                <PhaseSettingsModal
+                    isOpen={settingsOpen}
+                    onClose={() => setSettingsOpen(false)}
+                    phaseId={id}
+                    phaseName={phase.title}
+                />
+            )}
         </div>
     );
 }

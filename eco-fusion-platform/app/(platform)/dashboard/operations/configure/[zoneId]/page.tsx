@@ -13,15 +13,22 @@ const equipmentList = [
     { name: "UV Sterilizer", wattage: 55 },
 ];
 
+interface SensorConfig {
+    type: "wifi" | "bluetooth" | "wired";
+    protocol: "mqtt" | "http" | "ble" | "serial";
+}
+
 export default function ZoneConfigurationPage() {
     const params = useParams();
     const router = useRouter();
-    const { zones, updateZone, removeZone, addZone } = useZones();
+    const { zones, updateZone, removeZone, addZone, refreshZones } = useZones();
 
-    const zoneId = params.zoneId as string;
+    const zoneId = params?.zoneId as string | undefined;
     const isNewZone = zoneId === "new";
 
-    const [localZone, setLocalZone] = useState<Zone | null>(null);
+    const [localZone, setLocalZone] = useState<{ name: string; type: string; status: string } | null>(null);
+    const [sensorConfig, setSensorConfig] = useState<SensorConfig>({ type: "wifi", protocol: "mqtt" });
+    const [saving, setSaving] = useState(false);
 
     // Power Calculation State
     const [equipment, setEquipment] = useState<{ name: string, wattage: number, qty: number }[]>([
@@ -29,18 +36,22 @@ export default function ZoneConfigurationPage() {
     ]);
 
     useEffect(() => {
+        if (!zoneId) return;
         if (isNewZone) {
             setLocalZone({
-                id: `zone-${Date.now()}`,
                 name: "New Zone",
                 type: "hydroponics",
                 status: "active",
-                sensors: { type: "wifi", protocol: "mqtt", lastUpdate: "Never" },
-                metrics: { temp: 70, ph: 7.0 }
             });
         } else {
             const found = zones.find(z => z.id === zoneId);
-            if (found) setLocalZone(found);
+            if (found) {
+                setLocalZone({
+                    name: found.name,
+                    type: found.type,
+                    status: found.status,
+                });
+            }
         }
     }, [zones, zoneId, isNewZone]);
 
@@ -49,21 +60,35 @@ export default function ZoneConfigurationPage() {
     const totalWatts = equipment.reduce((acc, item) => acc + (item.wattage * item.qty), 0);
     const monthlyCost = ((totalWatts * 24 * 30) / 1000) * 0.12; // Assuming $0.12/kWh
 
-    const handleSave = () => {
-        if (isNewZone) {
-            addZone(localZone);
-            alert("New zone created!");
-        } else {
-            updateZone(localZone.id, localZone);
-            alert("Configuration saved!");
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            if (isNewZone) {
+                const result = await addZone({
+                    name: localZone.name,
+                    type: localZone.type as Zone["type"],
+                    status: localZone.status as Zone["status"],
+                });
+                if (result) {
+                    router.back();
+                }
+            } else if (zoneId) {
+                updateZone(zoneId, localZone as Partial<Zone>);
+                router.back();
+            }
+        } finally {
+            setSaving(false);
         }
-        router.back();
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (confirm("Are you sure you want to delete this zone? This cannot be undone.")) {
-            removeZone(localZone.id);
-            router.back();
+            if (zoneId) {
+                const success = await removeZone(zoneId);
+                if (success) {
+                    router.back();
+                }
+            }
         }
     };
 
@@ -104,12 +129,12 @@ export default function ZoneConfigurationPage() {
                     </h3>
 
                     <div className="grid grid-cols-3 gap-2">
-                        {["wifi", "bluetooth", "wired"].map((type) => (
+                        {(["wifi", "bluetooth", "wired"] as const).map((type) => (
                             <button
                                 key={type}
-                                onClick={() => setLocalZone({ ...localZone, sensors: { ...localZone.sensors, type: type as any } })}
+                                onClick={() => setSensorConfig({ ...sensorConfig, type })}
                                 className={clsx("flex flex-col items-center justify-center p-3 rounded-xl border transition-all",
-                                    localZone.sensors.type === type
+                                    sensorConfig.type === type
                                         ? "bg-secondary/20 border-secondary text-white"
                                         : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
                                 )}
@@ -124,8 +149,8 @@ export default function ZoneConfigurationPage() {
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-sm font-medium text-white/70">Protocol</span>
                             <select
-                                value={localZone.sensors.protocol}
-                                onChange={(e) => setLocalZone({ ...localZone, sensors: { ...localZone.sensors, protocol: e.target.value as any } })}
+                                value={sensorConfig.protocol}
+                                onChange={(e) => setSensorConfig({ ...sensorConfig, protocol: e.target.value as SensorConfig["protocol"] })}
                                 className="bg-white/5 border border-white/10 rounded text-xs text-white px-2 py-1"
                             >
                                 <option value="mqtt">MQTT (IoT)</option>
@@ -138,7 +163,7 @@ export default function ZoneConfigurationPage() {
                             <span className="text-sm font-medium text-white/70">Heartbeat</span>
                             <div className="flex items-center gap-2 text-xs text-green-400">
                                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                Signal detected (Last: {localZone.sensors.lastUpdate})
+                                Awaiting sensor connection
                             </div>
                         </div>
                     </div>
