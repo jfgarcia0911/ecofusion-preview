@@ -102,6 +102,7 @@ model Zone {
   metrics SensorReading[]
   fishStocks FishStock[]
   plantCrops PlantCrop[]
+  alertThresholds ZoneAlertThreshold[]
 }
 
 // Sensor readings for zones
@@ -116,6 +117,23 @@ model SensorReading {
   timestamp   DateTime @default(now())
 
   zone Zone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+}
+
+// Alert thresholds for zone parameters
+model ZoneAlertThreshold {
+  id            String   @id @default(cuid())
+  zoneId        String
+  parameter     String   // "temperature" | "ph" | "dissolvedO2" | "ammonia" | "humidity"
+  minValue      Float?   // Alert if below this value
+  maxValue      Float?   // Alert if above this value
+  enabled       Boolean  @default(true)
+  alertLevel    String   @default("warning") // "info" | "warning" | "critical"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  zone Zone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([zoneId, parameter])
 }
 
 // User tasks (personal tasks)
