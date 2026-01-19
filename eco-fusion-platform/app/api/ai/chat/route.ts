@@ -20,11 +20,10 @@ Be concise, practical, and actionable in your responses. Use your knowledge of a
 
 export async function POST(request: Request) {
   try {
-    // Auth check disabled for testing
-    // const session = await auth();
-    // if (!session?.user?.id) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { message, history } = await request.json();
 

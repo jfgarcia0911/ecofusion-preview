@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all alert thresholds for a zone
@@ -7,7 +8,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id: zoneId } = await params;
+
+    // Verify zone belongs to user
+    const zone = await prisma.zone.findFirst({
+      where: { id: zoneId, userId: session.user.id },
+    });
+    if (!zone) {
+      return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
+    }
 
     const alerts = await prisma.zoneAlertThreshold.findMany({
       where: { zoneId },
@@ -27,6 +41,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id: zoneId } = await params;
     const body = await request.json();
 
@@ -41,8 +60,8 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid parameter' }, { status: 400 });
     }
 
-    // Verify zone exists
-    const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
+    // Verify zone exists and belongs to user
+    const zone = await prisma.zone.findFirst({ where: { id: zoneId, userId: session.user.id } });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
@@ -81,12 +100,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id: zoneId } = await params;
     const { searchParams } = new URL(request.url);
     const parameter = searchParams.get('parameter');
 
     if (!parameter) {
       return NextResponse.json({ error: 'Parameter is required' }, { status: 400 });
+    }
+
+    // Verify zone belongs to user
+    const zone = await prisma.zone.findFirst({ where: { id: zoneId, userId: session.user.id } });
+    if (!zone) {
+      return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
     await prisma.zoneAlertThreshold.delete({

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -94,10 +95,11 @@ function parseCommands(text: string): Array<{ type: string; params: Record<strin
   return commands;
 }
 
-// Find zone by name
-async function findZone(zoneName: string) {
+// Find zone by name (scoped to user)
+async function findZone(zoneName: string, userId: string) {
   let zone = await prisma.zone.findFirst({
     where: {
+      userId,
       OR: [
         { name: { contains: zoneName, mode: 'insensitive' } },
         { id: zoneName },
@@ -108,12 +110,12 @@ async function findZone(zoneName: string) {
 }
 
 // Execute commands
-async function executeCommands(commands: Array<{ type: string; params: Record<string, string | null> }>) {
+async function executeCommands(commands: Array<{ type: string; params: Record<string, string | null> }>, userId: string) {
   const results: string[] = [];
 
   for (const cmd of commands) {
     if (cmd.type === 'SET_ALERT') {
-      const zone = await findZone(cmd.params.zone || '');
+      const zone = await findZone(cmd.params.zone || '', userId);
       if (!zone) {
         results.push(`Could not find zone: ${cmd.params.zone}`);
         continue;
@@ -153,7 +155,7 @@ async function executeCommands(commands: Array<{ type: string; params: Record<st
         results.push(`Failed to set alert: ${error}`);
       }
     } else if (cmd.type === 'REMOVE_ALERT') {
-      const zone = await findZone(cmd.params.zone || '');
+      const zone = await findZone(cmd.params.zone || '', userId);
       if (!zone) {
         results.push(`Could not find zone: ${cmd.params.zone}`);
         continue;
@@ -183,7 +185,7 @@ function cleanResponse(text: string): string {
     .trim();
 }
 
-async function getSystemData() {
+async function getSystemData(userId: string) {
   const [
     zones,
     recentReadings,
@@ -194,31 +196,36 @@ async function getSystemData() {
     growthParameters,
     alertThresholds
   ] = await Promise.all([
-    prisma.zone.findMany({ orderBy: { name: 'asc' } }),
+    prisma.zone.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
     prisma.sensorReading.findMany({
+      where: { zone: { userId } },
       include: { zone: true },
       orderBy: { timestamp: 'desc' },
       take: 50
     }),
     prisma.fishStock.findMany({
+      where: { userId },
       include: { zone: true },
       orderBy: { dateAdded: 'desc' }
     }),
     prisma.plantCrop.findMany({
+      where: { userId },
       include: { zone: true },
       orderBy: { plantedDate: 'desc' }
     }),
     prisma.harvest.findMany({
+      where: { userId },
       include: { fishStock: true, plantCrop: true },
       orderBy: { harvestDate: 'desc' },
       take: 10
     }),
     prisma.salesInventory.findMany({
-      where: { status: 'available' },
+      where: { userId, status: 'available' },
       orderBy: { addedDate: 'desc' }
     }),
-    prisma.growthParameter.findMany(),
+    prisma.growthParameter.findMany({ where: { userId } }),
     prisma.zoneAlertThreshold.findMany({
+      where: { zone: { userId } },
       include: { zone: true },
       orderBy: { parameter: 'asc' }
     })
@@ -313,13 +320,18 @@ async function getSystemData() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { message, history } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    const systemData = await getSystemData();
+    const systemData = await getSystemData(session.user.id);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const chatHistory = history?.map((msg: { role: string; content: string }) => ({
@@ -349,7 +361,7 @@ export async function POST(request: Request) {
     let executionResults: string[] = [];
 
     if (commands.length > 0) {
-      executionResults = await executeCommands(commands);
+      executionResults = await executeCommands(commands, session.user.id);
     }
 
     // Clean response and add execution results
