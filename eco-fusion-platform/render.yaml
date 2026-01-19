@@ -4,6 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: starter
+    rootDir: eco-fusion-platform
     buildCommand: npm install --legacy-peer-deps && npx prisma generate && npm run build
     startCommand: node .next/standalone/server.js
     envVars:
