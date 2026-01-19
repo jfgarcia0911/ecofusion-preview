@@ -1,11 +1,29 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import SensorWidget from "@/components/widgets/SensorWidget";
+import SensorInputModal from "@/components/modals/SensorInputModal";
 import { useZones } from "@/lib/contexts/ZoneContext";
-import { Plus, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, RefreshCw, AlertCircle, PlusCircle } from "lucide-react";
 
 export default function OperationsDashboard() {
     const { zones, loading, error, refreshZones } = useZones();
+    const [sensorModalOpen, setSensorModalOpen] = useState(false);
+    const [selectedZone, setSelectedZone] = useState<{ id: string; name: string } | null>(null);
+
+    const openSensorModal = (zone: { id: string; name: string }) => {
+        setSelectedZone(zone);
+        setSensorModalOpen(true);
+    };
+
+    const closeSensorModal = () => {
+        setSensorModalOpen(false);
+        setSelectedZone(null);
+    };
+
+    const handleReadingAdded = () => {
+        refreshZones();
+    };
 
     if (loading) {
         return (
@@ -94,9 +112,18 @@ export default function OperationsDashboard() {
                                 <span className={`w-1.5 h-8 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.2)] ${zone.type === 'hydroponics' ? 'bg-accent shadow-[0_0_10px_rgba(74,222,128,0.5)]' : zone.type === 'aquaculture' ? 'bg-secondary shadow-[0_0_10px_rgba(44,177,207,0.5)]' : 'bg-white'}`}></span>
                                 {zone.name}
                             </h2>
-                            <Link href={`/dashboard/operations/configure/${zone.id}`} className={`text-xs hover:text-white transition-colors uppercase tracking-wider font-bold border px-3 py-1 rounded hover:bg-white/10 ${zone.type === 'hydroponics' ? 'text-accent border-accent/20' : zone.type === 'aquaculture' ? 'text-secondary border-secondary/20' : 'text-white border-white/20'}`}>
-                                Configure
-                            </Link>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => openSensorModal({ id: zone.id, name: zone.name })}
+                                    className={`flex items-center gap-1 text-xs hover:text-white transition-colors uppercase tracking-wider font-bold border px-3 py-1 rounded hover:bg-white/10 ${zone.type === 'hydroponics' ? 'text-accent border-accent/20' : zone.type === 'aquaculture' ? 'text-secondary border-secondary/20' : 'text-white border-white/20'}`}
+                                >
+                                    <PlusCircle size={14} />
+                                    Add Reading
+                                </button>
+                                <Link href={`/dashboard/operations/configure/${zone.id}`} className={`text-xs hover:text-white transition-colors uppercase tracking-wider font-bold border px-3 py-1 rounded hover:bg-white/10 ${zone.type === 'hydroponics' ? 'text-accent border-accent/20' : zone.type === 'aquaculture' ? 'text-secondary border-secondary/20' : 'text-white border-white/20'}`}>
+                                    Configure
+                                </Link>
+                            </div>
                         </div>
 
                         {zone.metrics ? (
@@ -147,6 +174,16 @@ export default function OperationsDashboard() {
                     <p className="text-white/20 font-mono">CAMERA SIGNAL FEED NOT CONNECTED</p>
                 </div>
             </div>
+
+            {selectedZone && (
+                <SensorInputModal
+                    isOpen={sensorModalOpen}
+                    onClose={closeSensorModal}
+                    zoneId={selectedZone.id}
+                    zoneName={selectedZone.name}
+                    onReadingAdded={handleReadingAdded}
+                />
+            )}
         </div>
     );
 }

@@ -18,6 +18,23 @@ interface SensorConfig {
     protocol: "mqtt" | "http" | "ble" | "serial";
 }
 
+interface AlertThreshold {
+    id: string;
+    parameter: string;
+    minValue: number | null;
+    maxValue: number | null;
+    enabled: boolean;
+    alertLevel: string;
+}
+
+const SENSOR_PARAMETERS = [
+    { key: 'temperature', label: 'Temperature', unit: '°F', defaultMin: 65, defaultMax: 80 },
+    { key: 'ph', label: 'pH Level', unit: 'pH', defaultMin: 6.5, defaultMax: 7.5 },
+    { key: 'dissolvedO2', label: 'Dissolved O2', unit: 'mg/L', defaultMin: 6, defaultMax: 12 },
+    { key: 'ammonia', label: 'Ammonia', unit: 'ppm', defaultMin: 0, defaultMax: 0.05 },
+    { key: 'humidity', label: 'Humidity', unit: '%', defaultMin: 40, defaultMax: 70 },
+];
+
 export default function ZoneConfigurationPage() {
     const params = useParams();
     const router = useRouter();
@@ -29,6 +46,8 @@ export default function ZoneConfigurationPage() {
     const [localZone, setLocalZone] = useState<{ name: string; type: string; status: string } | null>(null);
     const [sensorConfig, setSensorConfig] = useState<SensorConfig>({ type: "wifi", protocol: "mqtt" });
     const [saving, setSaving] = useState(false);
+    const [alertThresholds, setAlertThresholds] = useState<AlertThreshold[]>([]);
+    const [savingThreshold, setSavingThreshold] = useState<string | null>(null);
 
     // Power Calculation State
     const [equipment, setEquipment] = useState<{ name: string, wattage: number, qty: number }[]>([
@@ -52,8 +71,53 @@ export default function ZoneConfigurationPage() {
                     status: found.status,
                 });
             }
+            // Fetch alert thresholds
+            fetchThresholds();
         }
     }, [zones, zoneId, isNewZone]);
+
+    const fetchThresholds = async () => {
+        if (!zoneId || isNewZone) return;
+        try {
+            const response = await fetch(`/api/zones/${zoneId}/alerts`);
+            if (response.ok) {
+                const data = await response.json();
+                setAlertThresholds(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch thresholds:', err);
+        }
+    };
+
+    const saveThreshold = async (parameter: string, minValue: number | null, maxValue: number | null, enabled: boolean, alertLevel: string) => {
+        if (!zoneId || isNewZone) return;
+        setSavingThreshold(parameter);
+        try {
+            const response = await fetch(`/api/zones/${zoneId}/alerts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parameter, minValue, maxValue, enabled, alertLevel }),
+            });
+            if (response.ok) {
+                const updated = await response.json();
+                setAlertThresholds(prev => {
+                    const exists = prev.find(t => t.parameter === parameter);
+                    if (exists) {
+                        return prev.map(t => t.parameter === parameter ? updated : t);
+                    }
+                    return [...prev, updated];
+                });
+            }
+        } catch (err) {
+            console.error('Failed to save threshold:', err);
+        } finally {
+            setSavingThreshold(null);
+        }
+    };
+
+    const getThreshold = (parameter: string): AlertThreshold | undefined => {
+        return alertThresholds.find(t => t.parameter === parameter);
+    };
 
     if (!localZone) return <div className="text-white p-6">Loading zone data...</div>;
 
@@ -240,6 +304,94 @@ export default function ZoneConfigurationPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Alert Thresholds Configuration */}
+            {!isNewZone && (
+                <div className="glass-card p-6 rounded-2xl space-y-6">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <AlertTriangle size={20} className="text-yellow-400" />
+                        Alert Thresholds
+                    </h3>
+                    <p className="text-white/50 text-sm">Set min/max thresholds for sensor readings. Alerts will be generated when values exceed these limits.</p>
+
+                    <div className="space-y-4">
+                        {SENSOR_PARAMETERS.map(param => {
+                            const threshold = getThreshold(param.key);
+                            const minVal = threshold?.minValue ?? param.defaultMin;
+                            const maxVal = threshold?.maxValue ?? param.defaultMax;
+                            const enabled = threshold?.enabled ?? false;
+                            const alertLevel = threshold?.alertLevel ?? 'warning';
+
+                            return (
+                                <div key={param.key} className="p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-white font-medium">{param.label}</span>
+                                            <span className="text-white/30 text-xs">({param.unit})</span>
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <span className="text-xs text-white/50">{enabled ? 'Enabled' : 'Disabled'}</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={enabled}
+                                                onChange={(e) => saveThreshold(param.key, minVal, maxVal, e.target.checked, alertLevel)}
+                                                className="w-4 h-4 rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="text-xs text-white/50 block mb-1">Min Value</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={minVal ?? ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                                    saveThreshold(param.key, val, maxVal, enabled, alertLevel);
+                                                }}
+                                                className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
+                                                placeholder={param.defaultMin.toString()}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-white/50 block mb-1">Max Value</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={maxVal ?? ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                                    saveThreshold(param.key, minVal, val, enabled, alertLevel);
+                                                }}
+                                                className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
+                                                placeholder={param.defaultMax.toString()}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-white/50 block mb-1">Alert Level</label>
+                                            <select
+                                                value={alertLevel}
+                                                onChange={(e) => saveThreshold(param.key, minVal, maxVal, enabled, e.target.value)}
+                                                className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
+                                            >
+                                                <option value="info">Info</option>
+                                                <option value="warning">Warning</option>
+                                                <option value="critical">Critical</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {savingThreshold === param.key && (
+                                        <div className="mt-2 text-xs text-accent">Saving...</div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
