@@ -43,6 +43,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "effect": "^3.18.4",
     "enhanced-resolve": "^5.18.4",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
