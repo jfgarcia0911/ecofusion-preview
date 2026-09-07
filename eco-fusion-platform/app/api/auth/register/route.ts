@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { validatePassword } from "@/lib/validation/password";
+import { ensurePersonalOrganization } from "@/lib/tenancy";
 
 export async function POST(request: Request) {
     try {
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
                 password: hashedPassword,
             },
         });
+
+        // A new account owns a farm of its own, or it can do nothing at all.
+        await ensurePersonalOrganization(user.id, user.name, user.email);
 
         return NextResponse.json(
             {

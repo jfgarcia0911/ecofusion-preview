@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
-// GET - Fetch all users (admin only)
+// GET - People in the caller's organization (admin only)
 export async function GET() {
     try {
         const ctx = await getOrgContext();
@@ -11,22 +11,30 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = canAdminister(ctx);
-        if (!isAdmin) {
+        if (!canAdminister(ctx)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
-        const users = await prisma.user.findMany({
+        // Scoped to this organization. An admin of one farm has no visibility
+        // into the people of another.
+        const memberships = await prisma.membership.findMany({
+            where: { organizationId: ctx.organizationId },
             select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
                 role: true,
-                createdAt: true,
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                        createdAt: true,
+                    },
+                },
             },
-            orderBy: { name: 'asc' },
+            orderBy: { user: { name: 'asc' } },
         });
+
+        const users = memberships.map(({ user, role }) => ({ ...user, role }));
 
         return NextResponse.json(users);
     } catch (error) {
@@ -35,7 +43,7 @@ export async function GET() {
     }
 }
 
-// PATCH - Update user role (admin only)
+// PATCH - Change someone's role within the caller's organization (owner/admin only)
 export async function PATCH(request: Request) {
     try {
         const ctx = await getOrgContext();
@@ -44,7 +52,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (ctx.role !== 'admin') {
+        if (ctx.role !== 'owner' && ctx.role !== 'admin') {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
@@ -55,24 +63,48 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        if (!['admin', 'manager', 'user'].includes(role)) {
+        if (!['owner', 'admin', 'manager', 'member'].includes(role)) {
             return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
         }
 
-        const updatedUser = await prisma.user.update({
-            where: { id: userId },
+        // The role lives on the membership, so changing it cannot reach a user
+        // outside this organization.
+        const membership = await prisma.membership.findUnique({
+            where: { userId_organizationId: { userId, organizationId: ctx.organizationId } },
+        });
+
+        if (!membership) {
+            return NextResponse.json(
+                { error: 'That person is not a member of this organization' },
+                { status: 404 }
+            );
+        }
+
+        // An organization must keep at least one owner.
+        if (membership.role === 'owner' && role !== 'owner') {
+            const owners = await prisma.membership.count({
+                where: { organizationId: ctx.organizationId, role: 'owner' },
+            });
+            if (owners <= 1) {
+                return NextResponse.json(
+                    { error: 'This is the only owner. Make someone else an owner first.' },
+                    { status: 400 }
+                );
+            }
+        }
+
+        const updated = await prisma.membership.update({
+            where: { id: membership.id },
             data: { role },
             select: {
-                id: true,
-                name: true,
-                email: true,
                 role: true,
+                user: { select: { id: true, name: true, email: true } },
             },
         });
 
-        return NextResponse.json(updatedUser);
+        return NextResponse.json({ ...updated.user, role: updated.role });
     } catch (error) {
-        console.error('Failed to update user:', error);
-        return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+        console.error('Failed to update role:', error);
+        return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
     }
 }

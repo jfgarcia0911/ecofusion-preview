@@ -84,9 +84,9 @@ export default function AdminTrainingPage() {
 
             if (coursesRes.ok) setCourses(await coursesRes.json());
             if (usersRes.ok) {
-                const allUsers = await usersRes.json();
-                // Filter to only show non-admin users
-                setUsers(allUsers.filter((u: User) => u.role === 'user'));
+                // /api/users returns this organization's members, with the role
+                // each holds here. Everyone is trainable, owners included.
+                setUsers(await usersRes.json());
             }
         } catch (error) {
             console.error('Failed to fetch data:', error);

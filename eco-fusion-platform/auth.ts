@@ -4,6 +4,7 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { authConfig } from './auth.config';
+import { ensurePersonalOrganization } from './lib/tenancy';
 import { prisma } from './lib/prisma';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -55,6 +56,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
         }),
     ],
+    events: {
+        // The adapter creates the User for OAuth sign-ins; without a farm of
+        // their own, every request they make would fail authorization.
+        async createUser({ user }) {
+            if (user.id) {
+                await ensurePersonalOrganization(user.id, user.name, user.email);
+            }
+        },
+    },
     callbacks: {
         ...authConfig.callbacks,
         async session({ session, token }) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { getOrgContext, canAdminister, isSameOrganization } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Export training records as CSV
@@ -20,6 +20,13 @@ export async function GET(request: Request) {
         // If specific user requested and requester is admin, export that user's records
         // Otherwise export the current user's records
         const targetUserId = (userId && isAdmin) ? userId : ctx.userId;
+
+        if (targetUserId !== ctx.userId && !(await isSameOrganization(ctx, targetUserId))) {
+            return NextResponse.json(
+                { error: 'That person is not a member of this organization' },
+                { status: 403 }
+            );
+        }
 
         // Get user info
         const user = await prisma.user.findUnique({

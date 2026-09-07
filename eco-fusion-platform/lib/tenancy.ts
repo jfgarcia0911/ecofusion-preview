@@ -9,6 +9,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { DEFAULT_BUSINESS_UNITS } from '@/lib/business-units';
 
 export interface OrgContext {
   userId: string;
@@ -53,4 +54,60 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     organizationId: membership.organizationId,
     role: membership.role,
   };
+}
+
+/** Whether `userId` belongs to the caller's organization. */
+export async function isSameOrganization(ctx: OrgContext, userId: string): Promise<boolean> {
+  if (userId === ctx.userId) return true;
+  const membership = await prisma.membership.findUnique({
+    where: { userId_organizationId: { userId, organizationId: ctx.organizationId } },
+    select: { id: true },
+  });
+  return membership !== null;
+}
+
+/**
+ * Give a new account its own farm.
+ *
+ * Every user needs an organization or nothing they do has an owner and every
+ * request fails authorization. Called when an account is first created, by
+ * either sign-in route. Idempotent, so a retry or a race cannot produce two
+ * farms for one person.
+ */
+export async function ensurePersonalOrganization(
+  userId: string,
+  name?: string | null,
+  email?: string | null
+): Promise<string> {
+  const existing = await prisma.membership.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: { organizationId: true },
+  });
+  if (existing) return existing.organizationId;
+
+  const label = name?.trim() || email?.split('@')[0] || 'My';
+  const organizationId = `org_${userId}`;
+
+  await prisma.$transaction([
+    prisma.organization.create({
+      data: {
+        id: organizationId,
+        name: `${label} Farm`,
+        slug: `farm-${userId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`,
+      },
+    }),
+    prisma.membership.create({
+      data: { userId, organizationId, role: 'owner' },
+    }),
+    prisma.businessUnit.createMany({
+      data: DEFAULT_BUSINESS_UNITS.map((unit, index) => ({
+        organizationId,
+        ...unit,
+        sortOrder: index + 1,
+      })),
+    }),
+  ]);
+
+  return organizationId;
 }

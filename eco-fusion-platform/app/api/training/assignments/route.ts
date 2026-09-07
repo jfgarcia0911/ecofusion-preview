@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { getOrgContext, canAdminister, isSameOrganization } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch course assignments
@@ -19,6 +19,13 @@ export async function GET(request: Request) {
         // If specific user requested and requester is admin, get that user's assignments
         // Otherwise get the current user's assignments
         const targetUserId = (userId && isAdmin) ? userId : ctx.userId;
+
+        if (targetUserId !== ctx.userId && !(await isSameOrganization(ctx, targetUserId))) {
+            return NextResponse.json(
+                { error: 'That person is not a member of this organization' },
+                { status: 403 }
+            );
+        }
 
         const assignments = await prisma.courseAssignment.findMany({
             where: { assigneeId: targetUserId },
