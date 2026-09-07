@@ -31,11 +31,25 @@ export function isTestMode(): boolean {
   return (process.env.STRIPE_SECRET_KEY ?? '').startsWith('sk_test_');
 }
 
-/** Absolute origin for Stripe's return URLs. */
+/**
+ * Absolute origin for Stripe's return URLs.
+ *
+ * Vercel supplies the host itself, so a deployment there needs no variable
+ * set. Preview deployments resolve to their own host and production to the
+ * project's stable domain rather than the one-off deployment URL - either way
+ * the customer returns to the origin they left, so their session cookie
+ * survives the round trip. An explicit variable still wins, for local and
+ * Render. Empty is treated as unset: a blank dashboard field is not an answer.
+ */
 export function appUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXTAUTH_URL ??
-    'http://localhost:3000'
-  ).replace(/\/$/, '');
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
+  if (configured) return configured.replace(/\/$/, '');
+
+  const vercelHost =
+    process.env.VERCEL_ENV === 'production'
+      ? process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
+      : process.env.VERCEL_URL;
+  if (vercelHost) return `https://${vercelHost}`;
+
+  return 'http://localhost:3000';
 }
