@@ -165,7 +165,7 @@ export default function AdminTrainingPage() {
 
         if (errorCount > 0) {
             toast.warning(`Assigned ${successCount} of ${successCount + errorCount} courses`, {
-                description: `${errorCount} failed \u2014 they may already be assigned.`,
+                description: `${errorCount} failed. They may already be assigned.`,
             });
         } else {
             toast.success(`Assigned ${successCount} course${successCount === 1 ? '' : 's'}`);
