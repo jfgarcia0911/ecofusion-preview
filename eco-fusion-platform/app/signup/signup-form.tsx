@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { googleSignIn } from '@/lib/actions';
 import { Lock, Mail, User, ArrowRight, Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
 
@@ -118,7 +119,24 @@ export default function SignupForm() {
                 return;
             }
 
-            router.push('/login?registered=true');
+            // The account exists and we already hold the credentials that made
+            // it, so sending someone to a login form to retype them is friction
+            // with nothing on the other side of it.
+            const signedIn = await signIn('credentials', {
+                email,
+                password,
+                redirect: false,
+            });
+
+            if (signedIn?.error) {
+                // Registration succeeded; only the sign-in leg failed. Say so,
+                // rather than implying the account was not created.
+                router.push('/login?registered=true');
+                return;
+            }
+
+            router.push('/dashboard/executive');
+            router.refresh();
         } catch {
             setError('Something went wrong');
             setIsPending(false);
