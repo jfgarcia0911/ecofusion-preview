@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch aggregated dashboard statistics
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    const userId = ctx.userId;
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);

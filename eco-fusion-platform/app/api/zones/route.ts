@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all zones for user with latest sensor readings
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const zones = await prisma.zone.findMany({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       orderBy: { name: 'asc' },
       include: {
         metrics: {
@@ -54,8 +54,8 @@ export async function GET() {
 // POST - Create a new zone
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -68,7 +68,8 @@ export async function POST(request: Request) {
 
     const zone = await prisma.zone.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         name,
         type,
       },

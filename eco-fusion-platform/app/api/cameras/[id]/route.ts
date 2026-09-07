@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch a single camera
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -18,7 +18,7 @@ export async function GET(
     const camera = await prisma.camera.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
       },
       include: {
         zone: {
@@ -44,8 +44,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -69,7 +69,7 @@ export async function PATCH(
     const existingCamera = await prisma.camera.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
       },
     });
 
@@ -80,7 +80,7 @@ export async function PATCH(
     // Validate zoneId if provided
     if (zoneId !== undefined && zoneId !== null) {
       const zone = await prisma.zone.findFirst({
-        where: { id: zoneId, userId: session.user.id },
+        where: { id: zoneId, organizationId: ctx.organizationId },
       });
       if (!zone) {
         return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
@@ -123,8 +123,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -134,7 +134,7 @@ export async function DELETE(
     const existingCamera = await prisma.camera.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
       },
     });
 

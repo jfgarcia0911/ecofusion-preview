@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all plant crops for user
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const plantCrops = await prisma.plantCrop.findMany({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       include: {
         zone: true,
         growthLogs: {
@@ -35,8 +35,8 @@ export async function GET() {
 // POST - Create new plant crop
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -49,13 +49,14 @@ export async function POST(request: Request) {
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
-    if (!zone || zone.userId !== session.user.id) {
+    if (!zone || zone.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
     const plantCrop = await prisma.plantCrop.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         zoneId,
         cropType,
         variety: variety || null,
@@ -80,8 +81,8 @@ export async function POST(request: Request) {
 // PATCH - Update plant crop
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -94,7 +95,7 @@ export async function PATCH(request: Request) {
 
     // Verify ownership
     const plantCrop = await prisma.plantCrop.findUnique({ where: { id } });
-    if (!plantCrop || plantCrop.userId !== session.user.id) {
+    if (!plantCrop || plantCrop.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
     }
 
@@ -124,8 +125,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete plant crop
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -138,7 +139,7 @@ export async function DELETE(request: Request) {
 
     // Verify ownership
     const plantCrop = await prisma.plantCrop.findUnique({ where: { id } });
-    if (!plantCrop || plantCrop.userId !== session.user.id) {
+    if (!plantCrop || plantCrop.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
     }
 

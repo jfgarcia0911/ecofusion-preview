@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all sales for user
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -16,10 +16,10 @@ export async function GET(request: Request) {
     const endDate = searchParams.get('endDate');
 
     const where: {
-      userId: string;
+      organizationId: string;
       status?: string;
       saleDate?: { gte?: Date; lte?: Date };
-    } = { userId: session.user.id };
+    } = { organizationId: ctx.organizationId };
 
     if (status) {
       where.status = status;
@@ -58,8 +58,8 @@ export async function GET(request: Request) {
 // POST - Create a new sale
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       const inventoryItems = await prisma.salesInventory.findMany({
         where: {
           id: { in: inventoryChecks.map(i => i.itemId) },
-          userId: session.user.id,
+          organizationId: ctx.organizationId,
         },
       });
 
@@ -137,7 +137,8 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: {
-          userId: session.user.id,
+          userId: ctx.userId,
+        organizationId: ctx.organizationId,
           customerName: customerName || null,
           customerEmail: customerEmail || null,
           customerPhone: customerPhone || null,
@@ -212,8 +213,8 @@ export async function POST(request: Request) {
 // PATCH - Update sale status
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -226,7 +227,7 @@ export async function PATCH(request: Request) {
 
     // Verify ownership
     const sale = await prisma.sale.findUnique({ where: { id } });
-    if (!sale || sale.userId !== session.user.id) {
+    if (!sale || sale.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }
 
@@ -248,8 +249,8 @@ export async function PATCH(request: Request) {
 // DELETE - Cancel/delete a sale
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -266,7 +267,7 @@ export async function DELETE(request: Request) {
       include: { items: true },
     });
 
-    if (!sale || sale.userId !== session.user.id) {
+    if (!sale || sale.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }
 

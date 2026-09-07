@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all alert thresholds for a zone
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,7 +17,7 @@ export async function GET(
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
-      where: { id: zoneId, userId: session.user.id },
+      where: { id: zoneId, organizationId: ctx.organizationId },
     });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
@@ -41,8 +41,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -61,7 +61,7 @@ export async function POST(
     }
 
     // Verify zone exists and belongs to user
-    const zone = await prisma.zone.findFirst({ where: { id: zoneId, userId: session.user.id } });
+    const zone = await prisma.zone.findFirst({ where: { id: zoneId, organizationId: ctx.organizationId } });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
@@ -100,8 +100,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -114,7 +114,7 @@ export async function DELETE(
     }
 
     // Verify zone belongs to user
-    const zone = await prisma.zone.findFirst({ where: { id: zoneId, userId: session.user.id } });
+    const zone = await prisma.zone.findFirst({ where: { id: zoneId, organizationId: ctx.organizationId } });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }

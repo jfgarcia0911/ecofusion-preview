@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all sales inventory for user
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -15,10 +15,10 @@ export async function GET(request: Request) {
     const productType = searchParams.get('productType'); // Optional filter
 
     const where: {
-      userId: string;
+      organizationId: string;
       status?: string;
       productType?: string;
-    } = { userId: session.user.id };
+    } = { organizationId: ctx.organizationId };
 
     if (status) {
       where.status = status;
@@ -53,8 +53,8 @@ export async function GET(request: Request) {
 // POST - Add item to sales inventory
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -76,14 +76,15 @@ export async function POST(request: Request) {
     // Verify harvest ownership if provided
     if (harvestId) {
       const harvest = await prisma.harvest.findUnique({ where: { id: harvestId } });
-      if (!harvest || harvest.userId !== session.user.id) {
+      if (!harvest || harvest.userId !== ctx.userId) {
         return NextResponse.json({ error: 'Harvest not found' }, { status: 404 });
       }
     }
 
     const inventoryItem = await prisma.salesInventory.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         productName,
         productType,
         quantity,
@@ -107,8 +108,8 @@ export async function POST(request: Request) {
 // PATCH - Update sales inventory item
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -121,7 +122,7 @@ export async function PATCH(request: Request) {
 
     // Verify ownership
     const item = await prisma.salesInventory.findUnique({ where: { id } });
-    if (!item || item.userId !== session.user.id) {
+    if (!item || item.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 });
     }
 
@@ -148,8 +149,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete sales inventory item
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -162,7 +163,7 @@ export async function DELETE(request: Request) {
 
     // Verify ownership
     const item = await prisma.salesInventory.findUnique({ where: { id } });
-    if (!item || item.userId !== session.user.id) {
+    if (!item || item.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 });
     }
 

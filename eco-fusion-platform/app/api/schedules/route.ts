@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch schedules (admin sees all, users see their own)
 export async function GET() {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
 
         const schedules = await prisma.schedule.findMany({
-            where: isAdmin ? {} : { assigneeId: session.user.id },
+            where: isAdmin ? {} : { assigneeId: ctx.userId },
             include: {
                 assignee: {
                     select: { id: true, name: true, email: true, image: true },
@@ -36,13 +36,13 @@ export async function GET() {
 // POST - Create new schedule (admin only)
 export async function POST(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
         const schedule = await prisma.schedule.create({
             data: {
-                adminId: session.user.id,
+                adminId: ctx.userId,
                 assigneeId,
                 title,
                 description,
@@ -95,13 +95,13 @@ export async function POST(request: Request) {
 // DELETE - Delete a schedule (admin only)
 export async function DELETE(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }

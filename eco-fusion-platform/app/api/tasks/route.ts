@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all tasks for the current user
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const tasks = await prisma.task.findMany({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       orderBy: [
         { completed: 'asc' },
         { priority: 'asc' },
@@ -29,8 +29,8 @@ export async function GET() {
 // POST - Create a new task
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -43,7 +43,8 @@ export async function POST(request: Request) {
 
     const task = await prisma.task.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         text,
         priority: priority || 'medium',
         dueDate: dueDate ? new Date(dueDate) : null,
@@ -62,8 +63,8 @@ export async function POST(request: Request) {
 // PATCH - Update a task
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -76,7 +77,7 @@ export async function PATCH(request: Request) {
 
     // Verify task belongs to user
     const existingTask = await prisma.task.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, organizationId: ctx.organizationId },
     });
 
     if (!existingTask) {
@@ -104,8 +105,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete a task
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -118,7 +119,7 @@ export async function DELETE(request: Request) {
 
     // Verify task belongs to user
     const existingTask = await prisma.task.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, organizationId: ctx.organizationId },
     });
 
     if (!existingTask) {

@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all users (admin only)
 export async function GET() {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
@@ -38,13 +38,13 @@ export async function GET() {
 // PATCH - Update user role (admin only)
 export async function PATCH(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (session.user.role !== 'admin') {
+        if (ctx.role !== 'admin') {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 

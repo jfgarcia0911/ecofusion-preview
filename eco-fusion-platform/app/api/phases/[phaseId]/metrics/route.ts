@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch efficiency metrics for a phase
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -28,7 +28,7 @@ export async function GET(
     // 1. Task completion rate for this phase
     const phaseTasks = await prisma.task.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         phaseId,
         createdAt: {
           gte: startOfMonth,
@@ -49,7 +49,7 @@ export async function GET(
     // 2. Alert resolution rate
     const alerts = await prisma.alert.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         createdAt: {
           gte: startOfMonth,
           lte: endOfMonth,
@@ -69,7 +69,7 @@ export async function GET(
     // 3. Activity level based on recent sales/harvests
     const recentSales = await prisma.sale.count({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         saleDate: {
           gte: startOfMonth,
           lte: endOfMonth,
@@ -80,7 +80,7 @@ export async function GET(
 
     const recentHarvests = await prisma.harvest.count({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         harvestDate: {
           gte: startOfMonth,
           lte: endOfMonth,
@@ -103,8 +103,8 @@ export async function GET(
     // Get phase settings for target revenue if configured
     const phaseSettings = await prisma.phaseSettings.findUnique({
       where: {
-        userId_phaseId: {
-          userId: session.user.id,
+        organizationId_phaseId: {
+          organizationId: ctx.organizationId,
           phaseId,
         },
       },

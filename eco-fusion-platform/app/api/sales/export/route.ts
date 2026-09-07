@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Export sales data as CSV
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -16,9 +16,9 @@ export async function GET(request: Request) {
     const format = searchParams.get('format') || 'csv';
 
     const where: {
-      userId: string;
+      organizationId: string;
       saleDate?: { gte?: Date; lte?: Date };
-    } = { userId: session.user.id };
+    } = { organizationId: ctx.organizationId };
 
     if (startDate || endDate) {
       where.saleDate = {};

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch alerts with optional filters
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const zoneId = searchParams.get('zoneId');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where: Record<string, unknown> = { userId: session.user.id };
+    const where: Record<string, unknown> = { organizationId: ctx.organizationId };
 
     if (status) where.status = status;
     if (severity) where.severity = severity;
@@ -42,8 +42,8 @@ export async function GET(request: Request) {
 // POST - Create a new alert
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     // Validate zone belongs to user if provided
     if (zoneId) {
       const zone = await prisma.zone.findFirst({
-        where: { id: zoneId, userId: session.user.id },
+        where: { id: zoneId, organizationId: ctx.organizationId },
       });
       if (!zone) {
         return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
@@ -66,7 +66,8 @@ export async function POST(request: Request) {
 
     const alert = await prisma.alert.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         zoneId: zoneId || null,
         type: type || 'manual',
         severity: severity || 'warning',
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     // Create notification for the alert
     await prisma.notification.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
         title: `Alert: ${title}`,
         message,
         type: severity === 'critical' ? 'error' : severity === 'warning' ? 'warning' : 'info',

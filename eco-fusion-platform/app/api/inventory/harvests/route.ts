@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all harvests for user
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // Optional filter by "fish" or "plant"
 
-    const where: { userId: string; type?: string } = { userId: session.user.id };
+    const where: { organizationId: string; type?: string } = { organizationId: ctx.organizationId };
     if (type) {
       where.type = type;
     }
@@ -44,8 +44,8 @@ export async function GET(request: Request) {
 // POST - Record a harvest
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -74,14 +74,14 @@ export async function POST(request: Request) {
     // Verify ownership of source stock
     if (type === 'fish' && fishStockId) {
       const fishStock = await prisma.fishStock.findUnique({ where: { id: fishStockId } });
-      if (!fishStock || fishStock.userId !== session.user.id) {
+      if (!fishStock || fishStock.userId !== ctx.userId) {
         return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
       }
     }
 
     if (type === 'plant' && plantCropId) {
       const plantCrop = await prisma.plantCrop.findUnique({ where: { id: plantCropId } });
-      if (!plantCrop || plantCrop.userId !== session.user.id) {
+      if (!plantCrop || plantCrop.userId !== ctx.userId) {
         return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
       }
     }
@@ -90,7 +90,8 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const harvest = await tx.harvest.create({
         data: {
-          userId: session.user.id,
+          userId: ctx.userId,
+        organizationId: ctx.organizationId,
           type,
           fishStockId: type === 'fish' ? fishStockId : null,
           plantCropId: type === 'plant' ? plantCropId : null,
@@ -129,7 +130,8 @@ export async function POST(request: Request) {
 
         await tx.salesInventory.create({
           data: {
-            userId: session.user.id,
+            userId: ctx.userId,
+        organizationId: ctx.organizationId,
             productName,
             productType: type === 'fish' ? 'fish' : 'produce',
             quantity,
@@ -153,8 +155,8 @@ export async function POST(request: Request) {
 // PATCH - Update harvest
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -167,7 +169,7 @@ export async function PATCH(request: Request) {
 
     // Verify ownership
     const harvest = await prisma.harvest.findUnique({ where: { id } });
-    if (!harvest || harvest.userId !== session.user.id) {
+    if (!harvest || harvest.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Harvest not found' }, { status: 404 });
     }
 
@@ -190,8 +192,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete harvest
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -204,7 +206,7 @@ export async function DELETE(request: Request) {
 
     // Verify ownership
     const harvest = await prisma.harvest.findUnique({ where: { id } });
-    if (!harvest || harvest.userId !== session.user.id) {
+    if (!harvest || harvest.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Harvest not found' }, { status: 404 });
     }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch a single zone with its latest readings
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -18,7 +18,7 @@ export async function GET(
     const zone = await prisma.zone.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
       },
       include: {
         metrics: {
@@ -73,8 +73,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -86,7 +86,7 @@ export async function PATCH(
     const existingZone = await prisma.zone.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
       },
     });
 
@@ -124,8 +124,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -135,7 +135,7 @@ export async function DELETE(
     const existingZone = await prisma.zone.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
       },
       include: {
         fishStocks: { where: { status: 'growing' } },

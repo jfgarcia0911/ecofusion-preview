@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // POST - Resolve an alert
@@ -8,8 +8,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -19,7 +19,7 @@ export async function POST(
 
     // Verify alert belongs to user
     const existingAlert = await prisma.alert.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, organizationId: ctx.organizationId },
     });
     if (!existingAlert) {
       return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
@@ -30,7 +30,7 @@ export async function POST(
       data: {
         status: 'resolved',
         resolvedAt: new Date(),
-        resolvedBy: session.user.id,
+        resolvedBy: ctx.userId,
         resolution: resolution || null,
       },
       include: {
@@ -42,7 +42,7 @@ export async function POST(
     // Create notification for resolution
     await prisma.notification.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
         title: `Alert Resolved: ${existingAlert.title}`,
         message: resolution || 'Alert has been marked as resolved',
         type: 'success',

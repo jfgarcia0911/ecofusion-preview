@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch phase settings
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,8 +17,8 @@ export async function GET(
 
     const settings = await prisma.phaseSettings.findUnique({
       where: {
-        userId_phaseId: {
-          userId: session.user.id,
+        organizationId_phaseId: {
+          organizationId: ctx.organizationId,
           phaseId,
         },
       },
@@ -49,8 +49,8 @@ export async function PUT(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -60,8 +60,8 @@ export async function PUT(
 
     const settings = await prisma.phaseSettings.upsert({
       where: {
-        userId_phaseId: {
-          userId: session.user.id,
+        organizationId_phaseId: {
+          organizationId: ctx.organizationId,
           phaseId,
         },
       },
@@ -73,7 +73,8 @@ export async function PUT(
         notes: notes !== undefined ? notes : undefined,
       },
       create: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         phaseId,
         budgetMonthly: budgetMonthly || null,
         targetRevenue: targetRevenue || null,

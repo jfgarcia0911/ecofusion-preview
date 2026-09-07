@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch a single alert
@@ -8,15 +8,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
 
     const alert = await prisma.alert.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, organizationId: ctx.organizationId },
       include: {
         zone: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true, email: true } },
@@ -40,8 +40,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -51,7 +51,7 @@ export async function PATCH(
 
     // Verify alert belongs to user
     const existingAlert = await prisma.alert.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, organizationId: ctx.organizationId },
     });
     if (!existingAlert) {
       return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
@@ -84,8 +84,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -93,7 +93,7 @@ export async function DELETE(
 
     // Verify alert belongs to user
     const existingAlert = await prisma.alert.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, organizationId: ctx.organizationId },
     });
     if (!existingAlert) {
       return NextResponse.json({ error: 'Alert not found' }, { status: 404 });

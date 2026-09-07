@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch user's lesson completions for a course
@@ -8,9 +8,9 @@ export async function GET(
     { params }: { params: Promise<{ courseId: string }> }
 ) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -27,7 +27,7 @@ export async function GET(
         // Get user's completions for these lessons
         const completions = await prisma.lessonCompletion.findMany({
             where: {
-                userId: session.user.id,
+                userId: ctx.userId,
                 lessonId: { in: lessonIds }
             },
             select: {

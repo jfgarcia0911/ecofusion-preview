@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
@@ -29,13 +29,13 @@ function decryptApiKey(encrypted: string): string {
 // GET - Fetch integration settings
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const settings = await prisma.integrationSettings.findUnique({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
     });
 
     if (!settings) {
@@ -63,8 +63,8 @@ export async function GET() {
 // POST - Create or update integration settings
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -91,10 +91,11 @@ export async function POST(request: Request) {
     }
 
     const settings = await prisma.integrationSettings.upsert({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       update: updateData,
       create: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         ...updateData,
       },
     });
@@ -113,13 +114,13 @@ export async function POST(request: Request) {
 // DELETE - Remove integration settings
 export async function DELETE() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await prisma.integrationSettings.delete({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
     });
 
     return NextResponse.json({ success: true });

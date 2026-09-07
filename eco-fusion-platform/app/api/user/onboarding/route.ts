@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
         const { complete } = await request.json();
 
         await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: ctx.userId },
             data: { onboardingComplete: complete },
         });
 
@@ -32,9 +32,9 @@ export async function POST(request: Request) {
 
 export async function GET() {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }
@@ -42,7 +42,7 @@ export async function GET() {
         }
 
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: ctx.userId },
             select: { onboardingComplete: true },
         });
 

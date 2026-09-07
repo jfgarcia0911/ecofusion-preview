@@ -61,6 +61,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             if (token.sub && session.user) {
                 session.user.id = token.sub;
                 session.user.role = token.role as string;
+                session.user.organizationId = token.organizationId as string | undefined;
+                session.user.orgRole = token.orgRole as string | undefined;
             }
             return session;
         },
@@ -68,6 +70,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             if (user) {
                 token.sub = user.id;
                 token.role = user.role;
+            }
+            // Resolve the organization once per token rather than on every request.
+            if (token.sub && !token.organizationId) {
+                const membership = await prisma.membership.findFirst({
+                    where: { userId: token.sub },
+                    orderBy: { createdAt: 'asc' },
+                    select: { organizationId: true, role: true },
+                });
+                if (membership) {
+                    token.organizationId = membership.organizationId;
+                    token.orgRole = membership.role;
+                }
             }
             // Refresh role from database on update
             if (trigger === 'update' && token.sub) {
@@ -77,6 +91,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 });
                 if (dbUser) {
                     token.role = dbUser.role;
+                }
+                const membership = await prisma.membership.findFirst({
+                    where: { userId: token.sub },
+                    orderBy: { createdAt: 'asc' },
+                    select: { organizationId: true, role: true },
+                });
+                if (membership) {
+                    token.organizationId = membership.organizationId;
+                    token.orgRole = membership.role;
                 }
             }
             return token;

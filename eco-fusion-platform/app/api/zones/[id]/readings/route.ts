@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch sensor readings for a zone
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -19,7 +19,7 @@ export async function GET(
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
-      where: { id: zoneId, userId: session.user.id },
+      where: { id: zoneId, organizationId: ctx.organizationId },
     });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
@@ -44,8 +44,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function POST(
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
-      where: { id: zoneId, userId: session.user.id },
+      where: { id: zoneId, organizationId: ctx.organizationId },
       include: { alertThresholds: true },
     });
     if (!zone) {
@@ -120,7 +120,7 @@ export async function POST(
         // Check if there's already an active alert for this parameter
         const existingAlert = await prisma.alert.findFirst({
           where: {
-            userId: session.user.id,
+            organizationId: ctx.organizationId,
             zoneId,
             type: 'threshold',
             status: 'active',
@@ -132,7 +132,8 @@ export async function POST(
           // Create new alert
           await prisma.alert.create({
             data: {
-              userId: session.user.id,
+              userId: ctx.userId,
+        organizationId: ctx.organizationId,
               zoneId,
               type: 'threshold',
               severity: threshold.alertLevel as 'info' | 'warning' | 'critical',
@@ -144,7 +145,7 @@ export async function POST(
           // Create notification
           await prisma.notification.create({
             data: {
-              userId: session.user.id,
+              userId: ctx.userId,
               title: `Threshold Alert: ${paramName}`,
               message: `${zone.name}: ${alertMessage}`,
               type: threshold.alertLevel === 'critical' ? 'error' : 'warning',

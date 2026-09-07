@@ -6,6 +6,10 @@ declare module 'next-auth' {
         user: {
             id: string;
             role: string;
+            /** Organization the session is currently acting within. */
+            organizationId?: string;
+            /** Role held within that organization: owner | admin | manager | member. */
+            orgRole?: string;
         } & DefaultSession['user'];
     }
 
@@ -19,5 +23,7 @@ declare module 'next-auth/jwt' {
     interface JWT extends DefaultJWT {
         id?: string;
         role?: string;
+        organizationId?: string;
+        orgRole?: string;
     }
 }

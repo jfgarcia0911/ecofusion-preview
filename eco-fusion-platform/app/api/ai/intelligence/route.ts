@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -320,8 +320,8 @@ async function getSystemData(userId: string) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -331,7 +331,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    const systemData = await getSystemData(session.user.id);
+    const systemData = await getSystemData(ctx.userId);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const chatHistory = history?.map((msg: { role: string; content: string }) => ({
@@ -361,7 +361,7 @@ export async function POST(request: Request) {
     let executionResults: string[] = [];
 
     if (commands.length > 0) {
-      executionResults = await executeCommands(commands, session.user.id);
+      executionResults = await executeCommands(commands, ctx.userId);
     }
 
     // Clean response and add execution results

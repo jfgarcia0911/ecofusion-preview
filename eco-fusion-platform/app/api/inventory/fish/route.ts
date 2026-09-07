@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all fish stock for user
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const fishStock = await prisma.fishStock.findMany({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       include: {
         zone: true,
         growthLogs: {
@@ -35,8 +35,8 @@ export async function GET() {
 // POST - Create new fish stock
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -49,13 +49,14 @@ export async function POST(request: Request) {
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
-    if (!zone || zone.userId !== session.user.id) {
+    if (!zone || zone.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
     const fishStock = await prisma.fishStock.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         zoneId,
         species,
         quantity,
@@ -79,8 +80,8 @@ export async function POST(request: Request) {
 // PATCH - Update fish stock
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -93,7 +94,7 @@ export async function PATCH(request: Request) {
 
     // Verify ownership
     const fishStock = await prisma.fishStock.findUnique({ where: { id } });
-    if (!fishStock || fishStock.userId !== session.user.id) {
+    if (!fishStock || fishStock.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
     }
 
@@ -120,8 +121,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete fish stock
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -134,7 +135,7 @@ export async function DELETE(request: Request) {
 
     // Verify ownership
     const fishStock = await prisma.fishStock.findUnique({ where: { id } });
-    if (!fishStock || fishStock.userId !== session.user.id) {
+    if (!fishStock || fishStock.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
     }
 

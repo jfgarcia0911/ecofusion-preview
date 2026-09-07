@@ -11,6 +11,17 @@ async function main() {
     return;
   }
 
+  // Farm data belongs to an organization, so seed into the user's own.
+  const membership = await prisma.membership.findFirst({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!membership) {
+    console.log('User has no organization membership. Run the organization migration first.');
+    return;
+  }
+  const organizationId = membership.organizationId;
+
   console.log(`Seeding data for user: ${user.name} (${user.email})`);
 
   // Create Zones
@@ -20,6 +31,7 @@ async function main() {
     create: {
       id: 'zone-a',
       userId: user.id,
+      organizationId,
       name: 'Zone A - Main Tank',
       type: 'aquaculture',
       status: 'active',
@@ -32,6 +44,7 @@ async function main() {
     create: {
       id: 'zone-b',
       userId: user.id,
+      organizationId,
       name: 'Zone B - Grow Beds',
       type: 'hydroponics',
       status: 'active',
@@ -44,6 +57,7 @@ async function main() {
     create: {
       id: 'zone-c',
       userId: user.id,
+      organizationId,
       name: 'Zone C - Nursery',
       type: 'aquaculture',
       status: 'active',
@@ -96,6 +110,7 @@ async function main() {
     create: {
       id: 'fish-tilapia-1',
       userId: user.id,
+      organizationId,
       zoneId: zoneA.id,
       species: 'Tilapia',
       quantity: 500,
@@ -113,6 +128,7 @@ async function main() {
     create: {
       id: 'fish-catfish-1',
       userId: user.id,
+      organizationId,
       zoneId: zoneC.id,
       species: 'Catfish',
       quantity: 200,
@@ -157,6 +173,7 @@ async function main() {
     create: {
       id: 'plant-lettuce-1',
       userId: user.id,
+      organizationId,
       zoneId: zoneB.id,
       cropType: 'Lettuce',
       variety: 'Butterhead',
@@ -175,6 +192,7 @@ async function main() {
     create: {
       id: 'plant-basil-1',
       userId: user.id,
+      organizationId,
       zoneId: zoneB.id,
       cropType: 'Basil',
       variety: 'Genovese',
@@ -219,6 +237,7 @@ async function main() {
     create: {
       id: 'param-tilapia',
       userId: user.id,
+      organizationId,
       type: 'fish',
       species: 'Tilapia',
       growingDays: 180,
@@ -238,6 +257,7 @@ async function main() {
     create: {
       id: 'param-lettuce',
       userId: user.id,
+      organizationId,
       type: 'plant',
       species: 'Lettuce',
       variety: 'Butterhead',
@@ -258,6 +278,7 @@ async function main() {
   const harvest = await prisma.harvest.create({
     data: {
       userId: user.id,
+      organizationId,
       type: 'plant',
       plantCropId: lettuce.id,
       quantity: 50,
@@ -275,6 +296,7 @@ async function main() {
   await prisma.salesInventory.create({
     data: {
       userId: user.id,
+      organizationId,
       productName: 'Butterhead Lettuce',
       productType: 'produce',
       quantity: 50,
@@ -288,6 +310,7 @@ async function main() {
   await prisma.salesInventory.create({
     data: {
       userId: user.id,
+      organizationId,
       productName: 'Fresh Tilapia',
       productType: 'fish',
       quantity: 25,
@@ -303,6 +326,7 @@ async function main() {
   const sale = await prisma.sale.create({
     data: {
       userId: user.id,
+      organizationId,
       customerName: 'Green Market Co.',
       customerEmail: 'orders@greenmarket.com',
       subtotal: 87.50,

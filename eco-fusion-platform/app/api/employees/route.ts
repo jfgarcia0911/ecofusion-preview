@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all employees for user
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const employees = await prisma.employee.findMany({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       orderBy: { name: 'asc' },
     });
 
@@ -25,8 +25,8 @@ export async function GET() {
 // POST - Create a new employee
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
 
     const employee = await prisma.employee.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         name,
         role,
         email,

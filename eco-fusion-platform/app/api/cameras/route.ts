@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all cameras for user
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const cameras = await prisma.camera.findMany({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       include: {
         zone: {
           select: { id: true, name: true, type: true },
@@ -30,8 +30,8 @@ export async function GET() {
 // POST - Create a new camera
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     // Validate zoneId if provided
     if (zoneId) {
       const zone = await prisma.zone.findFirst({
-        where: { id: zoneId, userId: session.user.id },
+        where: { id: zoneId, organizationId: ctx.organizationId },
       });
       if (!zone) {
         return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
@@ -64,13 +64,14 @@ export async function POST(request: Request) {
 
     // Get the next sort order
     const maxSortOrder = await prisma.camera.aggregate({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       _max: { sortOrder: true },
     });
 
     const camera = await prisma.camera.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         name,
         location: location || null,
         zoneId: zoneId || null,

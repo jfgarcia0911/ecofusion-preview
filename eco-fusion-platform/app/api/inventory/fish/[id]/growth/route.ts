@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch growth logs for a fish stock
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,7 +17,7 @@ export async function GET(
 
     // Verify ownership
     const fishStock = await prisma.fishStock.findUnique({ where: { id } });
-    if (!fishStock || fishStock.userId !== session.user.id) {
+    if (!fishStock || fishStock.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
     }
 
@@ -39,8 +39,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -54,7 +54,7 @@ export async function POST(
 
     // Verify ownership
     const fishStock = await prisma.fishStock.findUnique({ where: { id } });
-    if (!fishStock || fishStock.userId !== session.user.id) {
+    if (!fishStock || fishStock.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
     }
 

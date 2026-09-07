@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch course assignments
 export async function GET(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
 
         // If specific user requested and requester is admin, get that user's assignments
         // Otherwise get the current user's assignments
-        const targetUserId = (userId && isAdmin) ? userId : session.user.id;
+        const targetUserId = (userId && isAdmin) ? userId : ctx.userId;
 
         const assignments = await prisma.courseAssignment.findMany({
             where: { assigneeId: targetUserId },
@@ -84,13 +84,13 @@ export async function GET(request: Request) {
 // POST - Create course assignment (admin only)
 export async function POST(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
             data: {
                 courseId,
                 assigneeId,
-                assignedById: session.user.id,
+                assignedById: ctx.userId,
                 dueDate: dueDate ? new Date(dueDate) : null,
                 priority: priority || 'normal',
                 notes
@@ -161,13 +161,13 @@ export async function POST(request: Request) {
 // DELETE - Remove course assignment (admin only)
 export async function DELETE(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }

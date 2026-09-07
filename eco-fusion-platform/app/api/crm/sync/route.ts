@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // Helper to decrypt API key
@@ -14,14 +14,14 @@ function decryptApiKey(encrypted: string): string {
 // POST - Sync sales to CRM
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get integration settings
     const settings = await prisma.integrationSettings.findUnique({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
     });
 
     if (!settings?.apiKey || !settings.isEnabled) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         include: { items: true },
       });
 
-      if (!sale || sale.userId !== session.user.id) {
+      if (!sale || sale.userId !== ctx.userId) {
         return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
       }
 
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
     // Update last sync time
     await prisma.integrationSettings.update({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
       data: { lastSyncAt: new Date() },
     });
 
@@ -130,19 +130,19 @@ export async function POST(request: Request) {
 // GET - Check sync status
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const settings = await prisma.integrationSettings.findUnique({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
     });
 
     // Get count of unsynced sales
     const unsyncedCount = await prisma.sale.count({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         crmSynced: false,
         OR: [
           { customerEmail: { not: null } },

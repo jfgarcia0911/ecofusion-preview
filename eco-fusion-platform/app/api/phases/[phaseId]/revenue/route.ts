@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 import { resolvePhaseId, monthRange } from '@/lib/phase-revenue';
 
@@ -10,8 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -24,7 +24,7 @@ export async function GET(
     // Get all sales for the current month
     const sales = await prisma.sale.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         saleDate: {
           gte: startOfMonth,
           lte: endOfMonth,

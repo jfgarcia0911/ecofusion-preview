@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // POST - Mark lesson as complete
@@ -8,9 +8,9 @@ export async function POST(
     { params }: { params: Promise<{ lessonId: string }> }
 ) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -31,7 +31,7 @@ export async function POST(
         // Create or update lesson completion
         const completion = await prisma.lessonCompletion.upsert({
             where: {
-                lessonId_userId: { lessonId, userId: session.user.id }
+                lessonId_userId: { lessonId, userId: ctx.userId }
             },
             update: {
                 completedAt: new Date(),
@@ -40,7 +40,7 @@ export async function POST(
             },
             create: {
                 lessonId,
-                userId: session.user.id,
+                userId: ctx.userId,
                 quizScore,
                 timeSpent
             }
@@ -53,7 +53,7 @@ export async function POST(
 
         const completedLessons = await prisma.lessonCompletion.findMany({
             where: {
-                userId: session.user.id,
+                userId: ctx.userId,
                 lessonId: { in: courseLessons.map(l => l.id) }
             }
         });
@@ -64,7 +64,7 @@ export async function POST(
         await prisma.courseAssignment.updateMany({
             where: {
                 courseId: lesson.courseId,
-                assigneeId: session.user.id,
+                assigneeId: ctx.userId,
                 status: 'assigned'
             },
             data: {

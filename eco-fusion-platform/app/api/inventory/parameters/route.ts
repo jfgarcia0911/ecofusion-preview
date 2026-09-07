@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all growth parameters for user
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // Optional filter by "fish" or "plant"
 
-    const where: { userId: string; type?: string } = { userId: session.user.id };
+    const where: { organizationId: string; type?: string } = { organizationId: ctx.organizationId };
     if (type) {
       where.type = type;
     }
@@ -33,8 +33,8 @@ export async function GET(request: Request) {
 // POST - Create new growth parameter template
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -64,7 +64,8 @@ export async function POST(request: Request) {
 
     const parameter = await prisma.growthParameter.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         type,
         species,
         variety: variety || null,
@@ -90,8 +91,8 @@ export async function POST(request: Request) {
 // PATCH - Update growth parameter
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -104,7 +105,7 @@ export async function PATCH(request: Request) {
 
     // Verify ownership
     const parameter = await prisma.growthParameter.findUnique({ where: { id } });
-    if (!parameter || parameter.userId !== session.user.id) {
+    if (!parameter || parameter.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Parameter not found' }, { status: 404 });
     }
 
@@ -123,8 +124,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete growth parameter
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -137,7 +138,7 @@ export async function DELETE(request: Request) {
 
     // Verify ownership
     const parameter = await prisma.growthParameter.findUnique({ where: { id } });
-    if (!parameter || parameter.userId !== session.user.id) {
+    if (!parameter || parameter.userId !== ctx.userId) {
       return NextResponse.json({ error: 'Parameter not found' }, { status: 404 });
     }
 

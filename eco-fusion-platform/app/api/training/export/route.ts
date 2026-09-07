@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Export training records as CSV
 export async function GET(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -15,11 +15,11 @@ export async function GET(request: Request) {
         const userId = searchParams.get('userId');
         const format = searchParams.get('format') || 'csv';
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
 
         // If specific user requested and requester is admin, export that user's records
         // Otherwise export the current user's records
-        const targetUserId = (userId && isAdmin) ? userId : session.user.id;
+        const targetUserId = (userId && isAdmin) ? userId : ctx.userId;
 
         // Get user info
         const user = await prisma.user.findUnique({

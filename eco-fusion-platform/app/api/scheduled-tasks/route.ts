@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch scheduled tasks (admin sees all, users see their own)
 export async function GET() {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
 
         const tasks = await prisma.scheduledTask.findMany({
-            where: isAdmin ? {} : { assigneeId: session.user.id },
+            where: isAdmin ? {} : { assigneeId: ctx.userId },
             include: {
                 assignee: {
                     select: { id: true, name: true, email: true, image: true },
@@ -36,13 +36,13 @@ export async function GET() {
 // POST - Create new scheduled task (admin only)
 export async function POST(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
         const task = await prisma.scheduledTask.create({
             data: {
-                creatorId: session.user.id,
+                creatorId: ctx.userId,
                 assigneeId,
                 title,
                 description,
@@ -94,9 +94,9 @@ export async function POST(request: Request) {
 // PATCH - Update task status
 export async function PATCH(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -116,8 +116,8 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Task not found' }, { status: 404 });
         }
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
-        if (!isAdmin && task.assigneeId !== session.user.id) {
+        const isAdmin = canAdminister(ctx);
+        if (!isAdmin && task.assigneeId !== ctx.userId) {
             return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
         }
 

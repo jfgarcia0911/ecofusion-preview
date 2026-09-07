@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch tasks for a phase
@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,7 +17,7 @@ export async function GET(
 
     const tasks = await prisma.task.findMany({
       where: {
-        userId: session.user.id,
+        organizationId: ctx.organizationId,
         phaseId,
       },
       orderBy: { createdAt: 'desc' },
@@ -36,8 +36,8 @@ export async function POST(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -51,7 +51,8 @@ export async function POST(
 
     const task = await prisma.task.create({
       data: {
-        userId: session.user.id,
+        userId: ctx.userId,
+        organizationId: ctx.organizationId,
         phaseId,
         text,
         assignee: assignee || null,
@@ -73,8 +74,8 @@ export async function PATCH(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -88,7 +89,7 @@ export async function PATCH(
 
     // Verify task belongs to user and phase
     const existingTask = await prisma.task.findFirst({
-      where: { id: taskId, userId: session.user.id, phaseId },
+      where: { id: taskId, organizationId: ctx.organizationId, phaseId },
     });
     if (!existingTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -118,8 +119,8 @@ export async function DELETE(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -133,7 +134,7 @@ export async function DELETE(
 
     // Verify task belongs to user and phase
     const existingTask = await prisma.task.findFirst({
-      where: { id: taskId, userId: session.user.id, phaseId },
+      where: { id: taskId, organizationId: ctx.organizationId, phaseId },
     });
     if (!existingTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });

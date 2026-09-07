@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // Helper to decrypt API key
@@ -14,14 +14,14 @@ function decryptApiKey(encrypted: string): string {
 // GET - Search/fetch CRM contacts
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get integration settings
     const settings = await prisma.integrationSettings.findUnique({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
     });
 
     if (!settings?.apiKey || !settings.isEnabled) {
@@ -93,14 +93,14 @@ export async function GET(request: Request) {
 // POST - Create a new contact in CRM
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get integration settings
     const settings = await prisma.integrationSettings.findUnique({
-      where: { userId: session.user.id },
+      where: { organizationId: ctx.organizationId },
     });
 
     if (!settings?.apiKey || !settings.isEnabled) {

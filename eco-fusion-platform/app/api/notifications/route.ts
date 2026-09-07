@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch user's notifications
 export async function GET() {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const notifications = await prisma.notification.findMany({
-            where: { userId: session.user.id },
+            where: { userId: ctx.userId },
             orderBy: { createdAt: 'desc' },
             take: 50, // Limit to 50 most recent
         });
@@ -27,9 +27,9 @@ export async function GET() {
 // PATCH - Mark notifications as read
 export async function PATCH(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -38,14 +38,14 @@ export async function PATCH(request: Request) {
 
         if (markAllRead) {
             await prisma.notification.updateMany({
-                where: { userId: session.user.id, read: false },
+                where: { userId: ctx.userId, read: false },
                 data: { read: true },
             });
         } else if (notificationIds?.length) {
             await prisma.notification.updateMany({
                 where: {
                     id: { in: notificationIds },
-                    userId: session.user.id,
+                    userId: ctx.userId,
                 },
                 data: { read: true },
             });
@@ -61,9 +61,9 @@ export async function PATCH(request: Request) {
 // DELETE - Delete a notification
 export async function DELETE(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -77,7 +77,7 @@ export async function DELETE(request: Request) {
         await prisma.notification.delete({
             where: {
                 id: notificationId,
-                userId: session.user.id,
+                userId: ctx.userId,
             },
         });
 

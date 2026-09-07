@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getOrgContext, canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch completion records
 export async function GET(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
-        const isAdmin = session.user.role === 'admin' || session.user.role === 'manager';
+        const isAdmin = canAdminister(ctx);
 
         // If specific user requested and requester is admin, get that user's completions
         // Otherwise get the current user's completions
-        const targetUserId = (userId && isAdmin) ? userId : session.user.id;
+        const targetUserId = (userId && isAdmin) ? userId : ctx.userId;
 
         const completions = await prisma.courseCompletion.findMany({
             where: { userId: targetUserId },
@@ -73,9 +73,9 @@ export async function GET(request: Request) {
 // POST - Record course completion
 export async function POST(request: Request) {
     try {
-        const session = await auth();
+        const ctx = await getOrgContext();
 
-        if (!session?.user?.id) {
+        if (!ctx) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -104,12 +104,12 @@ export async function POST(request: Request) {
             : null;
 
         // Generate certificate ID
-        const certificateId = `CERT-${course.code}-${session.user.id.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+        const certificateId = `CERT-${course.code}-${ctx.userId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
         // Create or update completion record
         const completion = await prisma.courseCompletion.upsert({
             where: {
-                courseId_userId: { courseId, userId: session.user.id }
+                courseId_userId: { courseId, userId: ctx.userId }
             },
             update: {
                 completedAt: new Date(),
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
             },
             create: {
                 courseId,
-                userId: session.user.id,
+                userId: ctx.userId,
                 quizScore,
                 passed,
                 expiresAt,
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
         await prisma.courseAssignment.updateMany({
             where: {
                 courseId,
-                assigneeId: session.user.id
+                assigneeId: ctx.userId
             },
             data: {
                 status: 'completed'
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
         if (passed) {
             await prisma.notification.create({
                 data: {
-                    userId: session.user.id,
+                    userId: ctx.userId,
                     title: 'Course Completed!',
                     message: `Congratulations! You've completed "${course.title}" with a ${quizScore ? `score of ${quizScore}%` : 'passing grade'}. ${expiresAt ? `Your certification is valid until ${expiresAt.toLocaleDateString()}.` : ''}`,
                     type: 'info',
