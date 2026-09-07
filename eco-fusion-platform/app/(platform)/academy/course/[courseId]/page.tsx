@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import LessonContent from '@/components/academy/LessonContent';
+import CourseCompleteModal from '@/components/academy/CourseCompleteModal';
 
 interface QuizQuestion {
     id: string;
@@ -59,6 +60,9 @@ export default function CoursePlayerPage() {
     const [quizSubmitted, setQuizSubmitted] = useState(false);
     const [quizScore, setQuizScore] = useState<number | null>(null);
     const [completing, setCompleting] = useState(false);
+    // Set when the final lesson lands, so the certification modal can take over
+    // from the alert() that used to fire here.
+    const [courseComplete, setCourseComplete] = useState(false);
 
     useEffect(() => {
         if (courseId) {
@@ -131,8 +135,11 @@ export default function CoursePlayerPage() {
                     });
 
                     if (completionRes.ok) {
-                        alert(`Congratulations! You've completed "${course.title}" and earned your certification!`);
-                        router.push('/academy');
+                        // Stay on the page - the modal owns the exit now, so the
+                        // pending flag has to be cleared here rather than by
+                        // navigating away.
+                        setCompleting(false);
+                        setCourseComplete(true);
                         return;
                     }
                 }
@@ -197,6 +204,19 @@ export default function CoursePlayerPage() {
     const progress = Math.round((completedLessons.length / course.lessons.length) * 100);
 
     return (
+        <>
+        <CourseCompleteModal
+            open={courseComplete}
+            courseTitle={course.title}
+            courseCode={course.code}
+            score={quizScore}
+            passScore={course.passScore}
+            onDismiss={() => router.push('/academy')}
+            onReview={() => {
+                setCourseComplete(false);
+                navigateTo(0);
+            }}
+        />
         <div className="flex h-[calc(100vh-80px)] -m-6 md:-m-8">
             {/* Sidebar Navigation */}
             <div className="w-80 border-r border-white/10 bg-black/20 flex flex-col h-full overflow-hidden">
@@ -481,5 +501,6 @@ export default function CoursePlayerPage() {
                 </div>
             </div>
         </div>
+        </>
     );
 }
