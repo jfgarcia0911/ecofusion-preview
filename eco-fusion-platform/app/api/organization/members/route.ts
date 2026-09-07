@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, password, role } = await request.json();
+    const { name, email, password, role, employeeId } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -108,6 +108,20 @@ export async function POST(request: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // An employee may only be linked if they belong to this farm.
+    if (employeeId) {
+      const employee = await prisma.employee.findFirst({
+        where: { id: employeeId, organizationId: ctx.organizationId },
+        select: { id: true, accountId: true },
+      });
+      if (!employee) {
+        return NextResponse.json({ error: 'That employee is not on this farm' }, { status: 404 });
+      }
+      if (employee.accountId) {
+        return NextResponse.json({ error: 'That employee already has a login' }, { status: 409 });
+      }
+    }
+
     const created = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -120,6 +134,9 @@ export async function POST(request: Request) {
       await tx.membership.create({
         data: { userId: user.id, organizationId: ctx.organizationId, role: requestedRole },
       });
+      if (employeeId) {
+        await tx.employee.update({ where: { id: employeeId }, data: { accountId: user.id } });
+      }
       return user;
     });
 
@@ -169,5 +186,59 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Failed to remove member:', error);
     return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 });
+  }
+}
+
+// PATCH - Set a new password for someone on this farm.
+//
+// An owner or admin resets a forgotten password without knowing the old one.
+// Scoped by membership, so it cannot reach an account on another farm.
+export async function PATCH(request: Request) {
+  try {
+    const ctx = await getOrgContext();
+    if (!ctx) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!canManageMembers(ctx.role)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const { userId, password } = await request.json();
+    if (!userId || !password) {
+      return NextResponse.json({ error: 'userId and password are required' }, { status: 400 });
+    }
+
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.isValid) {
+      return NextResponse.json({ error: passwordCheck.errors[0] }, { status: 400 });
+    }
+
+    const membership = await prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId: ctx.organizationId } },
+      select: { role: true },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: 'That person is not on this farm' }, { status: 404 });
+    }
+
+    // An admin must not be able to seize the owner's account.
+    if (membership.role === 'owner' && ctx.userId !== userId) {
+      return NextResponse.json(
+        { error: "Only the owner can change the owner's password" },
+        { status: 403 }
+      );
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: await bcrypt.hash(password, 12) },
+    });
+
+    return NextResponse.json({ reset: userId });
+  } catch (error) {
+    console.error('Failed to reset password:', error);
+    return NextResponse.json({ error: 'Failed to reset password' }, { status: 500 });
   }
 }

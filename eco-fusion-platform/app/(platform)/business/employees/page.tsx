@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { User, Mail, Plus, UserPlus, X } from "lucide-react";
+import { User, Mail, Plus, UserPlus, X, KeyRound, CheckCircle2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 
 interface Employee {
@@ -10,6 +10,7 @@ interface Employee {
     email: string;
     phone: string | null;
     status: string;
+    account: { id: string; email: string } | null;
 }
 
 export default function EmployeesPage() {
@@ -23,6 +24,10 @@ export default function EmployeesPage() {
         phone: "",
     });
     const [saving, setSaving] = useState(false);
+    const [grantingFor, setGrantingFor] = useState<Employee | null>(null);
+    const [grant, setGrant] = useState({ password: "", role: "member" });
+    const [grantError, setGrantError] = useState<string | null>(null);
+    const [grantDone, setGrantDone] = useState(false);
 
     const fetchEmployees = useCallback(async () => {
         try {
@@ -41,6 +46,44 @@ export default function EmployeesPage() {
     useEffect(() => {
         fetchEmployees();
     }, [fetchEmployees]);
+
+    const openGrant = (employee: Employee) => {
+        setGrantingFor(employee);
+        setGrant({ password: "", role: "member" });
+        setGrantError(null);
+        setGrantDone(false);
+    };
+
+    const handleGrantLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!grantingFor) return;
+        setSaving(true);
+        setGrantError(null);
+        try {
+            const res = await fetch("/api/organization/members", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: grantingFor.name,
+                    email: grantingFor.email,
+                    password: grant.password,
+                    role: grant.role,
+                    employeeId: grantingFor.id,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setGrantError(data.error || "Could not create the login.");
+                return;
+            }
+            setGrantDone(true);
+            fetchEmployees();
+        } catch {
+            setGrantError("Could not reach the server. Try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const handleAddEmployee = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -129,16 +172,123 @@ export default function EmployeesPage() {
                                     <div className={`w-2 h-2 rounded-full ${emp.status === 'Active' ? 'bg-green-500' : 'bg-yellow-500'}`} />
                                     {emp.status}
                                 </div>
+                                <div className="flex items-center gap-3">
+                                    {emp.account ? (
+                                        <>
+                                            <CheckCircle2 size={16} className="text-accent" />
+                                            <span className="text-accent">Can sign in</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <KeyRound size={16} className="text-white/30" />
+                                            <span className="text-white/40">No login yet</span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="mt-6 flex gap-3 w-full">
                                 <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">View Profile</button>
-                                <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">Edit</button>
+                                {emp.account ? (
+                                    <span className="flex-1 py-2 rounded-lg border border-white/5 text-sm text-white/30 text-center">
+                                        Has access
+                                    </span>
+                                ) : (
+                                    <button
+                                        onClick={() => openGrant(emp)}
+                                        className="flex-1 py-2 rounded-lg bg-accent/10 hover:bg-accent/20 border border-accent/30 text-sm text-accent transition-colors cursor-pointer"
+                                    >
+                                        Create login
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+
+
+            <Modal
+                isOpen={grantingFor !== null}
+                onClose={() => setGrantingFor(null)}
+                title={`Create a login for ${grantingFor?.name ?? ""}`}
+            >
+                {grantDone ? (
+                    <div className="space-y-4">
+                        <p className="text-sm text-white/70">
+                            {grantingFor?.name} can now sign in as{" "}
+                            <span className="text-white">{grantingFor?.email}</span> with:
+                        </p>
+                        <p className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white font-mono text-sm break-all">
+                            {grant.password}
+                        </p>
+                        <p className="text-xs text-white/40">
+                            It is not emailed. They can change it under Preferences once signed in.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setGrantingFor(null)}
+                            className="w-full py-2.5 px-4 bg-accent text-primary font-semibold rounded-xl hover:bg-accent/90 transition-all"
+                        >
+                            Done
+                        </button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleGrantLogin} className="space-y-4">
+                        <p className="text-sm text-white/50">
+                            They will sign in with{" "}
+                            <span className="text-white/80">{grantingFor?.email}</span> and share this
+                            farm&apos;s subscription.
+                        </p>
+                        <div>
+                            <label className="block text-sm text-white/60 mb-1.5">
+                                <KeyRound size={13} className="inline mr-1.5 -mt-0.5" />
+                                Temporary password
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                value={grant.password}
+                                onChange={(e) => setGrant({ ...grant, password: e.target.value })}
+                                placeholder="At least 10 characters"
+                                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 font-mono text-sm"
+                            />
+                            <p className="text-xs text-white/30 mt-1.5">
+                                Needs 10+ characters with upper and lower case, a number and a symbol.
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm text-white/60 mb-1.5">Access level</label>
+                            <select
+                                value={grant.role}
+                                onChange={(e) => setGrant({ ...grant, role: e.target.value })}
+                                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white"
+                            >
+                                <option value="member" className="bg-neutral-900">Member — day-to-day access</option>
+                                <option value="manager" className="bg-neutral-900">Manager — also schedules and training</option>
+                                <option value="admin" className="bg-neutral-900">Admin — also adds and removes people</option>
+                            </select>
+                        </div>
+                        {grantError && <p className="text-sm text-red-300">{grantError}</p>}
+                        <div className="flex gap-3 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => setGrantingFor(null)}
+                                className="flex-1 py-2.5 px-4 bg-white/5 border border-white/10 text-white rounded-xl hover:bg-white/10 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                className="flex-1 py-2.5 px-4 bg-accent text-primary font-semibold rounded-xl hover:bg-accent/90 transition-all disabled:opacity-60"
+                            >
+                                {saving ? "Creating…" : "Create login"}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
 
             {/* Add Employee Modal */}
             <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Employee">

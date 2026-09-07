@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { KeyRound, Mail, Plus, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { KeyRound, Mail, Plus, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 
 interface Member {
@@ -31,6 +31,9 @@ export default function TeamPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [resetting, setResetting] = useState<Member | null>(null);
+    const [resetPassword, setResetPassword] = useState("");
+    const [resetDone, setResetDone] = useState(false);
     const [newMember, setNewMember] = useState({
         name: "",
         email: "",
@@ -76,6 +79,37 @@ export default function TeamPage() {
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleReset = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!resetting) return;
+        setSaving(true);
+        setError(null);
+        try {
+            const res = await fetch("/api/organization/members", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: resetting.id, password: resetPassword }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.error || "Could not reset the password.");
+                return;
+            }
+            setResetDone(true);
+        } catch {
+            setError("Could not reach the server. Try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openReset = (member: Member) => {
+        setResetting(member);
+        setResetPassword("");
+        setResetDone(false);
+        setError(null);
     };
 
     const handleRemove = async (member: Member) => {
@@ -167,17 +201,28 @@ export default function TeamPage() {
                                             {new Date(member.joinedAt).toLocaleDateString()}
                                         </td>
                                         <td className="px-5 py-4 text-right">
-                                            {member.role === "owner" ? (
-                                                <span className="text-xs text-white/25">Cannot be removed</span>
-                                            ) : (
+                                            <div className="flex items-center justify-end gap-1">
                                                 <button
-                                                    onClick={() => handleRemove(member)}
-                                                    className="p-2 rounded-lg text-white/30 hover:text-red-300 hover:bg-red-400/10 transition-all"
-                                                    aria-label={`Remove ${member.name || member.email}`}
+                                                    onClick={() => openReset(member)}
+                                                    className="p-2 rounded-lg text-white/30 hover:text-accent hover:bg-accent/10 transition-all"
+                                                    aria-label={`Reset password for ${member.name || member.email}`}
+                                                    title="Reset password"
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <RotateCcw size={16} />
                                                 </button>
-                                            )}
+                                                {member.role === "owner" ? (
+                                                    <span className="text-xs text-white/25 pl-1">Owner</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleRemove(member)}
+                                                        className="p-2 rounded-lg text-white/30 hover:text-red-300 hover:bg-red-400/10 transition-all"
+                                                        aria-label={`Remove ${member.name || member.email}`}
+                                                        title="Remove from farm"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -186,6 +231,68 @@ export default function TeamPage() {
                     </div>
                 </div>
             )}
+
+            <Modal
+                isOpen={resetting !== null}
+                onClose={() => setResetting(null)}
+                title={`Reset password for ${resetting?.name || resetting?.email || ""}`}
+            >
+                {resetDone ? (
+                    <div className="space-y-4">
+                        <p className="text-sm text-white/70">
+                            Password changed. Give them this to sign in with:
+                        </p>
+                        <p className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white font-mono text-sm break-all">
+                            {resetPassword}
+                        </p>
+                        <p className="text-xs text-white/40">
+                            It is not emailed. Once they are in, they can change it themselves under
+                            Preferences.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setResetting(null)}
+                            className="w-full py-2.5 px-4 bg-accent text-primary font-semibold rounded-xl hover:bg-accent/90 transition-all"
+                        >
+                            Done
+                        </button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleReset} className="space-y-4">
+                        <div>
+                            <label className="block text-sm text-white/60 mb-1.5">New password</label>
+                            <input
+                                type="text"
+                                required
+                                value={resetPassword}
+                                onChange={(e) => setResetPassword(e.target.value)}
+                                placeholder="At least 10 characters"
+                                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 font-mono text-sm"
+                            />
+                            <p className="text-xs text-white/30 mt-1.5">
+                                Needs 10+ characters with upper and lower case, a number and a symbol.
+                            </p>
+                        </div>
+                        {error && <p className="text-sm text-red-300">{error}</p>}
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setResetting(null)}
+                                className="flex-1 py-2.5 px-4 bg-white/5 border border-white/10 text-white rounded-xl hover:bg-white/10 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                className="flex-1 py-2.5 px-4 bg-accent text-primary font-semibold rounded-xl hover:bg-accent/90 transition-all disabled:opacity-60"
+                            >
+                                {saving ? "Saving…" : "Reset password"}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
 
             <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Person">
                 <form onSubmit={handleAddMember} className="space-y-4">

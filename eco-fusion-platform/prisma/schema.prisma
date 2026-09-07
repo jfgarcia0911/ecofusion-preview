@@ -46,6 +46,7 @@ model User {
   lmsProgress         UserLmsProgress[]
   zones               Zone[]
   memberships         Membership[]
+  employeeRecord      Employee?             @relation("EmployeeAccount")
 }
 
 model Account {
@@ -159,9 +160,13 @@ model Employee {
   email          String
   phone          String?
   status         String       @default("Active")
+  /// The login this person uses, when they have one. Distinct from userId,
+  /// which records who entered the row.
+  accountId      String?      @unique
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        User?        @relation("EmployeeAccount", fields: [accountId], references: [id], onDelete: SetNull)
   alerts         Alert[]
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

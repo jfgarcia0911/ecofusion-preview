@@ -13,6 +13,10 @@ export async function GET() {
     const employees = await prisma.employee.findMany({
       where: { organizationId: ctx.organizationId },
       orderBy: { name: 'asc' },
+      include: {
+        // Lets the list show who can actually sign in.
+        account: { select: { id: true, email: true } },
+      },
     });
 
     return NextResponse.json(employees);

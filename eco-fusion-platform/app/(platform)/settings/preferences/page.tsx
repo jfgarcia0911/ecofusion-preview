@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Thermometer, Scale, Check } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
+import ChangePassword from "./change-password";
 import { temperatureToDisplay, weightToDisplay, round } from "@/lib/units";
 
 interface OptionProps {
@@ -128,6 +129,8 @@ export default function PreferencesPage() {
                     </p>
                 )}
             </div>
+
+            <ChangePassword />
 
             <p className="text-xs text-white/30">
                 Preferences are saved in this browser. Signing in elsewhere starts from the
