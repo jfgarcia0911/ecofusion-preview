@@ -1,6 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
-import { BUSINESS_PHASES } from "@/lib/constants";
+import { iconFor, type BusinessUnitView } from "@/lib/business-units";
 import { DollarSign, AlertCircle, Plus, Trash2, Check, Loader2 } from "lucide-react";
 import KpiCard from "@/components/widgets/KpiCard";
 import PhaseSettingsModal from "@/components/modals/PhaseSettingsModal";
@@ -30,7 +30,8 @@ interface Employee {
 export default function PhaseDetailPage() {
     const params = useParams();
     const id = params?.id as string | undefined;
-    const phase = BUSINESS_PHASES.find(p => p.id === id);
+    const [units, setUnits] = useState<BusinessUnitView[] | null>(null);
+    const phase = units?.find(u => u.key === id);
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -43,6 +44,13 @@ export default function PhaseDetailPage() {
     const [revenueLoading, setRevenueLoading] = useState(true);
     const [efficiency, setEfficiency] = useState<number | null>(null);
     const [metricsLoading, setMetricsLoading] = useState(true);
+
+    useEffect(() => {
+        fetch("/api/business-units")
+            .then((res) => (res.ok ? res.json() : []))
+            .then(setUnits)
+            .catch(() => setUnits([]));
+    }, []);
 
     const fetchTasks = useCallback(async () => {
         if (!id) return;
@@ -109,7 +117,10 @@ export default function PhaseDetailPage() {
         fetchMetrics();
     }, [fetchTasks, fetchEmployees, fetchRevenue, fetchMetrics]);
 
-    if (!phase) return <div className="text-white">Phase not found</div>;
+    if (units === null) return <div className="text-white/50">Loading…</div>;
+    if (!phase) return <div className="text-white">Business unit not found</div>;
+
+    const PhaseIcon = iconFor(phase.icon);
 
     const addTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -169,7 +180,7 @@ export default function PhaseDetailPage() {
                 <div>
                     <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg bg-white/5 ${phase.accent}`}>
-                            <phase.icon size={24} />
+                            <PhaseIcon size={24} />
                         </div>
                         <h1 className="text-3xl font-bold text-white">
                             {phase.title}

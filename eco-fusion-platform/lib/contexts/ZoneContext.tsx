@@ -32,7 +32,10 @@ interface ZoneContextType {
     error: string | null;
     addZone: (zone: Omit<Zone, 'id' | 'metrics' | 'lastUpdate'>) => Promise<Zone | null>;
     removeZone: (id: string) => Promise<boolean>;
+    /** Local-only edit. Use saveZone to persist. */
     updateZone: (id: string, updates: Partial<Zone>) => void;
+    /** Persists the change to the API, then syncs local state. */
+    saveZone: (id: string, updates: Partial<Zone>) => Promise<boolean>;
     refreshZones: () => Promise<void>;
 }
 
@@ -111,13 +114,35 @@ export function ZoneProvider({ children }: { children: React.ReactNode }) {
         setZones(zones.map(z => z.id === id ? { ...z, ...updates } : z));
     };
 
+    const saveZone = async (id: string, updates: Partial<Zone>): Promise<boolean> => {
+        try {
+            const response = await fetch(`/api/zones/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: updates.name,
+                    type: updates.type,
+                    status: updates.status,
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to update zone');
+            // Optimistic local update, then re-fetch so the row matches the server.
+            setZones(prev => prev.map(z => z.id === id ? { ...z, ...updates } : z));
+            await fetchZones();
+            return true;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update zone');
+            return false;
+        }
+    };
+
     const refreshZones = async () => {
         setLoading(true);
         await fetchZones();
     };
 
     return (
-        <ZoneContext.Provider value={{ zones, loading, error, addZone, removeZone, updateZone, refreshZones }}>
+        <ZoneContext.Provider value={{ zones, loading, error, addZone, removeZone, updateZone, saveZone, refreshZones }}>
             {children}
         </ZoneContext.Provider>
     );

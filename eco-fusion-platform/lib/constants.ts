@@ -1,3 +1,10 @@
+// Historic defaults for EcoFusion's own seven silos.
+//
+// Business units live in the BusinessUnit table now, one set per organization,
+// seeded from these values by the 20260908090000_add_organizations migration.
+// Nothing in the app reads this array any more; it is kept as the reference for
+// what a new farm starts with.
+
 import { Fish, Leaf, Wind, Droplets, GraduationCap, ChefHat, Sun } from "lucide-react";
 
 export const BUSINESS_PHASES = [

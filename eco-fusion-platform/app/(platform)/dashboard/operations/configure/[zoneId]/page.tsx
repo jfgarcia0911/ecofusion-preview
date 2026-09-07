@@ -2,6 +2,8 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { ArrowLeft, Save, RotateCcw, Thermometer, Droplets, Wind, Clock, Wifi, Bluetooth, Cable, Zap, AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { useUnits } from "@/lib/contexts/UnitContext";
+import { temperatureToDisplay, temperatureToCanonical, temperatureLabel } from "@/lib/units";
 import clsx from "clsx";
 import { useZones, Zone } from "@/lib/contexts/ZoneContext";
 
@@ -28,7 +30,7 @@ interface AlertThreshold {
 }
 
 const SENSOR_PARAMETERS = [
-    { key: 'temperature', label: 'Temperature', unit: '°F', defaultMin: 65, defaultMax: 80 },
+    { key: 'temperature', label: 'Temperature', unit: '°C', defaultMin: 18, defaultMax: 30 },
     { key: 'ph', label: 'pH Level', unit: 'pH', defaultMin: 6.5, defaultMax: 7.5 },
     { key: 'dissolvedO2', label: 'Dissolved O2', unit: 'mg/L', defaultMin: 6, defaultMax: 12 },
     { key: 'ammonia', label: 'Ammonia', unit: 'ppm', defaultMin: 0, defaultMax: 0.05 },
@@ -38,11 +40,12 @@ const SENSOR_PARAMETERS = [
 export default function ZoneConfigurationPage() {
     const params = useParams();
     const router = useRouter();
-    const { zones, updateZone, removeZone, addZone, refreshZones } = useZones();
+    const { zones, saveZone, removeZone, addZone, refreshZones } = useZones();
 
     const zoneId = params?.zoneId as string | undefined;
     const isNewZone = zoneId === "new";
 
+    const { units } = useUnits();
     const [localZone, setLocalZone] = useState<{ name: string; type: string; status: string } | null>(null);
     const [sensorConfig, setSensorConfig] = useState<SensorConfig>({ type: "wifi", protocol: "mqtt" });
     const [saving, setSaving] = useState(false);
@@ -137,8 +140,8 @@ export default function ZoneConfigurationPage() {
                     router.back();
                 }
             } else if (zoneId) {
-                updateZone(zoneId, localZone as Partial<Zone>);
-                router.back();
+                const saved = await saveZone(zoneId, localZone as Partial<Zone>);
+                if (saved) router.back();
             }
         } finally {
             setSaving(false);
@@ -172,6 +175,23 @@ export default function ZoneConfigurationPage() {
                     />
                     <p className="text-white/50">System parameter configuration and calibration</p>
                 </div>
+
+                    <div>
+                        <label className="block text-sm text-white/70 mb-1">Operational Status</label>
+                        <select
+                            value={localZone.status}
+                            onChange={(e) => setLocalZone({ ...localZone, status: e.target.value })}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+                        >
+                            <option value="active">Active - running normally</option>
+                            <option value="maintenance">Maintenance - scheduled work in progress</option>
+                            <option value="offline">Offline - not currently operating</option>
+                        </select>
+                        <p className="text-xs text-white/40 mt-1">
+                            Shown as a badge on the Operations Center so readings from a zone
+                            that is down are not mistaken for live data.
+                        </p>
+                    </div>
                 <div className="flex gap-3">
                     {!isNewZone && (
                         <button onClick={handleDelete} className="px-4 py-2 border border-red-500/20 rounded-lg text-red-400 hover:bg-red-500/10 flex items-center gap-2">
@@ -317,6 +337,14 @@ export default function ZoneConfigurationPage() {
                     <div className="space-y-4">
                         {SENSOR_PARAMETERS.map(param => {
                             const threshold = getThreshold(param.key);
+                            const isTemp = param.key === 'temperature';
+                            // Stored value -> what the field shows.
+                            const show = (v: number | null) =>
+                                v === null ? null : isTemp ? Number(temperatureToDisplay(v, units.temperature).toFixed(2)) : v;
+                            // What was typed -> what gets stored.
+                            const store = (v: number | null) =>
+                                v === null ? null : isTemp ? temperatureToCanonical(v, units.temperature) : v;
+                            const unitLabel = isTemp ? temperatureLabel(units.temperature) : param.unit;
                             const minVal = threshold?.minValue ?? param.defaultMin;
                             const maxVal = threshold?.maxValue ?? param.defaultMax;
                             const enabled = threshold?.enabled ?? false;
@@ -327,7 +355,7 @@ export default function ZoneConfigurationPage() {
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-3">
                                             <span className="text-white font-medium">{param.label}</span>
-                                            <span className="text-white/30 text-xs">({param.unit})</span>
+                                            <span className="text-white/30 text-xs">({unitLabel})</span>
                                         </div>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <span className="text-xs text-white/50">{enabled ? 'Enabled' : 'Disabled'}</span>
@@ -346,13 +374,13 @@ export default function ZoneConfigurationPage() {
                                             <input
                                                 type="number"
                                                 step="0.01"
-                                                value={minVal ?? ''}
+                                                value={show(minVal) ?? ''}
                                                 onChange={(e) => {
-                                                    const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                                    const val = e.target.value === '' ? null : store(parseFloat(e.target.value));
                                                     saveThreshold(param.key, val, maxVal, enabled, alertLevel);
                                                 }}
                                                 className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
-                                                placeholder={param.defaultMin.toString()}
+                                                placeholder={String(show(param.defaultMin))}
                                             />
                                         </div>
                                         <div>
@@ -360,13 +388,13 @@ export default function ZoneConfigurationPage() {
                                             <input
                                                 type="number"
                                                 step="0.01"
-                                                value={maxVal ?? ''}
+                                                value={show(maxVal) ?? ''}
                                                 onChange={(e) => {
-                                                    const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                                    const val = e.target.value === '' ? null : store(parseFloat(e.target.value));
                                                     saveThreshold(param.key, minVal, val, enabled, alertLevel);
                                                 }}
                                                 className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
-                                                placeholder={param.defaultMax.toString()}
+                                                placeholder={String(show(param.defaultMax))}
                                             />
                                         </div>
                                         <div>

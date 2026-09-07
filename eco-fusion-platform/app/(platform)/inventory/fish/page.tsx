@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Fish, Plus, Edit2, Trash2, TrendingUp, Calendar, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useUnits } from "@/lib/contexts/UnitContext";
+import { weightToDisplay, weightToCanonical, weightInputLabel, round } from "@/lib/units";
 
 interface Zone {
   id: string;
@@ -43,6 +45,7 @@ export default function FishInventoryPage() {
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [showGrowthForm, setShowGrowthForm] = useState<string | null>(null);
 
+  const { units } = useUnits();
   const [formData, setFormData] = useState({
     zoneId: "",
     species: "",
@@ -96,7 +99,8 @@ export default function FishInventoryPage() {
       const payload = {
         ...formData,
         quantity: parseInt(formData.quantity),
-        avgWeight: formData.avgWeight ? parseFloat(formData.avgWeight) : null,
+        // Stored in grams regardless of the unit shown in the form.
+        avgWeight: formData.avgWeight ? weightToCanonical(parseFloat(formData.avgWeight), units.weight) : null,
         ageWeeks: formData.ageWeeks ? parseInt(formData.ageWeeks) : null,
       };
 
@@ -140,7 +144,7 @@ export default function FishInventoryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          avgWeight: parseFloat(growthData.avgWeight),
+          avgWeight: weightToCanonical(parseFloat(growthData.avgWeight), units.weight),
           mortality: parseInt(growthData.mortality) || 0,
           feedUsed: growthData.feedUsed ? parseFloat(growthData.feedUsed) : null,
           notes: growthData.notes || null,
@@ -173,7 +177,9 @@ export default function FishInventoryPage() {
       zoneId: stock.zoneId,
       species: stock.species,
       quantity: stock.quantity.toString(),
-      avgWeight: stock.avgWeight?.toString() || "",
+      avgWeight: stock.avgWeight
+        ? String(Number(weightToDisplay(stock.avgWeight, units.weight).value.toFixed(2)))
+        : "",
       ageWeeks: stock.ageWeeks?.toString() || "",
       expectedHarvest: stock.expectedHarvest?.split("T")[0] || "",
       notes: stock.notes || "",
@@ -270,7 +276,7 @@ export default function FishInventoryPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-white/70 mb-1">Avg Weight (g)</label>
+                  <label className="block text-sm text-white/70 mb-1">Avg Weight ({weightInputLabel(units.weight)})</label>
                   <input
                     type="number"
                     step="0.1"
@@ -397,7 +403,12 @@ export default function FishInventoryPage() {
                   <div className="bg-white/5 rounded-lg p-3">
                     <div className="text-white/50 text-xs mb-1">Avg Weight</div>
                     <div className="text-white font-semibold">
-                      {stock.avgWeight ? `${stock.avgWeight}g` : "—"}
+                      {stock.avgWeight
+                        ? (() => {
+                            const w = weightToDisplay(stock.avgWeight, units.weight);
+                            return `${round(w.value, 1)}${w.label}`;
+                          })()
+                        : "—"}
                     </div>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
@@ -445,7 +456,7 @@ export default function FishInventoryPage() {
                   >
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
-                        <label className="block text-xs text-white/50 mb-1">Avg Weight (g) *</label>
+                        <label className="block text-xs text-white/50 mb-1">Avg Weight ({weightInputLabel(units.weight)}) *</label>
                         <input
                           type="number"
                           step="0.1"
@@ -515,7 +526,11 @@ export default function FishInventoryPage() {
                               {new Date(log.recordedAt).toLocaleDateString()}
                             </div>
                             <div className="text-white">
-                              <span className="text-white/50">Weight:</span> {log.avgWeight}g
+                              <span className="text-white/50">Weight:</span>{" "}
+                              {(() => {
+                                const w = weightToDisplay(log.avgWeight, units.weight);
+                                return `${round(w.value, 1)}${w.label}`;
+                              })()}
                             </div>
                             {log.mortality > 0 && (
                               <div className="text-red-400">

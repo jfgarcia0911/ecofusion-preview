@@ -12,8 +12,15 @@
  * revenue never silently disappears from a dashboard.
  */
 
-// Map phase IDs to product types, used only when a line has no explicit phase.
-// Insertion order is the fallback's precedence order.
+/** A unit's keywords, in the order the fallback should try them. */
+export interface PhaseKeywords {
+  key: string;
+  keywords: string[];
+}
+
+// Defaults for callers with no organization context (and the values the
+// migration seeds into BusinessUnit). Live lookups should pass the
+// organization's own units instead.
 export const PHASE_PRODUCT_MAPPING: Record<string, string[]> = {
   'aquaculture': ['fish', 'tilapia', 'catfish', 'seafood'],
   'plant-production': ['plants', 'vegetables', 'herbs', 'lettuce', 'greens', 'produce'],
@@ -38,12 +45,18 @@ export interface PhaseRevenueBreakdown {
 }
 
 /** The single phase a line belongs to, or null when nothing matches. */
-export function resolvePhaseId(item: PhaseRevenueItem): string | null {
+export function resolvePhaseId(
+  item: PhaseRevenueItem,
+  units?: PhaseKeywords[]
+): string | null {
   if (item.phaseId) return item.phaseId;
 
+  const table: PhaseKeywords[] = units
+    ?? Object.entries(PHASE_PRODUCT_MAPPING).map(([key, keywords]) => ({ key, keywords }));
+
   const nameLower = item.productName.toLowerCase();
-  for (const [phaseId, productTypes] of Object.entries(PHASE_PRODUCT_MAPPING)) {
-    if (productTypes.some((type) => nameLower.includes(type))) return phaseId;
+  for (const unit of table) {
+    if (unit.keywords.some((type) => nameLower.includes(type))) return unit.key;
   }
   return null;
 }
@@ -53,14 +66,16 @@ function roundCents(value: number): number {
 }
 
 /** Split revenue across every phase in one pass. Totals sum to the input total. */
-export function groupRevenueByPhase(items: PhaseRevenueItem[]): PhaseRevenueBreakdown {
-  const byPhase = new Map<string, number>(
-    Object.keys(PHASE_PRODUCT_MAPPING).map((phaseId) => [phaseId, 0])
-  );
+export function groupRevenueByPhase(
+  items: PhaseRevenueItem[],
+  units?: PhaseKeywords[]
+): PhaseRevenueBreakdown {
+  const keys = units ? units.map((u) => u.key) : Object.keys(PHASE_PRODUCT_MAPPING);
+  const byPhase = new Map<string, number>(keys.map((phaseId) => [phaseId, 0]));
   let unassigned = 0;
 
   for (const item of items) {
-    const phaseId = resolvePhaseId(item);
+    const phaseId = resolvePhaseId(item, units);
     if (phaseId === null || !byPhase.has(phaseId)) {
       unassigned += item.total;
       continue;
@@ -73,9 +88,16 @@ export function groupRevenueByPhase(items: PhaseRevenueItem[]): PhaseRevenueBrea
 }
 
 /** Total for one phase. */
-export function sumPhaseRevenue(items: PhaseRevenueItem[], phaseId: string): number {
+export function sumPhaseRevenue(
+  items: PhaseRevenueItem[],
+  phaseId: string,
+  units?: PhaseKeywords[]
+): number {
   return roundCents(
-    items.reduce((sum, item) => (resolvePhaseId(item) === phaseId ? sum + item.total : sum), 0)
+    items.reduce(
+      (sum, item) => (resolvePhaseId(item, units) === phaseId ? sum + item.total : sum),
+      0
+    )
   );
 }
 

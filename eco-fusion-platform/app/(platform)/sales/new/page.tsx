@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BUSINESS_PHASES } from "@/lib/constants";
+import { type BusinessUnitView } from "@/lib/business-units";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Plus, Trash2, Search, User, Package, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -37,6 +37,7 @@ interface CRMContact {
 export default function NewSalePage() {
   const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnitView[]>([]);
   const [items, setItems] = useState<SaleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -99,6 +100,13 @@ export default function NewSalePage() {
       console.error("Failed to search CRM contacts:", error);
     }
   }
+
+  useEffect(() => {
+    fetch("/api/business-units")
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setBusinessUnits)
+      .catch(() => setBusinessUnits([]));
+  }, []);
 
   function addItemFromInventory(inventoryItem: InventoryItem) {
     const existingIndex = items.findIndex((i) => i.inventoryItemId === inventoryItem.id);
@@ -308,9 +316,9 @@ export default function NewSalePage() {
                             className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-sm"
                           >
                             <option value="">Auto (from product name)</option>
-                            {BUSINESS_PHASES.map((phase) => (
-                              <option key={phase.id} value={phase.id} className="bg-neutral-900">
-                                {phase.title}
+                            {businessUnits.map((unit) => (
+                              <option key={unit.id} value={unit.key} className="bg-neutral-900">
+                                {unit.title}
                               </option>
                             ))}
                           </select>
