@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot } from "lucide-react";
+import { KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -24,6 +24,7 @@ const baseNavItems = [
 
 // Admin-only navigation items
 const adminNavItems = [
+    { name: "Team Access", href: "/business/team", icon: KeyRound, tourId: "nav-team" },
     { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
     { name: "Training Mgmt", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
     { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
@@ -37,6 +38,7 @@ const userNavItems = [
 
 // Common items for all users
 const commonNavItems = [
+    { name: "Preferences", href: "/settings/preferences", icon: SlidersHorizontal, tourId: "nav-preferences" },
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
