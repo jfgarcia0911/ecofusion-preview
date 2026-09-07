@@ -7,7 +7,7 @@ import {
     ArrowLeft, ArrowRight, Video, Shield, Clock, Award
 } from 'lucide-react';
 import clsx from 'clsx';
-import ReactMarkdown from 'react-markdown';
+import LessonContent from '@/components/academy/LessonContent';
 
 interface QuizQuestion {
     id: string;
@@ -302,9 +302,7 @@ export default function CoursePlayerPage() {
                         )}
 
                         {(currentLesson.type === 'text' || currentLesson.type === 'interactive') && currentLesson.content && (
-                            <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-white/70 prose-a:text-accent prose-strong:text-white prose-ul:text-white/70 prose-li:text-white/70">
-                                <ReactMarkdown>{currentLesson.content}</ReactMarkdown>
-                            </div>
+                            <LessonContent content={currentLesson.content} />
                         )}
 
                         {currentLesson.type === 'quiz' && currentLesson.questions && (
