@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Settings, Plus, Edit2, Trash2, Fish, Leaf, X } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface GrowthParameter {
   id: string;
@@ -20,6 +21,7 @@ interface GrowthParameter {
 }
 
 export default function GrowthParametersPage() {
+  const confirmAction = useConfirm();
   const [parameters, setParameters] = useState<GrowthParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -96,7 +98,12 @@ export default function GrowthParametersPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this parameter template?")) return;
+    if (!(await confirmAction({
+      title: "Delete this parameter template?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    }))) return;
     try {
       await fetch(`/api/inventory/parameters?id=${id}`, { method: "DELETE" });
       fetchParameters();
@@ -446,7 +453,7 @@ export default function GrowthParametersPage() {
                   <div>
                     <span className="text-white/50">Temp:</span>
                     <span className="text-white ml-2">
-                      {param.optimalTempMin || "—"}°C - {param.optimalTempMax || "—"}°C
+                      {param.optimalTempMin || "-"}°C - {param.optimalTempMax || "-"}°C
                     </span>
                   </div>
                 )}

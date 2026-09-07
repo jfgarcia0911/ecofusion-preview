@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Leaf, Plus, Edit2, Trash2, TrendingUp, Calendar, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface Zone {
   id: string;
@@ -35,6 +36,7 @@ interface PlantCrop {
 }
 
 export default function PlantInventoryPage() {
+  const confirmAction = useConfirm();
   const [plantCrops, setPlantCrops] = useState<PlantCrop[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +125,12 @@ export default function PlantInventoryPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this plant crop?")) return;
+    if (!(await confirmAction({
+      title: "Delete this plant crop?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    }))) return;
     try {
       await fetch(`/api/inventory/plants?id=${id}`, { method: "DELETE" });
       fetchPlantCrops();
@@ -437,7 +444,7 @@ export default function PlantInventoryPage() {
                     <div className="text-white font-semibold">
                       {crop.expectedHarvest
                         ? new Date(crop.expectedHarvest).toLocaleDateString()
-                        : "—"}
+                        : "-"}
                     </div>
                   </div>
                 </div>

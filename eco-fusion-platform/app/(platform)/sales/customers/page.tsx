@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Users, Search, Plus, RefreshCw, Settings, X } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface CRMContact {
   id: string;
@@ -24,6 +25,7 @@ interface LocalCustomer {
 }
 
 export default function CustomersPage() {
+  const toast = useToast();
   const [crmContacts, setCrmContacts] = useState<CRMContact[]>([]);
   const [localCustomers, setLocalCustomers] = useState<LocalCustomer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,11 +136,11 @@ export default function CustomersPage() {
         await fetchCrmContacts();
       } else {
         const error = await res.json();
-        alert(error.error || "Failed to add contact");
+        toast.error("Failed to add contact", { description: error.error });
       }
     } catch (error) {
       console.error("Failed to add contact:", error);
-      alert("Failed to add contact");
+      toast.error("Failed to add contact");
     } finally {
       setAddingContact(false);
     }

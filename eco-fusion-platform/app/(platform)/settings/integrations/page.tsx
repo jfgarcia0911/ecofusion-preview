@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Settings, CheckCircle, XCircle, RefreshCw, Key, Save, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface IntegrationSettings {
   provider: string;
@@ -20,6 +21,7 @@ interface SyncStatus {
 }
 
 export default function IntegrationsPage() {
+  const confirmAction = useConfirm();
   const [settings, setSettings] = useState<IntegrationSettings | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,7 +126,12 @@ export default function IntegrationsPage() {
   }
 
   async function handleRemoveIntegration() {
-    if (!confirm("Are you sure you want to remove the CRM integration? This will delete your API credentials.")) {
+    if (!(await confirmAction({
+      title: "Remove the CRM integration?",
+      message: "Your stored API credentials will be deleted.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    }))) {
       return;
     }
     try {

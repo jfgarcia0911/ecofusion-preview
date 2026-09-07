@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Scale, Plus, Edit2, Trash2, Fish, Leaf, X, Package } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface Zone {
   id: string;
@@ -38,6 +39,7 @@ interface Harvest {
 }
 
 export default function HarvestsPage() {
+  const confirmAction = useConfirm();
   const [harvests, setHarvests] = useState<Harvest[]>([]);
   const [fishStocks, setFishStocks] = useState<FishStock[]>([]);
   const [plantCrops, setPlantCrops] = useState<PlantCrop[]>([]);
@@ -136,7 +138,12 @@ export default function HarvestsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this harvest record?")) return;
+    if (!(await confirmAction({
+      title: "Delete this harvest record?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    }))) return;
     try {
       await fetch(`/api/inventory/harvests?id=${id}`, { method: "DELETE" });
       fetchHarvests();

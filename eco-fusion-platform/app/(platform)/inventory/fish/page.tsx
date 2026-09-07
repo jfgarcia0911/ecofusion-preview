@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Fish, Plus, Edit2, Trash2, TrendingUp, Calendar, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
 import { weightToDisplay, weightToCanonical, weightInputLabel, round } from "@/lib/units";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface Zone {
   id: string;
@@ -37,6 +38,7 @@ interface FishStock {
 }
 
 export default function FishInventoryPage() {
+  const confirmAction = useConfirm();
   const [fishStocks, setFishStocks] = useState<FishStock[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +130,12 @@ export default function FishInventoryPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this fish stock?")) return;
+    if (!(await confirmAction({
+      title: "Delete this fish stock?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    }))) return;
     try {
       await fetch(`/api/inventory/fish?id=${id}`, { method: "DELETE" });
       fetchFishStocks();
@@ -408,13 +415,13 @@ export default function FishInventoryPage() {
                             const w = weightToDisplay(stock.avgWeight, units.weight);
                             return `${round(w.value, 1)}${w.label}`;
                           })()
-                        : "—"}
+                        : "-"}
                     </div>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
                     <div className="text-white/50 text-xs mb-1">Age</div>
                     <div className="text-white font-semibold">
-                      {stock.ageWeeks ? `${stock.ageWeeks} weeks` : "—"}
+                      {stock.ageWeeks ? `${stock.ageWeeks} weeks` : "-"}
                     </div>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
@@ -422,7 +429,7 @@ export default function FishInventoryPage() {
                     <div className="text-white font-semibold">
                       {stock.expectedHarvest
                         ? new Date(stock.expectedHarvest).toLocaleDateString()
-                        : "—"}
+                        : "-"}
                     </div>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import { type BusinessUnitView } from "@/lib/business-units";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Plus, Trash2, Search, User, Package, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/ui/Toast";
 
 interface InventoryItem {
   id: string;
@@ -35,6 +36,7 @@ interface CRMContact {
 }
 
 export default function NewSalePage() {
+  const toast = useToast();
   const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnitView[]>([]);
@@ -183,13 +185,13 @@ export default function NewSalePage() {
     e.preventDefault();
 
     if (items.length === 0) {
-      alert("Please add at least one item");
+      toast.warning("Add at least one item to the sale");
       return;
     }
 
     for (const item of items) {
       if (!item.productName || item.quantity <= 0 || item.unitPrice < 0) {
-        alert("Please fill in all item details");
+        toast.warning("Fill in all item details");
         return;
       }
     }
@@ -225,11 +227,11 @@ export default function NewSalePage() {
         router.push("/sales");
       } else {
         const error = await res.json();
-        alert(error.error || "Failed to create sale");
+        toast.error("Failed to create sale", { description: error.error });
       }
     } catch (error) {
       console.error("Failed to create sale:", error);
-      alert("Failed to create sale");
+      toast.error("Failed to create sale");
     } finally {
       setSubmitting(false);
     }

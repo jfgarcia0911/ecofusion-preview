@@ -6,6 +6,7 @@ import { useUnits } from "@/lib/contexts/UnitContext";
 import { temperatureToDisplay, temperatureToCanonical, temperatureLabel } from "@/lib/units";
 import clsx from "clsx";
 import { useZones, Zone } from "@/lib/contexts/ZoneContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 const equipmentList = [
     { name: "Main Pump (2000 GPH)", wattage: 150 },
@@ -38,6 +39,7 @@ const SENSOR_PARAMETERS = [
 ];
 
 export default function ZoneConfigurationPage() {
+    const confirmAction = useConfirm();
     const params = useParams();
     const router = useRouter();
     const { zones, saveZone, removeZone, addZone, refreshZones } = useZones();
@@ -149,7 +151,12 @@ export default function ZoneConfigurationPage() {
     };
 
     const handleDelete = async () => {
-        if (confirm("Are you sure you want to delete this zone? This cannot be undone.")) {
+        if (await confirmAction({
+            title: "Delete this zone?",
+            message: "The zone and its sensor history will be removed. This cannot be undone.",
+            confirmLabel: "Delete",
+            tone: "danger",
+        })) {
             if (zoneId) {
                 const success = await removeZone(zoneId);
                 if (success) {

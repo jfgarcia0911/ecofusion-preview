@@ -6,6 +6,8 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
 import TrialBanner from "@/components/layout/TrialBanner";
+import { ToastProvider } from "@/components/ui/Toast";
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
 export default async function DashboardLayout({
     children,
@@ -15,7 +17,7 @@ export default async function DashboardLayout({
     const session = await auth();
 
     // Access belongs to the farm, so one check here covers every page for every
-    // member — including accounts an owner created for staff.
+    // member, including accounts an owner created for staff.
     const ctx = await getOrgContext();
     if (ctx && !ctx.access.allowed) {
         redirect("/billing");
@@ -32,6 +34,8 @@ export default async function DashboardLayout({
     }
 
     return (
+        <ToastProvider>
+        <ConfirmProvider>
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
@@ -50,5 +54,7 @@ export default async function DashboardLayout({
             </div>
             <OnboardingWrapper initialShowTour={showOnboarding} />
         </div>
+        </ConfirmProvider>
+        </ToastProvider>
     );
 }

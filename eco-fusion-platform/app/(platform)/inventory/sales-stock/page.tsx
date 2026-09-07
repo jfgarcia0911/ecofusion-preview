@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Package, Plus, Edit2, Trash2, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface SalesInventoryItem {
   id: string;
@@ -23,6 +24,7 @@ interface SalesInventoryItem {
 }
 
 export default function SalesStockPage() {
+  const confirmAction = useConfirm();
   const [inventory, setInventory] = useState<SalesInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -91,7 +93,12 @@ export default function SalesStockPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this inventory item?")) return;
+    if (!(await confirmAction({
+      title: "Delete this inventory item?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    }))) return;
     try {
       await fetch(`/api/inventory/sales-stock?id=${id}`, { method: "DELETE" });
       fetchInventory();
@@ -400,7 +407,7 @@ export default function SalesStockPage() {
                   <td className="py-4 px-4 text-center text-white/50">
                     {item.expiryDate
                       ? new Date(item.expiryDate).toLocaleDateString()
-                      : "—"}
+                      : "-"}
                   </td>
                   <td className="py-4 px-4 text-right">
                     <div className="flex justify-end gap-1">

@@ -6,6 +6,8 @@ import {
     AlertCircle, Shield, Download, ChevronDown, X,
     Award, Calendar, FileText
 } from 'lucide-react';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 
 interface Course {
     id: string;
@@ -51,6 +53,8 @@ interface Assignment {
 }
 
 export default function AdminTrainingPage() {
+    const confirmAction = useConfirm();
+    const toast = useToast();
     const [courses, setCourses] = useState<Course[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -122,7 +126,7 @@ export default function AdminTrainingPage() {
                 setIsAssignModalOpen(false);
             } else {
                 const error = await res.json();
-                alert(error.error || 'Failed to assign course');
+                toast.error('Failed to assign course', { description: error.error });
             }
         } catch (error) {
             console.error('Failed to assign course:', error);
@@ -131,7 +135,7 @@ export default function AdminTrainingPage() {
 
     const handleBulkAssign = async () => {
         if (selectedCourseIds.length === 0 || selectedUserIds.length === 0) {
-            alert('Please select at least one course and one employee');
+            toast.warning('Select at least one course and one employee');
             return;
         }
 
@@ -159,7 +163,13 @@ export default function AdminTrainingPage() {
             }
         }
 
-        alert(`Assigned ${successCount} courses successfully. ${errorCount > 0 ? `${errorCount} failed (may already be assigned).` : ''}`);
+        if (errorCount > 0) {
+            toast.warning(`Assigned ${successCount} of ${successCount + errorCount} courses`, {
+                description: `${errorCount} failed \u2014 they may already be assigned.`,
+            });
+        } else {
+            toast.success(`Assigned ${successCount} course${successCount === 1 ? '' : 's'}`);
+        }
         setIsBulkAssignOpen(false);
         setSelectedCourseIds([]);
         setSelectedUserIds([]);
@@ -167,7 +177,12 @@ export default function AdminTrainingPage() {
     };
 
     const handleRemoveAssignment = async (assignmentId: string) => {
-        if (!confirm('Remove this course assignment?')) return;
+        if (!(await confirmAction({
+            title: 'Remove this course assignment?',
+            message: 'This removes the course from their assigned training.',
+            confirmLabel: 'Remove',
+            tone: 'danger',
+        }))) return;
 
         try {
             const res = await fetch(`/api/training/assignments?id=${assignmentId}`, {

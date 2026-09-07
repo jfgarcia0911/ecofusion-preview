@@ -39,12 +39,14 @@ export default function Modal({ isOpen, onClose, title, children, size = "md" }:
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-overlay-in"
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className={`relative w-full ${sizeClasses[size]} mx-4 glass-card p-6 rounded-2xl animate-in fade-in zoom-in-95 duration-200`}>
+      {/* Modal. The animation classes here were previously `animate-in fade-in
+          zoom-in-95`, which come from tailwindcss-animate - never installed, so
+          the modal appeared with no transition at all. */}
+      <div className={`relative w-full ${sizeClasses[size]} mx-4 glass-card p-6 rounded-2xl animate-dialog-in`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">{title}</h2>

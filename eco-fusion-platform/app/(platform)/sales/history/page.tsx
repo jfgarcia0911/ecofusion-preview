@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, ShoppingCart, Calendar, Filter, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface SaleItem {
   id: string;
@@ -31,6 +32,7 @@ interface Sale {
 }
 
 export default function SalesHistoryPage() {
+  const confirmAction = useConfirm();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
@@ -85,7 +87,12 @@ export default function SalesHistoryPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this sale? This will restore inventory quantities.")) return;
+    if (!(await confirmAction({
+      title: "Delete this sale?",
+      message: "Inventory quantities from this sale will be restored. This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    }))) return;
     try {
       await fetch(`/api/sales?id=${id}`, { method: "DELETE" });
       fetchSales();

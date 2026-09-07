@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { COURSES } from "@/lib/data/lms-seed";
 import { Users, BookOpen, Plus, Search, CheckCircle, MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
+import { useToast } from "@/components/ui/Toast";
 
 const MOCK_EMPLOYEES = [
     { id: "e1", name: "Sarah Chen", role: "Hydroponics Lead", assigned: ["course-101"] },
@@ -12,6 +13,7 @@ const MOCK_EMPLOYEES = [
 ];
 
 export default function AdminLmsPage() {
+    const toast = useToast();
     const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -19,7 +21,7 @@ export default function AdminLmsPage() {
     const filteredEmployees = MOCK_EMPLOYEES.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
 
     const handleAssign = (courseId: string) => {
-        alert(`Assigned course to user.`);
+        toast.success('Course assigned');
         setIsAssignModalOpen(false);
     };
 

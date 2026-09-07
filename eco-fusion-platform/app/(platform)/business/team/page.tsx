@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { KeyRound, Mail, Plus, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import Modal from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface Member {
     id: string;
@@ -26,6 +27,7 @@ const ROLE_STYLES: Record<string, string> = {
 };
 
 export default function TeamPage() {
+    const confirmAction = useConfirm();
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -113,7 +115,12 @@ export default function TeamPage() {
     };
 
     const handleRemove = async (member: Member) => {
-        if (!confirm(`Remove ${member.name || member.email}? They lose access to this farm immediately.`)) {
+        if (!(await confirmAction({
+            title: `Remove ${member.name || member.email}?`,
+            message: "They lose access to this farm immediately.",
+            confirmLabel: "Remove",
+            tone: "danger",
+        }))) {
             return;
         }
         try {
@@ -136,7 +143,7 @@ export default function TeamPage() {
                     </h1>
                     <p className="text-white/50 mt-1 max-w-2xl">
                         People who can sign in to this farm. Everyone here shares the farm&apos;s
-                        subscription — if it lapses, all of these accounts pause together.
+                        subscription. If it lapses, all of these accounts pause together.
                     </p>
                 </div>
                 <button
@@ -188,7 +195,7 @@ export default function TeamPage() {
                                 {members.map((member) => (
                                     <tr key={member.membershipId} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
                                         <td className="px-5 py-4 text-white font-medium">
-                                            {member.name || <span className="text-white/30">—</span>}
+                                            {member.name || <span className="text-white/30">-</span>}
                                         </td>
                                         <td className="px-5 py-4 text-white/60">{member.email}</td>
                                         <td className="px-5 py-4">
@@ -338,7 +345,7 @@ export default function TeamPage() {
                         />
                         <p className="text-xs text-white/30 mt-1.5">
                             Needs 10+ characters with upper and lower case, a number and a symbol.
-                            Share it with them directly — it is not emailed.
+                            Share it with them directly. It is not emailed.
                         </p>
                     </div>
 
