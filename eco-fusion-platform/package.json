@@ -32,7 +32,10 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx scripts/create-admin.ts",
     "db:seed-training": "tsx scripts/seed-training-courses.ts",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "create-admin": "tsx scripts/create-admin.ts",
+    "postinstall": "node scripts/render-postinstall.js",
+    "db:seed-dummy": "tsx scripts/seed-dummy-data.ts",
+    "db:unseed": "tsx scripts/seed-dummy-data.ts --clear"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -56,6 +59,7 @@
     "react-joyride": "^2.9.3",
     "react-markdown": "^10.1.0",
     "recharts": "^3.6.0",
+    "stripe": "^22.6.1",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.9"
   },
@@ -68,6 +72,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.0",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

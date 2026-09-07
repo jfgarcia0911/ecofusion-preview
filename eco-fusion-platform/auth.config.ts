@@ -1,6 +1,27 @@
 
 import type { NextAuthConfig } from 'next-auth';
 
+/**
+ * Pages reachable without signing in. Everything else requires a session.
+ *
+ * This list is deliberately deny-by-default: a new section added under
+ * app/(platform) is protected the moment it exists, rather than staying open
+ * until someone remembers to add it here.
+ *
+ * API routes never reach this callback - middleware.ts returns early for
+ * /api, and each route checks the session itself.
+ */
+const PUBLIC_ROUTES = ['/login', '/signup',
+    '/api/billing/webhook',
+];
+
+/** Signed-in users have no reason to sit on these. */
+const AUTH_ENTRY_ROUTES = ['/', '/login', '/signup'];
+
+const isPublicRoute = (pathname: string) =>
+    pathname === '/' ||
+    PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
 export const authConfig = {
     pages: {
         signIn: '/login',
@@ -8,20 +29,17 @@ export const authConfig = {
     callbacks: {
         authorized({ auth, request: { nextUrl } }) {
             const isLoggedIn = !!auth?.user;
-            const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
-            const isOnBusiness = nextUrl.pathname.startsWith('/business');
-            const isOnAcademy = nextUrl.pathname.startsWith('/academy');
+            const { pathname } = nextUrl;
 
-            if (isOnDashboard || isOnBusiness || isOnAcademy) {
-                if (isLoggedIn) return true;
-                return false; // Redirect unauthenticated users to login page
-            } else if (isLoggedIn) {
-                // Redirect authenticated users away from home/auth pages to dashboard
-                if (nextUrl.pathname === '/' || nextUrl.pathname === '/login' || nextUrl.pathname === '/signup') {
+            if (isLoggedIn) {
+                if (AUTH_ENTRY_ROUTES.includes(pathname)) {
                     return Response.redirect(new URL('/dashboard/executive', nextUrl));
                 }
+                return true;
             }
-            return true;
+
+            // Returning false sends unauthenticated users to the sign-in page.
+            return isPublicRoute(pathname);
         },
     },
     providers: [], // Add providers with an empty array for now

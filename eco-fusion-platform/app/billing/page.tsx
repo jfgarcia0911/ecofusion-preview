@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Leaf, Clock, CreditCard } from "lucide-react";
+import { Leaf, Clock } from "lucide-react";
+import SubscribeButton from "./subscribe-button";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, TRIAL_DAYS } from "@/lib/tenancy";
+import { isBillingConfigured, isTestMode } from "@/lib/stripe";
 
 // Outside the (platform) group on purpose: this is the one page a farm can
 // still reach once its access has lapsed.
@@ -71,14 +73,7 @@ export default async function BillingPage() {
                     </dl>
 
                     {isOwner ? (
-                        <button
-                            type="button"
-                            disabled
-                            className="w-full py-3 px-4 bg-accent/40 text-primary/70 font-semibold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
-                        >
-                            <CreditCard size={18} />
-                            Subscribe — payment setup pending
-                        </button>
+                        <SubscribeButton configured={isBillingConfigured()} />
                     ) : (
                         <p className="text-center text-sm text-white/40 py-3">
                             Only the farm&apos;s owner can manage the subscription.
@@ -95,7 +90,13 @@ export default async function BillingPage() {
                     )}
                 </div>
 
-                <p className="mt-6 text-center text-xs text-white/30">
+                {isTestMode() && (
+                    <p className="mt-6 text-center text-xs text-amber-300/60">
+                        Stripe test mode — use card 4242 4242 4242 4242, any future expiry and CVC.
+                    </p>
+                )}
+
+                <p className="mt-3 text-center text-xs text-white/30">
                     Questions about billing? Email support@llayd.com
                 </p>
             </div>
