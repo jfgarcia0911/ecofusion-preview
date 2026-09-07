@@ -1,41 +1,23 @@
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
-import { prisma } from '@/lib/prisma';
 import { getStripe } from '@/lib/stripe';
+import { applySubscription } from '@/lib/billing';
 
 // Stripe signs the raw body, so it must not be parsed before verification.
 export const runtime = 'nodejs';
-
-/** Apply a subscription's current state to the farm it belongs to. */
-async function applySubscription(subscription: Stripe.Subscription) {
-  const organizationId = subscription.metadata?.organizationId;
-  if (!organizationId) {
-    console.warn('Stripe subscription without organizationId:', subscription.id);
-    return;
-  }
-
-  // Stripe reports several states; only these two admit a farm.
-  const live = subscription.status === 'active' || subscription.status === 'trialing';
-  const periodEndSeconds = (subscription as unknown as { current_period_end?: number })
-    .current_period_end;
-
-  await prisma.organization.update({
-    where: { id: organizationId },
-    data: {
-      plan: live ? 'pro' : 'trial',
-      subscriptionStatus: live ? 'active' : subscription.status === 'past_due' ? 'past_due' : 'canceled',
-      currentPeriodEnd: periodEndSeconds ? new Date(periodEndSeconds * 1000) : null,
-      canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
-      stripeSubscriptionId: subscription.id,
-    },
-  });
-}
 
 export async function POST(request: Request) {
   const stripe = getStripe();
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!stripe || !secret) {
+    // This is the failure that looks like "I paid and nothing happened": Stripe
+    // takes the payment, posts here, gets a 503, and the farm stays on trial.
+    // Say so in the log rather than returning a quiet status nobody reads.
+    console.error(
+      'Stripe webhook rejected: %s is not set. Paid subscriptions will NOT be applied until it is.',
+      !stripe ? 'STRIPE_SECRET_KEY' : 'STRIPE_WEBHOOK_SECRET'
+    );
     return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
   }
 

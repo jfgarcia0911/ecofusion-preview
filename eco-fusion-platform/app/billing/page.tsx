@@ -4,21 +4,49 @@ import { Leaf, Clock } from "lucide-react";
 import SubscribeButton from "./subscribe-button";
 import TrialClock from "@/components/billing/trial-countdown";
 import { prisma } from "@/lib/prisma";
-import { getOrgContext, TRIAL_DAYS } from "@/lib/tenancy";
+import { getOrgContext, evaluateAccess, TRIAL_DAYS } from "@/lib/tenancy";
 import { isBillingConfigured, isTestMode } from "@/lib/stripe";
+import { syncSubscriptionFromStripe } from "@/lib/billing";
 
 // Outside the (platform) group on purpose: this is the one page a farm can
 // still reach once its access has lapsed.
-export default async function BillingPage() {
-    const ctx = await getOrgContext();
+export default async function BillingPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ checkout?: string }>;
+}) {
+    let ctx = await getOrgContext();
     if (!ctx) redirect("/login");
+
+    const { checkout } = await searchParams;
+
+    // Stripe's webhook is meant to grant access, but it is also the only thing
+    // that does - so a missing STRIPE_WEBHOOK_SECRET, an un-forwarded local
+    // tunnel, or a delivery Stripe has not retried yet all leave someone who
+    // has just paid staring at a trial notice. Reading the live state on the
+    // way back from checkout makes the payment take effect regardless.
+    if (checkout === "success") {
+        const live = await syncSubscriptionFromStripe(ctx.organizationId);
+        if (live) redirect("/dashboard/executive");
+
+        // Not live yet (Stripe can still be finalising). Re-read so the page at
+        // least reflects whatever the reconcile did store.
+        ctx = (await getOrgContext()) ?? ctx;
+    }
 
     const org = await prisma.organization.findUnique({
         where: { id: ctx.organizationId },
-        select: { name: true, trialEndsAt: true },
+        select: {
+            name: true,
+            trialEndsAt: true,
+            subscriptionStatus: true,
+            currentPeriodEnd: true,
+        },
     });
 
-    const { access, role } = ctx;
+    const { role } = ctx;
+    // Prefer the freshly-read organization over the context's snapshot.
+    const access = org ? evaluateAccess(org) : ctx.access;
     const isOwner = role === "owner";
 
     const headline =
