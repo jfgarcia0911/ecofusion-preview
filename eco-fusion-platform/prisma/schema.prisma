@@ -617,6 +617,16 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Access is granted to the organization, never to the individual. When a
+  /// farm's trial lapses or its subscription is cancelled, every member loses
+  /// access at once, including accounts the owner created.
+  plan               String    @default("trial")
+  /// trialing | active | past_due | canceled
+  subscriptionStatus String    @default("trialing")
+  trialEndsAt        DateTime?
+  currentPeriodEnd   DateTime?
+  canceledAt         DateTime?
+
   memberships         Membership[]
   businessUnits       BusinessUnit[]
   zones               Zone[]

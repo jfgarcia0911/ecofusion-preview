@@ -11,11 +11,66 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_BUSINESS_UNITS } from '@/lib/business-units';
 
+/** Days a new farm may use the platform before it has to subscribe. */
+export const TRIAL_DAYS = 15;
+
+export interface OrgAccess {
+  /** Whether the organization may use the app right now. */
+  allowed: boolean;
+  status: string;
+  /** Whole days remaining in the trial; negative once it has lapsed. */
+  daysLeft: number | null;
+  reason: 'trialing' | 'active' | 'trial_expired' | 'canceled' | 'past_due';
+}
+
 export interface OrgContext {
   userId: string;
   organizationId: string;
   /** Role within this organization: owner | admin | manager | member. */
   role: string;
+  access: OrgAccess;
+}
+
+/**
+ * Whether a farm may use the app, and why.
+ *
+ * Decided entirely from the organization, so every member — including accounts
+ * the owner created — is admitted or refused together.
+ */
+export function evaluateAccess(org: {
+  subscriptionStatus: string;
+  trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
+}): OrgAccess {
+  const now = Date.now();
+  const daysLeft = org.trialEndsAt
+    ? Math.ceil((org.trialEndsAt.getTime() - now) / 86_400_000)
+    : null;
+
+  if (org.subscriptionStatus === 'active') {
+    const lapsed = org.currentPeriodEnd && org.currentPeriodEnd.getTime() < now;
+    return lapsed
+      ? { allowed: false, status: org.subscriptionStatus, daysLeft, reason: 'past_due' }
+      : { allowed: true, status: org.subscriptionStatus, daysLeft, reason: 'active' };
+  }
+
+  if (org.subscriptionStatus === 'trialing') {
+    const live = org.trialEndsAt !== null && org.trialEndsAt.getTime() > now;
+    return {
+      allowed: live,
+      status: org.subscriptionStatus,
+      daysLeft,
+      reason: live ? 'trialing' : 'trial_expired',
+    };
+  }
+
+  // canceled, past_due, or anything unrecognised: no access.
+  return {
+    allowed: false,
+    status: org.subscriptionStatus,
+    daysLeft,
+    reason: org.subscriptionStatus === 'past_due' ? 'past_due' : 'canceled',
+  };
 }
 
 /** Roles allowed to administer an organization rather than just work in it. */
@@ -34,18 +89,18 @@ export async function getOrgContext(): Promise<OrgContext | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  if (session.user.organizationId) {
-    return {
-      userId: session.user.id,
-      organizationId: session.user.organizationId,
-      role: session.user.orgRole || 'member',
-    };
-  }
-
   const membership = await prisma.membership.findFirst({
-    where: { userId: session.user.id },
+    where: session.user.organizationId
+      ? { userId: session.user.id, organizationId: session.user.organizationId }
+      : { userId: session.user.id },
     orderBy: { createdAt: 'asc' },
-    select: { organizationId: true, role: true },
+    select: {
+      organizationId: true,
+      role: true,
+      organization: {
+        select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+      },
+    },
   });
   if (!membership) return null;
 
@@ -53,7 +108,19 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     userId: session.user.id,
     organizationId: membership.organizationId,
     role: membership.role,
+    access: evaluateAccess(membership.organization),
   };
+}
+
+/**
+ * Context for a farm that is allowed to use the app, or null.
+ *
+ * Routes that change data should use this so a lapsed farm becomes read-only
+ * rather than continuing to accumulate records it cannot see.
+ */
+export async function getActiveOrgContext(): Promise<OrgContext | null> {
+  const ctx = await getOrgContext();
+  return ctx && ctx.access.allowed ? ctx : null;
 }
 
 /** Whether `userId` belongs to the caller's organization. */
@@ -95,6 +162,8 @@ export async function ensurePersonalOrganization(
         id: organizationId,
         name: `${label} Farm`,
         slug: `farm-${userId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`,
+        subscriptionStatus: 'trialing',
+        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
       },
     }),
     prisma.membership.create({

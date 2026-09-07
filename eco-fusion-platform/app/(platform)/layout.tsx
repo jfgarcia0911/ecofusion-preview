@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getOrgContext } from "@/lib/tenancy";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
@@ -10,6 +12,13 @@ export default async function DashboardLayout({
     children: React.ReactNode;
 }) {
     const session = await auth();
+
+    // Access belongs to the farm, so one check here covers every page for every
+    // member — including accounts an owner created for staff.
+    const ctx = await getOrgContext();
+    if (ctx && !ctx.access.allowed) {
+        redirect("/billing");
+    }
 
     // Check if user needs onboarding
     let showOnboarding = false;
