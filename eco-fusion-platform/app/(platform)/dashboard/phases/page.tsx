@@ -1,8 +1,39 @@
 import Link from "next/link";
 import { BUSINESS_PHASES } from "@/lib/constants";
 import { ArrowUpRight } from "lucide-react";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { monthRange, sumPhaseRevenue } from "@/lib/phase-revenue";
 
-export default function PhasesDashboard() {
+const currency = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+});
+
+export default async function PhasesDashboard() {
+    const session = await auth();
+    const { startOfMonth, endOfMonth } = monthRange();
+
+    // One query for the month's sale items; every card's total is derived from
+    // it rather than issuing a request per business unit.
+    const items = session?.user?.id
+        ? await prisma.saleItem.findMany({
+              where: {
+                  sale: {
+                      userId: session.user.id,
+                      status: "completed",
+                      saleDate: { gte: startOfMonth, lte: endOfMonth },
+                  },
+              },
+              select: { productName: true, total: true },
+          })
+        : [];
+
+    const revenueByPhase = new Map(
+        BUSINESS_PHASES.map((phase) => [phase.id, sumPhaseRevenue(items, phase.id)])
+    );
+
     return (
         <div className="space-y-8">
             <div>
@@ -36,7 +67,9 @@ export default function PhasesDashboard() {
                             <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
                                 <div className="flex flex-col">
                                     <span className="text-[10px] uppercase tracking-wider text-white/30">Revenue MTD</span>
-                                    <span className="text-lg font-bold text-white">$12,450</span>
+                                    <span className="text-lg font-bold text-white">
+                                        {currency.format(revenueByPhase.get(phase.id) ?? 0)}
+                                    </span>
                                 </div>
                                 <ArrowUpRight className="text-white/30 group-hover:text-white transition-colors" size={20} />
                             </div>

@@ -1,17 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { matchesPhase, monthRange } from '@/lib/phase-revenue';
 
-// Map phase IDs to product types for revenue calculation
-const PHASE_PRODUCT_MAPPING: Record<string, string[]> = {
-  'aquaculture': ['fish', 'tilapia', 'catfish', 'seafood'],
-  'plant-production': ['plants', 'vegetables', 'herbs', 'lettuce', 'greens', 'produce'],
-  'methane-gas': ['energy', 'gas', 'methane'],
-  'fertilizer': ['fertilizer', 'compost', 'organic'],
-  'training-center': ['training', 'event', 'education', 'workshop'],
-  'restaurant': ['food', 'meal', 'restaurant', 'dining'],
-  'solar-energy': ['solar', 'energy', 'power'],
-};
 
 // GET - Fetch revenue data for a phase (weekly breakdown for the current month)
 export async function GET(
@@ -28,8 +19,7 @@ export async function GET(
 
     // Get the current month's date range
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const { startOfMonth, endOfMonth } = monthRange(now);
 
     // Get all sales for the current month
     const sales = await prisma.sale.findMany({
@@ -46,9 +36,6 @@ export async function GET(
       },
       orderBy: { saleDate: 'asc' },
     });
-
-    // Get the product types for this phase
-    const phaseProductTypes = PHASE_PRODUCT_MAPPING[phaseId] || [];
 
     // Group sales by week and filter by phase-related products
     const weeklyData: { name: string; revenue: number }[] = [];
@@ -71,12 +58,7 @@ export async function GET(
 
       for (const sale of weekSales) {
         for (const item of sale.items) {
-          // Check if product name matches phase product types
-          const productNameLower = item.productName.toLowerCase();
-          const isPhaseProduct = phaseProductTypes.length === 0 || // If no mapping, include all
-            phaseProductTypes.some(type => productNameLower.includes(type));
-
-          if (isPhaseProduct) {
+          if (matchesPhase(item.productName, phaseId)) {
             weekRevenue += item.total;
           }
         }
