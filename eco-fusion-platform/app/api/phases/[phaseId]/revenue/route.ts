@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { matchesPhase, monthRange } from '@/lib/phase-revenue';
+import { resolvePhaseId, monthRange } from '@/lib/phase-revenue';
 
 
 // GET - Fetch revenue data for a phase (weekly breakdown for the current month)
@@ -58,7 +58,7 @@ export async function GET(
 
       for (const sale of weekSales) {
         for (const item of sale.items) {
-          if (matchesPhase(item.productName, phaseId)) {
+          if (resolvePhaseId(item) === phaseId) {
             weekRevenue += item.total;
           }
         }

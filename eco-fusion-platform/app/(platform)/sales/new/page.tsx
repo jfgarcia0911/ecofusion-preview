@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BUSINESS_PHASES } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Plus, Trash2, Search, User, Package, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -18,6 +19,7 @@ interface InventoryItem {
 interface SaleItem {
   id: string;
   inventoryItemId: string | null;
+  phaseId: string;
   productName: string;
   quantity: number;
   unit: string;
@@ -113,6 +115,7 @@ export default function NewSalePage() {
         {
           id: Math.random().toString(36).substr(2, 9),
           inventoryItemId: inventoryItem.id,
+          phaseId: "",
           productName: inventoryItem.productName,
           quantity: 1,
           unit: inventoryItem.unit,
@@ -130,6 +133,7 @@ export default function NewSalePage() {
       {
         id: Math.random().toString(36).substr(2, 9),
         inventoryItemId: null,
+        phaseId: "",
         productName: "",
         quantity: 1,
         unit: "unit",
@@ -191,6 +195,7 @@ export default function NewSalePage() {
         crmCustomerId: customerData.crmCustomerId || null,
         items: items.map((item) => ({
           inventoryItemId: item.inventoryItemId,
+          phaseId: item.phaseId || null,
           productName: item.productName,
           quantity: item.quantity,
           unit: item.unit,
@@ -282,7 +287,7 @@ export default function NewSalePage() {
                   <div key={item.id} className="p-4 bg-white/5 rounded-lg">
                     <div className="flex items-start gap-4">
                       <div className="text-white/50 font-medium">{index + 1}</div>
-                      <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div className="col-span-2 md:col-span-1">
                           <label className="block text-xs text-white/50 mb-1">Product</label>
                           <input
@@ -294,6 +299,21 @@ export default function NewSalePage() {
                             disabled={!!item.inventoryItemId}
                             required
                           />
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                          <label className="block text-xs text-white/50 mb-1">Business Unit</label>
+                          <select
+                            value={item.phaseId}
+                            onChange={(e) => updateItem(item.id, "phaseId", e.target.value)}
+                            className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-sm"
+                          >
+                            <option value="">Auto (from product name)</option>
+                            {BUSINESS_PHASES.map((phase) => (
+                              <option key={phase.id} value={phase.id} className="bg-neutral-900">
+                                {phase.title}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-xs text-white/50 mb-1">Quantity</label>

@@ -3,7 +3,7 @@ import { BUSINESS_PHASES } from "@/lib/constants";
 import { ArrowUpRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { monthRange, sumPhaseRevenue } from "@/lib/phase-revenue";
+import { monthRange, groupRevenueByPhase } from "@/lib/phase-revenue";
 
 const currency = new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -26,13 +26,11 @@ export default async function PhasesDashboard() {
                       saleDate: { gte: startOfMonth, lte: endOfMonth },
                   },
               },
-              select: { productName: true, total: true },
+              select: { productName: true, total: true, phaseId: true },
           })
         : [];
 
-    const revenueByPhase = new Map(
-        BUSINESS_PHASES.map((phase) => [phase.id, sumPhaseRevenue(items, phase.id)])
-    );
+    const { byPhase, unassigned } = groupRevenueByPhase(items);
 
     return (
         <div className="space-y-8">
@@ -42,6 +40,20 @@ export default async function PhasesDashboard() {
                 </h1>
                 <p className="text-white/50 mt-1">Select a phase to manage revenue, tasks, and operations.</p>
             </div>
+
+            {unassigned > 0 && (
+                <div className="glass-card rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+                    <p className="text-sm text-amber-200/90">
+                        <span className="font-semibold">{currency.format(unassigned)}</span> of this
+                        month&apos;s revenue is not assigned to a business unit, so it is not counted
+                        in any card above.
+                    </p>
+                    <p className="text-xs text-amber-200/50 mt-1">
+                        Set the business unit on those sale lines, or name the product after the unit
+                        it belongs to.
+                    </p>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {BUSINESS_PHASES.map((phase) => (
@@ -68,7 +80,7 @@ export default async function PhasesDashboard() {
                                 <div className="flex flex-col">
                                     <span className="text-[10px] uppercase tracking-wider text-white/30">Revenue MTD</span>
                                     <span className="text-lg font-bold text-white">
-                                        {currency.format(revenueByPhase.get(phase.id) ?? 0)}
+                                        {currency.format(byPhase.get(phase.id) ?? 0)}
                                     </span>
                                 </div>
                                 <ArrowUpRight className="text-white/30 group-hover:text-white transition-colors" size={20} />

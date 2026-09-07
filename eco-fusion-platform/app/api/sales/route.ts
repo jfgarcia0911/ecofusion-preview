@@ -158,6 +158,7 @@ export async function POST(request: Request) {
             saleId: sale.id,
             inventoryItemId: item.inventoryItemId || null,
             harvestId: item.harvestId || null,
+            phaseId: item.phaseId || null,
             productName: item.productName,
             quantity: item.quantity,
             unit: item.unit || 'unit',
