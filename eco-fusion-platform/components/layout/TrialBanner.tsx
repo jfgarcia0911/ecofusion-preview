@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { Clock, AlertTriangle, ArrowRight } from "lucide-react";
 import type { OrgAccess } from "@/lib/tenancy";
+import { formatClock, useTrialCountdown } from "@/components/billing/trial-countdown";
 
 /**
  * Standing notice of where a farm is in its trial.
@@ -8,8 +11,14 @@ import type { OrgAccess } from "@/lib/tenancy";
  * A trial that expires without warning reads as the product breaking, so the
  * banner is always present while trialing and grows more insistent as the end
  * approaches. Paid farms see nothing.
+ *
+ * The remaining time counts down live rather than sitting on a day count: "15
+ * days left" is the same sentence for twenty-four hours, which reads as a label
+ * instead of a deadline.
  */
 export default function TrialBanner({ access }: { access: OrgAccess }) {
+    const left = useTrialCountdown(access.trialEndsAt);
+
     if (access.reason === "active") return null;
 
     if (access.reason === "past_due") {
@@ -33,8 +42,8 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
 
     if (access.reason !== "trialing") return null;
 
-    const days = access.daysLeft ?? 0;
-    const urgent = days <= 5;
+    // Under five days the banner changes colour.
+    const urgent = left === null ? (access.daysLeft ?? 0) <= 5 : left.ms <= 5 * 86_400_000;
 
     return (
         <Link
@@ -48,12 +57,20 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
             <Clock size={17} className={urgent ? "text-amber-300 shrink-0" : "text-white/40 shrink-0"} />
             <span className={`text-sm flex-1 ${urgent ? "text-amber-100" : "text-white/70"}`}>
                 <span className="font-semibold">
-                    {days > 0
-                        ? `${days} day${days === 1 ? "" : "s"} left in your free trial`
-                        : "Your free trial ends today"}
+                    {left === null || left.ms <= 0 ? (
+                        "Your free trial has ended."
+                    ) : (
+                        <>
+                            Free trial ends in{" "}
+                            <span className="font-mono tabular-nums" suppressHydrationWarning>
+                                {formatClock(left)}
+                            </span>
+                            .
+                        </>
+                    )}
                 </span>
                 <span className={urgent ? "text-amber-100/70" : "text-white/40"}>
-                    {" — subscribe to keep your data and carry on."}
+                    {" Subscribe to keep your data and carry on."}
                 </span>
             </span>
             <span

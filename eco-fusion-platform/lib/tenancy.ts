@@ -3,8 +3,8 @@
  *
  * Farm data belongs to an organization, not to the person who typed it in, so
  * every query filters on `organizationId`. `userId` is still written on create
- * to record who entered a row, but it must never be what a read is scoped by —
- * that is what kept a farm's own manager from seeing the farm's data.
+ * to record who entered a row, but it must never be what a read is scoped by.
+ * That is what kept a farm's own manager from seeing the farm's data.
  */
 
 import { auth } from '@/auth';
@@ -20,6 +20,11 @@ export interface OrgAccess {
   status: string;
   /** Whole days remaining in the trial; negative once it has lapsed. */
   daysLeft: number | null;
+  /**
+   * When the trial runs out, as epoch milliseconds so it survives the trip to
+   * a client component. Null when the farm never had a trial.
+   */
+  trialEndsAt: number | null;
   reason: 'trialing' | 'active' | 'trial_expired' | 'canceled' | 'past_due';
 }
 
@@ -34,8 +39,8 @@ export interface OrgContext {
 /**
  * Whether a farm may use the app, and why.
  *
- * Decided entirely from the organization, so every member — including accounts
- * the owner created — is admitted or refused together.
+ * Decided entirely from the organization, so every member, including accounts
+ * the owner created, is admitted or refused together.
  */
 export function evaluateAccess(org: {
   subscriptionStatus: string;
@@ -43,15 +48,14 @@ export function evaluateAccess(org: {
   currentPeriodEnd: Date | null;
 }): OrgAccess {
   const now = Date.now();
-  const daysLeft = org.trialEndsAt
-    ? Math.ceil((org.trialEndsAt.getTime() - now) / 86_400_000)
-    : null;
+  const trialEndsAt = org.trialEndsAt?.getTime() ?? null;
+  const daysLeft = trialEndsAt !== null ? Math.ceil((trialEndsAt - now) / 86_400_000) : null;
 
   if (org.subscriptionStatus === 'active') {
     const lapsed = org.currentPeriodEnd && org.currentPeriodEnd.getTime() < now;
     return lapsed
-      ? { allowed: false, status: org.subscriptionStatus, daysLeft, reason: 'past_due' }
-      : { allowed: true, status: org.subscriptionStatus, daysLeft, reason: 'active' };
+      ? { allowed: false, status: org.subscriptionStatus, daysLeft, trialEndsAt, reason: 'past_due' }
+      : { allowed: true, status: org.subscriptionStatus, daysLeft, trialEndsAt, reason: 'active' };
   }
 
   if (org.subscriptionStatus === 'trialing') {
@@ -60,6 +64,7 @@ export function evaluateAccess(org: {
       allowed: live,
       status: org.subscriptionStatus,
       daysLeft,
+      trialEndsAt,
       reason: live ? 'trialing' : 'trial_expired',
     };
   }
@@ -69,6 +74,7 @@ export function evaluateAccess(org: {
     allowed: false,
     status: org.subscriptionStatus,
     daysLeft,
+    trialEndsAt,
     reason: org.subscriptionStatus === 'past_due' ? 'past_due' : 'canceled',
   };
 }

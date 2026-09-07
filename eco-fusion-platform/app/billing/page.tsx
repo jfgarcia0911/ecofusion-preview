@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Leaf, Clock } from "lucide-react";
 import SubscribeButton from "./subscribe-button";
+import TrialClock from "@/components/billing/trial-countdown";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext, TRIAL_DAYS } from "@/lib/tenancy";
 import { isBillingConfigured, isTestMode } from "@/lib/stripe";
@@ -27,12 +28,16 @@ export default async function BillingPage() {
               ? "Payment is overdue"
               : access.reason === "canceled"
                 ? "This subscription was cancelled"
-                : `${access.daysLeft} day${access.daysLeft === 1 ? "" : "s"} left in your trial`;
+                : (
+                    <>
+                        Free trial ends in <TrialClock endsAt={access.trialEndsAt} />
+                    </>
+                  );
 
     const explanation = access.allowed
         ? `Every part of ${org?.name ?? "your farm"} is available until your trial ends. Subscribe any time to keep it.`
         : isOwner
-          ? `Access to ${org?.name ?? "your farm"} is paused. Your data is safe and nothing has been deleted — subscribing restores everything exactly as you left it.`
+          ? `Access to ${org?.name ?? "your farm"} is paused. Your data is safe and nothing has been deleted. Subscribing restores everything exactly as you left it.`
           : `Access to ${org?.name ?? "this farm"} is paused. The farm's owner needs to renew the subscription; anyone they added shares the same access.`;
 
     return (
@@ -50,7 +55,7 @@ export default async function BillingPage() {
                     <dl className="space-y-3 mb-8">
                         <div className="flex items-center justify-between py-3 px-4 bg-white/5 rounded-xl">
                             <dt className="text-sm text-white/50">Farm</dt>
-                            <dd className="text-sm font-medium text-white">{org?.name ?? "—"}</dd>
+                            <dd className="text-sm font-medium text-white">{org?.name ?? "-"}</dd>
                         </div>
                         <div className="flex items-center justify-between py-3 px-4 bg-white/5 rounded-xl">
                             <dt className="text-sm text-white/50">Your role</dt>
@@ -92,7 +97,7 @@ export default async function BillingPage() {
 
                 {isTestMode() && (
                     <p className="mt-6 text-center text-xs text-amber-300/60">
-                        Stripe test mode — use card 4242 4242 4242 4242, any future expiry and CVC.
+                        Stripe test mode. Use card 4242 4242 4242 4242, any future expiry and CVC.
                     </p>
                 )}
 
