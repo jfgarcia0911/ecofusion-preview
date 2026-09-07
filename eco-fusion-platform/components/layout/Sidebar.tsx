@@ -49,7 +49,7 @@ const commonNavItems = [
 export default function Sidebar({ user }: { user?: User }) {
     const pathname = usePathname() ?? '';
     // What someone may do is decided by their role in this farm, not by the
-    // legacy global role — an owner is an administrator of their own farm.
+    // legacy global role: an owner is an administrator of their own farm.
     const role = user?.orgRole ?? user?.role;
     const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
 

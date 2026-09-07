@@ -77,7 +77,7 @@ Yet despite this massive footprint, our global food system fails to adequately n
 
 ## The Systems Thinking Approach
 
-Throughout this course, you will develop **systems thinking** capabilities—the ability to understand complex, interconnected problems. A food system is not merely a supply chain; it is a web of relationships between:
+Throughout this course, you will develop **systems thinking** capabilities: the ability to understand complex, interconnected problems. A food system is not merely a supply chain; it is a web of relationships between:
 
 - **Ecological systems** (soil, water, climate, biodiversity)
 - **Social systems** (culture, labor, community, health)
@@ -1568,13 +1568,13 @@ Complete courses, gain experience, and earn credentials that demonstrate your ex
 
 ## Thank You
 
-Thank you for investing in this learning journey. The transition to sustainable food systems requires millions of educated, committed individuals—farmers, entrepreneurs, educators, policymakers, and engaged citizens.
+Thank you for investing in this learning journey. The transition to sustainable food systems requires millions of educated, committed individuals: farmers, entrepreneurs, educators, policymakers, and engaged citizens.
 
 **You are now part of that movement.**
 
 Continue to course 102: Aquaponics Fundamentals to deepen your knowledge, or explore other foundational courses based on your interests.
 
-*"The greatest threat to our planet is the belief that someone else will save it."* — Robert Swan` },
+*"The greatest threat to our planet is the belief that someone else will save it."* - Robert Swan` },
                     { id: "l8-5-101", title: "Final Course Quiz", type: "quiz", duration: 20, questions: [
                         { id: "q1", question: "Food systems employ approximately what percentage of the global workforce?", options: ["10%", "27%", "45%", "60%"], correctAnswer: 1 },
                         { id: "q2", question: "The Brundtland definition of sustainability was published in:", options: ["1972", "1987", "2000", "2015"], correctAnswer: 1 },
@@ -4329,7 +4329,7 @@ Dr. William Gericke's work at the University of California, Berkeley, in the 192
 
 ### The Basic Principle
 
-Plants require 17 essential elements for growth. In soil, these nutrients exist in organic and mineral forms that must be broken down by microorganisms before plant roots can absorb them. In hydroponics, **nutrients are provided in ionic form**—immediately available for plant uptake.
+Plants require 17 essential elements for growth. In soil, these nutrients exist in organic and mineral forms that must be broken down by microorganisms before plant roots can absorb them. In hydroponics, **nutrients are provided in ionic form**, immediately available for plant uptake.
 
 ### Essential Plant Nutrients
 
@@ -4665,7 +4665,7 @@ Growing containers are periodically flooded with nutrient solution, then drained
 3. **Overflow tube**: Prevents over-flooding
 
 ### Advantages
-- Versatile—works with many crops
+- Versatile: works with many crops
 - Simple technology
 - Good oxygenation
 - Easy to maintain
@@ -4720,7 +4720,7 @@ Tomatoes, peppers, cucumbers, cannabis, cut flowers
 
 ### How It Works
 
-Roots are suspended in air and misted with nutrient solution at regular intervals. No growing media is used—roots grow in the dark, humid environment of the growing chamber.
+Roots are suspended in air and misted with nutrient solution at regular intervals. No growing media is used. Roots grow in the dark, humid environment of the growing chamber.
 
 ### Misting Parameters
 
@@ -5399,7 +5399,7 @@ Powdered salts requiring dissolution:
 ## The A + B System Explained
 
 **Why Two Parts?**
-Calcium cannot be concentrated with sulfates or phosphates—they precipitate as insolite solids.
+Calcium cannot be concentrated with sulfates or phosphates. They precipitate as insolite solids.
 
 **Part A Contains:**
 - Calcium nitrate
@@ -5696,7 +5696,7 @@ For well water or detailed analysis:
 
 ### Water Softeners
 
-**Caution**: Traditional ion-exchange softeners replace Ca/Mg with sodium—NOT suitable for hydroponics.
+**Caution**: Traditional ion-exchange softeners replace Ca/Mg with sodium. NOT suitable for hydroponics.
 
 **Alternative**: Potassium-based softeners are better but still add salts.
 
@@ -5809,7 +5809,7 @@ Many growers blend RO with tap water to:
 
 ### Vapor Pressure Deficit (VPD)
 
-VPD measures the "drying power" of air—the difference between the moisture in the air and the maximum it could hold.
+VPD measures the "drying power" of air: the difference between the moisture in the air and the maximum it could hold.
 
 **VPD Ranges by Growth Stage:**
 
@@ -6796,7 +6796,7 @@ H₂O → PS II → Electron transport chain → PS I → NADPH
 
 **Location:** Stroma of chloroplasts
 
-**Also Called:** "Dark reactions" (misnomer—requires ATP/NADPH from light reactions)
+**Also Called:** "Dark reactions" (misnomer: requires ATP/NADPH from light reactions)
 
 ### The Calvin Cycle Steps
 
@@ -7169,7 +7169,7 @@ C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energy (ATP)
 
 ### Calcium Deficiency
 
-**Critical Note:** Calcium deficiency often appears even when Ca is abundant in solution—the issue is **transport** not supply.
+**Critical Note:** Calcium deficiency often appears even when Ca is abundant in solution: the issue is **transport** not supply.
 
 | Symptom | Crops Affected |
 |---------|----------------|
@@ -10234,7 +10234,7 @@ The concept of sustainability in agriculture represents one of the most pressing
 
 The Triple Bottom Line (TBL), introduced by John Elkington in 1994, provides a foundational framework for understanding sustainability. This framework posits that true sustainability must balance three interdependent pillars:
 
-**1. People (Social Equity):** Agricultural systems must ensure fair labor practices, community food security, cultural preservation, and equitable access to resources. This dimension addresses questions of distributive justice—how are the benefits and burdens of agricultural production distributed across society?
+**1. People (Social Equity):** Agricultural systems must ensure fair labor practices, community food security, cultural preservation, and equitable access to resources. This dimension addresses questions of distributive justice: how are the benefits and burdens of agricultural production distributed across society?
 
 **2. Planet (Environmental Integrity):** Ecological sustainability requires agricultural practices that maintain biodiversity, protect soil health, conserve water resources, and minimize greenhouse gas emissions. This pillar draws from the land ethic of Aldo Leopold.
 
@@ -10254,7 +10254,7 @@ Several philosophical frameworks inform our understanding of agricultural ethics
 
 **Virtue Ethics** asks what practices cultivate human excellence and good character. Wendell Berry's agrarian philosophy exemplifies this approach, arguing that farming can develop virtues of patience, humility, attentiveness, and care.
 
-**Care Ethics** emphasizes relationships, responsibility, and attentiveness to particular contexts. This framework highlights the relational nature of farming—relationships between farmers and land, between producers and consumers, between humans and other species, and between present and future generations.
+**Care Ethics** emphasizes relationships, responsibility, and attentiveness to particular contexts. This framework highlights the relational nature of farming: relationships between farmers and land, between producers and consumers, between humans and other species, and between present and future generations.
 
 ## The Brundtland Definition and Intergenerational Justice
 
@@ -10431,7 +10431,7 @@ Ikejime, a Japanese technique, involves immediate brain destruction followed by 
 Conventional intensive systems prioritize economic efficiency through high stocking densities and rapid growth. Welfare-certified systems (Global Aquaculture Alliance, Aquaculture Stewardship Council) require lower densities, enriched environments, and humane slaughter. Research shows certified systems have lower mortality, reduced antibiotic use, and superior product quality, though higher costs.
 
 ## Consumer Responsibility
-Consumers influence welfare through purchasing decisions. Certifications like ASC, BAP (Best Aquaculture Practices), and organic standards signal higher welfare. However, label literacy is essential—"natural" and "sustainable" lack legal definitions and meaningful standards.
+Consumers influence welfare through purchasing decisions. Certifications like ASC, BAP (Best Aquaculture Practices), and organic standards signal higher welfare. However, label literacy is essential: "natural" and "sustainable" lack legal definitions and meaningful standards.
 
 ## The Welfare-Sustainability Nexus
 Animal welfare and environmental sustainability often align: systems causing chronic stress require more inputs (medication, feed), generate more waste, and have higher mortality. Welfare-positive systems tend toward ecological sustainability through reduced stocking densities, better waste management, and healthier populations requiring fewer interventions.
@@ -10525,7 +10525,7 @@ Aquaponic systems dramatically reduce water use through recirculation, using 90-
 ## Eutrophication and Nutrient Pollution
 Agricultural nutrient runoff causes eutrophication: excess nutrients stimulate algal blooms, which deplete oxygen when they decompose, creating dead zones. The Gulf of Mexico dead zone (8,000+ square miles) results largely from Midwest agricultural runoff.
 
-**Nitrogen Use Efficiency (NUE):** Global average NUE is 40-50%—meaning half of applied nitrogen is lost to environment. Improved efficiency through precision agriculture, cover crops, and better timing can reduce pollution while maintaining yields.
+**Nitrogen Use Efficiency (NUE):** Global average NUE is 40-50%, meaning half of applied nitrogen is lost to environment. Improved efficiency through precision agriculture, cover crops, and better timing can reduce pollution while maintaining yields.
 
 **Phosphorus Concerns:** Phosphorus is a finite, non-renewable resource essential for agriculture. Current agricultural practices lose phosphorus to water bodies (causing eutrophication) while depleting reserves projected to last 50-100 years at current rates.
 
@@ -10559,10 +10559,10 @@ Linear "take-make-dispose" models create waste and deplete resources. Circular e
 Aquaponics exemplifies circular principles: fish waste becomes plant nutrients, plants filter water for fish, achieving 90%+ nutrient recycling efficiency.
 
 ## Conclusion
-Comprehensive environmental assessment requires moving beyond single metrics to examine full lifecycle impacts across multiple categories. Trade-offs are inevitable—reducing one impact may increase another. Ethical decision-making requires transparent accounting of impacts, consideration of local context, and prioritization based on values and planetary boundaries.
+Comprehensive environmental assessment requires moving beyond single metrics to examine full lifecycle impacts across multiple categories. Trade-offs are inevitable: reducing one impact may increase another. Ethical decision-making requires transparent accounting of impacts, consideration of local context, and prioritization based on values and planetary boundaries.
 
 ## References
-- ISO 14040 (2006). "Life Cycle Assessment—Principles and Framework"
+- ISO 14040 (2006). "Life Cycle Assessment: Principles and Framework"
 - IPCC (2019). "Climate Change and Land"
 - Poore, J. & Nemecek, T. (2018). "Reducing Food's Environmental Impacts Through Producers and Consumers." Science, 360(6392)
 - Hoekstra, A.Y. (2017). "Water Footprint Assessment"
@@ -10608,12 +10608,12 @@ Agricultural workers feed the world yet frequently cannot afford adequate food f
 This paradox reflects structural devaluation of agricultural labor, historical exclusions from labor protections, and power imbalances between workers and employers in globalized supply chains.
 
 ## Historical Context: Legacy of Enslavement
-Modern agricultural labor systems bear the legacy of enslavement and forced labor. In the United States, chattel slavery built plantation agriculture. After emancipation, sharecropping and convict leasing perpetuated coerced labor. The 1935 National Labor Relations Act and 1938 Fair Labor Standards Act explicitly excluded agricultural workers from union protections and minimum wage requirements—exclusions reflecting political power of agricultural interests and racist assumptions about who deserved protection.
+Modern agricultural labor systems bear the legacy of enslavement and forced labor. In the United States, chattel slavery built plantation agriculture. After emancipation, sharecropping and convict leasing perpetuated coerced labor. The 1935 National Labor Relations Act and 1938 Fair Labor Standards Act explicitly excluded agricultural workers from union protections and minimum wage requirements, exclusions reflecting political power of agricultural interests and racist assumptions about who deserved protection.
 
 This legacy persists. U.S. farmworkers remain excluded from overtime pay protections and face restricted organizing rights in many states.
 
 ## Contemporary Labor Abuses
-**Wage Theft:** Piece-rate payment systems, unpaid work time, and illegal deductions create systematic wage theft. The Economic Policy Institute estimates U.S. workers lose $15 billion annually to wage theft—exceeding all property crime combined.
+**Wage Theft:** Piece-rate payment systems, unpaid work time, and illegal deductions create systematic wage theft. The Economic Policy Institute estimates U.S. workers lose $15 billion annually to wage theft, exceeding all property crime combined.
 
 **Unsafe Working Conditions:** Agricultural work ranks among the most dangerous occupations. Farmworkers face heat stress, pesticide exposure, machinery injuries, and ergonomic hazards. Heat-related farmworker deaths have increased 400% since the 1990s as climate change intensifies.
 
@@ -10622,7 +10622,7 @@ This legacy persists. U.S. farmworkers remain excluded from overtime pay protect
 **Housing Violations:** Many farmworkers live in employer-provided housing characterized by overcrowding, poor sanitation, and unsafe conditions. This creates dependency that limits workers' ability to advocate for better treatment.
 
 ## Case Study: Tomato Harvesting in Florida
-Until recently, Florida tomato pickers earned 50 cents per 32-pound bucket—the same rate paid in 1980. Workers needed to pick 2 tons daily to earn minimum wage. Investigations documented forced labor, physical abuse, and denial of water breaks.
+Until recently, Florida tomato pickers earned 50 cents per 32-pound bucket, the same rate paid in 1980. Workers needed to pick 2 tons daily to earn minimum wage. Investigations documented forced labor, physical abuse, and denial of water breaks.
 
 The Coalition of Immokalee Workers (CIW), a worker-led organization, created the Fair Food Program in 2011. This program establishes enforceable standards for wages, working conditions, and treatment. Participating buyers pay an additional penny per pound, increasing picker wages by 70-90%. Third-party audits ensure compliance. Violations result in suspension from participating supply chains.
 
@@ -10634,11 +10634,11 @@ Globalized food systems create competitive pressure that squeezes labor costs. S
 **Monopsony Power:** In many regions, few buyers control markets, giving them enormous power over suppliers. This monopsony power allows buyers to dictate prices that make exploitation economically "necessary" for suppliers to survive.
 
 ## The Living Wage vs. Minimum Wage
-The minimum wage represents a legal floor, not an ethical standard. A living wage—sufficient to meet basic needs including food, housing, healthcare, and childcare—far exceeds minimum wage in most contexts.
+The minimum wage represents a legal floor, not an ethical standard. A living wage, sufficient to meet basic needs including food, housing, healthcare, and childcare, far exceeds minimum wage in most contexts.
 
 The Global Living Wage Coalition defines living wage as "the remuneration received for a standard workweek by a worker in a particular place sufficient to afford a decent standard of living for the worker and her or his family." Calculating living wages requires location-specific analysis of costs.
 
-For U.S. agricultural regions, living wages typically range from $15-$25 per hour depending on local costs—far above typical farmworker wages.
+For U.S. agricultural regions, living wages typically range from $15-$25 per hour depending on local costs, far above typical farmworker wages.
 
 ## Worker Organizing and Union Rights
 Despite exclusions from some labor protections, agricultural workers have a rich history of organizing. The United Farm Workers (UFW), founded by Cesar Chavez, Dolores Huerta, and Filipino American organizers, won groundbreaking victories in the 1960s-70s through strikes, boycotts, and political action.
@@ -10705,7 +10705,7 @@ Labor justice in agriculture requires transforming power relationships, not just
 The future of sustainable agriculture lies not in incremental improvements but in fundamental transformation toward regenerative systems that actively restore ecological health, build social equity, and create economic resilience. This lesson examines regenerative agriculture principles, circular economy models, and the systemic changes required for just and sustainable food systems.
 
 ## Beyond Sustainability: The Regenerative Paradigm
-Sustainability aims to maintain current conditions—"do no harm." Regenerative approaches aim higher: actively improving ecosystems, communities, and economies. While sustainability asks "how can we reduce damage?", regenerative thinking asks "how can we participate in renewal?"
+Sustainability aims to maintain current conditions: "do no harm." Regenerative approaches aim higher: actively improving ecosystems, communities, and economies. While sustainability asks "how can we reduce damage?", regenerative thinking asks "how can we participate in renewal?"
 
 This shift reflects recognition that many agricultural landscapes and communities already suffer degradation. Merely sustaining current conditions perpetuates harm. Regeneration offers hope: we can repair damage, rebuild soil, restore watersheds, and revitalize communities.
 
@@ -10744,7 +10744,7 @@ Linear "take-make-waste" models extract resources, produce goods, and generate w
 **Regional Scale:** The Netherlands has developed circular horticulture through waste CO2 from industry heating greenhouses, greenhouse waste heat warming fish farms, and aquaculture nutrients fertilizing crops. These industrial symbioses dramatically improve resource efficiency.
 
 ## Aquaponics as Regenerative Model
-Aquaponics exemplifies regenerative circular principles: fish waste fertilizes plants, plants filter water for fish, achieving 90%+ water savings and near-zero nutrient pollution. Well-designed systems produce two protein sources plus vegetables from minimal inputs. Integration creates resilience—multiple products buffer market fluctuations and biological interactions reduce disease.
+Aquaponics exemplifies regenerative circular principles: fish waste fertilizes plants, plants filter water for fish, achieving 90%+ water savings and near-zero nutrient pollution. Well-designed systems produce two protein sources plus vegetables from minimal inputs. Integration creates resilience: multiple products buffer market fluctuations and biological interactions reduce disease.
 
 Challenges remain: energy requirements, system complexity, and economic viability. However, renewable energy integration and continued innovation improve feasibility.
 
@@ -10760,10 +10760,10 @@ Individual farm changes, while important, cannot achieve transformation without 
 **Knowledge Systems:** Agricultural research and education must elevate farmer knowledge, indigenous wisdom, and agroecological science alongside industrial approaches. Extension services should support diverse pathways.
 
 ## The Role of Consumers and Citizens
-Individual consumer choices matter but cannot substitute for systemic change. More important than "voting with your dollar" is actual voting—supporting policies for just and sustainable food systems. Effective action includes: supporting worker organizing and fair labor standards; demanding corporate accountability; backing climate policy including agriculture; supporting public research and extension; participating in food policy councils; and building community food projects.
+Individual consumer choices matter but cannot substitute for systemic change. More important than "voting with your dollar" is actual voting: supporting policies for just and sustainable food systems. Effective action includes: supporting worker organizing and fair labor standards; demanding corporate accountability; backing climate policy including agriculture; supporting public research and extension; participating in food policy councils; and building community food projects.
 
 ## Hope and Agency
-The challenges facing food systems—climate change, biodiversity loss, soil degradation, food insecurity, labor exploitation—are daunting. However, we possess knowledge, tools, and examples of alternatives. Regenerative agriculture demonstrates that food production can restore rather than degrade. Food justice movements show that communities can challenge exploitation. Policy victories prove change is possible.
+The challenges facing food systems are daunting: climate change, biodiversity loss, soil degradation, food insecurity, labor exploitation. However, we possess knowledge, tools, and examples of alternatives. Regenerative agriculture demonstrates that food production can restore rather than degrade. Food justice movements show that communities can challenge exploitation. Policy victories prove change is possible.
 
 The question is not whether we can create just, sustainable, regenerative food systems, but whether we will choose to do so. This choice requires moral courage: courage to acknowledge current systems' failures, courage to imagine alternatives, courage to demand and create change.
 
@@ -10963,7 +10963,7 @@ For most hydroponic systems:
 
 ## pH and Nutrient Lockout
 
-When pH drifts outside the optimal range, certain nutrients become chemically bound and unavailable to plants—this is called **nutrient lockout**.
+When pH drifts outside the optimal range, certain nutrients become chemically bound and unavailable to plants. This is called **nutrient lockout**.
 
 **At high pH (above 7.0):**
 - Iron (Fe) becomes unavailable
@@ -16069,7 +16069,7 @@ Most nutrients are maximally available between pH 5.5-6.5. This is why maintaini
 - Plants show deficiency despite adequate supply` },
                     { id: "l1-3-202", title: "Antagonism & Synergism", type: "text", duration: 20, content: `# Mulder's Chart: Nutrient Interactions
 
-Nutrients don't act independently—they interact with each other in complex ways that affect plant uptake and availability.
+Nutrients don't act independently. They interact with each other in complex ways that affect plant uptake and availability.
 
 ## Understanding Mulder's Chart
 
@@ -16413,7 +16413,7 @@ Include with every sample:
 - Penn State Agricultural Analytical Services
 - Brookside Laboratories
 
-Choose labs familiar with hydroponic crops—sufficiency ranges differ from field crops.` },
+Choose labs familiar with hydroponic crops: sufficiency ranges differ from field crops.` },
                     { id: "l3-2-202", title: "Interpreting Lab Reports", type: "text", duration: 25, content: `# Reading Plant Tissue Analysis Reports
 
 Understanding lab reports transforms data into actionable insights.
@@ -16523,7 +16523,7 @@ The mobility of nutrients within the plant determines WHERE deficiency symptoms 
 
 When a nutrient is deficient:
 - **Mobile nutrients:** Plant moves them from old leaves to new growth
-- **Immobile nutrients:** Plant cannot redistribute—new growth suffers first
+- **Immobile nutrients:** Plant cannot redistribute, so new growth suffers first
 
 ## Mobile Nutrients
 
@@ -16901,7 +16901,7 @@ Higher fish density = more nutrients BUT:
 Recommendation: Start at 0.25-0.5 lb/gal, supplement as needed.` },
                     { id: "l6-2-202", title: "Safe Supplementation Methods", type: "text", duration: 20, content: `# Safe Supplementation in Aquaponics
 
-Adding nutrients to aquaponics requires care—fish health comes first.
+Adding nutrients to aquaponics requires care: fish health comes first.
 
 ## General Supplementation Rules
 
@@ -17894,7 +17894,7 @@ Apply AC voltage between electrodes, measure current flow. Higher ionic concentr
 | Galvanic | Medium | $150-300 | ±0.2 mg/L |
 | Optical (luminescent) | Low | $400-1000 | ±0.1 mg/L |
 
-**Recommended:** Optical sensors for commercial operations—less maintenance, more reliable.
+**Recommended:** Optical sensors for commercial operations: less maintenance, more reliable.
 
 ## Environmental Sensors
 
@@ -18649,7 +18649,7 @@ Watch for:
                 lessons: [
                     { id: "l4-1-203", title: "Relay & Switching Fundamentals", type: "text", duration: 25, content: `# Actuators and Switching Devices
 
-Actuators are the muscles of your automation system—they make things happen.
+Actuators are the muscles of your automation system. They make things happen.
 
 ## Common Actuators in CEA
 
@@ -18988,7 +18988,7 @@ Choosing the right database affects query speed, storage costs, and analysis cap
 ## Database Types
 
 ### Time-Series Databases (Recommended)
-Optimized for timestamped data—perfect for sensor readings.
+Optimized for timestamped data: perfect for sensor readings.
 
 **InfluxDB**
 | Pros | Cons |
@@ -19271,7 +19271,7 @@ For diagnosing issues:
 - **Admin:** Full access including users
 
 ### Public Dashboards
-Share specific dashboards without login—useful for customers or stakeholders.
+Share specific dashboards without login: useful for customers or stakeholders.
 
 ### Embedding
 Embed panels in other websites or displays.` },
@@ -21076,7 +21076,7 @@ Before negotiating price, know:
                 lessons: [
                     { id: "l2-1-204", title: "Understanding DTM Variables", type: "text", duration: 25, content: `# Days to Maturity: The Foundation of Planning
 
-Days to Maturity (DTM) is the single most important number in production planning—and it's never just one number.
+Days to Maturity (DTM) is the single most important number in production planning, and it's never just one number.
 
 ## What DTM Really Means
 
@@ -21346,7 +21346,7 @@ Week 3: Seed tomatoes, transplant microgreens, harvest basil batch B
                 lessons: [
                     { id: "l3-1-204", title: "Succession Planting Fundamentals", type: "text", duration: 25, content: `# Succession Planting: The Key to Continuous Harvest
 
-Succession planting means seeding at regular intervals so crops mature at regular intervals—ensuring consistent supply to your customers.
+Succession planting means seeding at regular intervals so crops mature at regular intervals, ensuring consistent supply to your customers.
 
 ## Why Succession Plant?
 
@@ -41444,7 +41444,7 @@ Proper sanitation follows a proven sequence. Skipping steps or rushing compromis
 
 | Step | Action | Purpose | Common Errors |
 |------|--------|---------|---------------|
-| 1. Remove | Clear debris, scrape, sweep | Remove soil load | Skipping—sanitizer can't penetrate debris |
+| 1. Remove | Clear debris, scrape, sweep | Remove soil load | Skipping: sanitizer can't penetrate debris |
 | 2. Wash | Hot water + detergent, scrub | Dissolve fats, proteins | Water too cool, insufficient contact time |
 | 3. Rinse | Clean water, remove residue | Remove detergent | Inadequate rinsing leaves film |
 | 4. Sanitize | Chemical or heat application | Kill pathogens | Wrong concentration, surface still wet |
@@ -41513,7 +41513,7 @@ For 200 ppm in 5 gallons:
 82,500 ppm (stock) × X ml = 200 ppm × 18,927 ml
 X = 46 ml (about 3 tablespoons per 5 gallons)
 
-Always verify with test strips—concentration varies!
+Always verify with test strips: concentration varies!
 \`\`\`
 
 ## Critical Factors Affecting Efficacy
@@ -41528,7 +41528,7 @@ Always verify with test strips—concentration varies!
 
 ## Safety Precautions
 
-⚠️ **Never mix sanitizers**—chlorine + ammonia = toxic gas
+⚠️ **Never mix sanitizers**: chlorine + ammonia = toxic gas
 
 - Use PPE: gloves, eye protection
 - Ensure ventilation
@@ -41573,7 +41573,7 @@ Every sanitation SOP should include:
 5. Rinse with clean water until no foam remains
 6. Apply 200 ppm chlorine sanitizer (verify with test strip)
 7. Allow 1 minute contact time
-8. Air dry—do not wipe
+8. Air dry, do not wipe
 9. Initial and date cleaning log
 \`\`\`
 
@@ -41675,7 +41675,7 @@ Effective SOPs include:
                         duration: 20,
                         content: `# Why Records Matter in Food Safety
 
-Documentation is the backbone of food safety compliance. If it's not documented, it didn't happen—at least as far as auditors and regulators are concerned.
+Documentation is the backbone of food safety compliance. If it's not documented, it didn't happen, at least as far as auditors and regulators are concerned.
 
 ## Regulatory Requirements
 
@@ -41684,7 +41684,7 @@ Documentation is the backbone of food safety compliance. If it's not documented,
 | FSMA PSR | Water testing, soil amendments, worker training, cleaning logs |
 | GAP Certification | All production activities, corrective actions, calibration |
 | Organic (NOP) | Input materials, field history, handling procedures |
-| State/Local | Varies—check your jurisdiction |
+| State/Local | Varies: check your jurisdiction |
 
 ## Core Record Categories
 
@@ -41750,7 +41750,7 @@ If using paper:
 - Use pre-printed forms with all fields
 - Bound logs (not loose sheets)
 - Permanent ink only
-- No white-out—single strikethrough with initials
+- No white-out: single strikethrough with initials
 - Organize in labeled binders by category
 - Keep master copies in waterproof storage
 - Photograph/scan weekly for backup
@@ -41759,13 +41759,13 @@ If using paper:
 
 | Feature | Importance |
 |---------|------------|
-| Mobile access | Critical—data entry in the field |
-| Offline capability | Essential—connectivity varies |
-| Automatic timestamps | Required—prevents backdating |
-| User authentication | Required—who entered what |
-| Audit trail | Critical—tracks all changes |
-| Export functionality | Essential—reports for auditors |
-| Backup/redundancy | Critical—data loss prevention |
+| Mobile access | Critical: data entry in the field |
+| Offline capability | Essential: connectivity varies |
+| Automatic timestamps | Required: prevents backdating |
+| User authentication | Required: who entered what |
+| Audit trail | Critical: tracks all changes |
+| Export functionality | Essential: reports for auditors |
+| Backup/redundancy | Critical: data loss prevention |
 
 ## Hybrid Approaches
 
@@ -41845,7 +41845,7 @@ Notes: ________________________________
 4. Run sample reports
 5. Conduct mock audit with staff
 
-**Remember**: Auditors look for consistent, complete records—not perfect records. Documented corrective actions show a functioning system.`
+**Remember**: Auditors look for consistent, complete records, not perfect records. Documented corrective actions show a functioning system.`
                     },
                     {
                         id: "l9-4-210",
@@ -41893,7 +41893,7 @@ Notes: ________________________________
                                     "The farm owner only",
                                     "External auditors",
                                     "Crew lead or supervisor",
-                                    "No one—records just need to be filed"
+                                    "No one, records just need to be filed"
                                 ],
                                 correctAnswer: 2
                             },
@@ -41986,7 +41986,7 @@ Red flags that indicate culture problems:
                         duration: 25,
                         content: `# Effective Food Safety Training
 
-Training should create understanding and behavior change, not just check boxes. Adults learn differently—design training accordingly.
+Training should create understanding and behavior change, not just check boxes. Adults learn differently, so design training accordingly.
 
 ## Training Principles
 
@@ -42110,7 +42110,7 @@ Culture is built through consistent daily actions, not occasional initiatives. M
 | Training engagement | Questions asked, attendance |
 | Observation compliance | Unannounced checks |
 | Staff feedback | Anonymous surveys |
-| Audit performance | Not just pass/fail—trends |
+| Audit performance | Not just pass/fail: trends |
 
 **Remember**: Culture change takes time. Consistency and patience are essential.`
                     },
@@ -42284,7 +42284,7 @@ Daily Light Integral (DLI) = mol/m²/day of PAR
 - Orientation and latitude
 - Time of year and day
 
-**Key concept**: Maximize beneficial solar gain while managing excess heat—this is the core challenge of greenhouse climate management.`
+**Key concept**: Maximize beneficial solar gain while managing excess heat. This is the core challenge of greenhouse climate management.`
                     },
                     {
                         id: "l1-2-211",
@@ -42584,7 +42584,7 @@ Energy savings: Root zone heating can reduce air temperature 5-10°F while maint
                         duration: 25,
                         content: `# Natural Ventilation Principles
 
-Passive ventilation uses natural forces—wind and thermal buoyancy—to cool greenhouses without mechanical systems.
+Passive ventilation uses natural forces (wind and thermal buoyancy) to cool greenhouses without mechanical systems.
 
 ## Stack Effect (Thermal Buoyancy)
 
@@ -42779,7 +42779,7 @@ Refrigerated cooling for high-value crops:
                         duration: 30,
                         content: `# VPD: The Key to Optimal Plant Growth
 
-Vapor Pressure Deficit (VPD) measures the "drying power" of the air—how much moisture the air can still absorb. It's a better growth indicator than relative humidity alone.
+Vapor Pressure Deficit (VPD) measures the "drying power" of the air: how much moisture the air can still absorb. It's a better growth indicator than relative humidity alone.
 
 ## What is VPD?
 
@@ -42795,7 +42795,7 @@ VPD = SVP(leaf temp) × (1 - RH/100)
 | Temperature | RH | VPD | Plant Response |
 |-------------|------|-----|----------------|
 | 70°F | 70% | 0.55 kPa | Normal transpiration |
-| 85°F | 70% | 0.96 kPa | Stress—same RH, higher VPD |
+| 85°F | 70% | 0.96 kPa | Stress: same RH, higher VPD |
 | 70°F | 50% | 0.92 kPa | Similar to 85°F/70% |
 
 **Key insight**: The same RH means very different things at different temperatures.
@@ -43017,7 +43017,7 @@ Standard HAF Pattern (Top View)
 | Canopy level | 20-50 ft/min | Stir boundary layer |
 | Avoid | > 150 ft/min | Causes stress, drying |
 
-**Run fans continuously**—24/7 operation uses minimal electricity and provides maximum benefit.`
+**Run fans continuously**. 24/7 operation uses minimal electricity and provides maximum benefit.`
                     },
                     {
                         id: "l5-2-211",
@@ -43026,7 +43026,7 @@ Standard HAF Pattern (Top View)
                         duration: 25,
                         content: `# Solving Temperature Stratification
 
-Stratification—hot air at the ridge, cold air at the floor—wastes energy and creates uneven growing conditions.
+Stratification (hot air at the ridge, cold air at the floor) wastes energy and creates uneven growing conditions.
 
 ## The Stratification Problem
 
@@ -43456,7 +43456,7 @@ While CO2 is essential for plants, high concentrations are dangerous for humans.
 | 1,000 ppm | Greenhouse enrichment target |
 | 2,000 ppm | OSHA limit (8-hour exposure) |
 | 3,000 ppm | Headache, drowsiness |
-| 5,000 ppm | OSHA ceiling—evacuation required |
+| 5,000 ppm | OSHA ceiling: evacuation required |
 | 40,000 ppm | Immediately life-threatening |
 
 ## Required Safety Equipment
@@ -43606,7 +43606,7 @@ Without Screen:              With Screen:
 |--------|----------------|
 | Height | 2-4 ft below glazing minimum |
 | Gap at walls | Seal to prevent bypass |
-| Gutter gap | Critical—seal or loses 20-30% |
+| Gutter gap | Critical: seal or loses 20-30% |
 | Drive system | Rack and pinion most reliable |
 
 ## Operational Strategy
@@ -44086,7 +44086,7 @@ Ventilation:
                                     "Daily",
                                     "Monthly",
                                     "Annually",
-                                    "Never—they don't drift"
+                                    "Never, they don't drift"
                                 ],
                                 correctAnswer: 1
                             },
@@ -44094,7 +44094,7 @@ Ventilation:
                                 id: "q10-2-211",
                                 question: "What should be done to evaporative cooling pads before summer?",
                                 options: [
-                                    "Nothing—they're maintenance-free",
+                                    "Nothing, they're maintenance-free",
                                     "Clean or replace, flush water systems, treat for algae",
                                     "Remove them for the season",
                                     "Paint them white"
@@ -44163,7 +44163,7 @@ Ventilation:
                                     "6 months",
                                     "2-4 years",
                                     "10-15 years",
-                                    "Never—they don't save money"
+                                    "Never, they don't save money"
                                 ],
                                 correctAnswer: 1
                             }
@@ -44309,7 +44309,7 @@ For a 1,000 acre farm:
 - More frequent droughts
 - Groundwater recharge disruption
 
-**Conclusion**: Water-efficient agriculture isn't optional—it's essential for food security.`
+**Conclusion**: Water-efficient agriculture isn't optional. It's essential for food security.`
                     },
                     {
                         id: "l1-3-212",
@@ -44496,7 +44496,7 @@ For zero-discharge systems:
 - Reduces water exchange needs
 - Complex to manage
 
-**Alternative**: Couple with hydroponics—plants uptake nitrate as fertilizer.`
+**Alternative**: Couple with hydroponics: plants uptake nitrate as fertilizer.`
                     },
                     {
                         id: "l2-3-212",
@@ -44686,7 +44686,7 @@ First flush = 60 gallons diverted before storage fills
 | Sediment | Minimal | Clogs emitters |
 | Pathogens | Absent | Foliar application risk |
 
-**Rainwater advantage**: Very low dissolved minerals—perfect base for hydroponic nutrient solutions.`
+**Rainwater advantage**: Very low dissolved minerals: perfect base for hydroponic nutrient solutions.`
                     },
                     {
                         id: "l3-3-212",
@@ -45199,7 +45199,7 @@ Feed Water (high TDS)
 | Well (> 500 ppm) | Yes |
 | Brackish/seawater | Yes |
 
-**Cost consideration**: RO adds $0.01-0.05 per gallon—only use when source water is problematic.`
+**Cost consideration**: RO adds $0.01-0.05 per gallon, so only use when source water is problematic.`
                     },
                     {
                         id: "l6-2-212",
@@ -45300,7 +45300,7 @@ Disposal costs:
                                     "Dissolved minerals only",
                                     "Chlorine (damages membrane)",
                                     "Nitrogen",
-                                    "Nothing—RO handles everything"
+                                    "Nothing, RO handles everything"
                                 ],
                                 correctAnswer: 1
                             },
@@ -45343,7 +45343,7 @@ Disposal costs:
                         duration: 25,
                         content: `# Understanding Greywater for Agriculture
 
-Greywater is wastewater from sinks, showers, and laundry—not toilets (that's blackwater). Proper use can offset irrigation demands.
+Greywater is wastewater from sinks, showers, and laundry, not toilets (that's blackwater). Proper use can offset irrigation demands.
 
 ## Greywater Sources
 
@@ -47556,7 +47556,7 @@ A well-designed system can achieve 6-8 pints/kWh vs 2-3 for conventional systems
                         duration: 20,
                         content: `# Avoiding Expensive HVAC Errors
 
-HVAC mistakes are costly—undersizing leads to crop loss, oversizing wastes capital and energy.
+HVAC mistakes are costly: undersizing leads to crop loss, oversizing wastes capital and energy.
 
 ## The Top 5 HVAC Sizing Mistakes
 
@@ -47685,7 +47685,7 @@ Spending time on accurate HVAC sizing saves years of operational headaches.`
                                 question: "Why is the traditional 'overcool then reheat' dehumidification method inefficient?",
                                 options: [
                                     "It doesn't remove any moisture",
-                                    "You pay twice—once to cool, again to reheat the same air",
+                                    "You pay twice: once to cool, again to reheat the same air",
                                     "It requires too much space",
                                     "Plants don't respond to it"
                                 ],

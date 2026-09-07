@@ -850,7 +850,7 @@ Purpose: Extend production season from 4-6 months to 9-12 months
 - Balancing Generative and Vegetative Growth
   - Too generative: Weak plants, small leaves, excessive fruit load, poor fruit size
   - Too vegetative: Excessive foliage, poor fruit set, delayed maturity
-  - Goal: "Balanced generative" – strong plant with optimal fruit load
+  - Goal: "Balanced generative": strong plant with optimal fruit load
 
 **Plant Balance Visual Indicators**:
 

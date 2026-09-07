@@ -16,12 +16,12 @@ duplicate.
 | `####` | Labels above a list or table | Small uppercase accent eyebrow |
 
 Keep to two levels where you can. `### 1. Electrocution` style numbering is
-fine — write the number into the text, don't rely on an ordered list.
+fine. Write the number into the text, don't rely on an ordered list.
 
 ## Callouts
 
 Safety content lives or dies on the reader noticing the dangerous part. Use
-GitHub-style alerts — they're plain blockquotes, so the markdown stays readable
+GitHub-style alerts. They're plain blockquotes, so the markdown stays readable
 in any editor:
 
 ```markdown
@@ -45,14 +45,14 @@ Reserve `DANGER` for genuine risk to life. If everything is DANGER, nothing is.
 
 ## The rest
 
-- **Lists** — `-` for unordered, `1.` for ordered. Accent-coloured markers.
-- **Bold** — `**term**` for the first use of a key term. Don't bold sentences.
-- **Code** — backticks for parameter names and values (`` `pH 6.8` ``), fenced
+- **Lists**: `-` for unordered, `1.` for ordered. Accent-coloured markers.
+- **Bold**: `**term**` for the first use of a key term. Don't bold sentences.
+- **Code**: backticks for parameter names and values (`` `pH 6.8` ``), fenced
   blocks for procedures or config.
-- **Links** — external links open in a new tab automatically.
-- **Images** — `![alt text](url)`. The alt text renders as a visible caption, so
+- **Links**: external links open in a new tab automatically.
+- **Images**: `![alt text](url)`. The alt text renders as a visible caption, so
   write it as one.
-- **Rules** — `---` between major topic shifts. The section rule on `##` usually
+- **Rules**: `---` between major topic shifts. The section rule on `##` usually
   makes this unnecessary.
 
 ## Tables
@@ -74,8 +74,8 @@ then pass `remarkPlugins={[remarkGfm]}` in `LessonContent.tsx`.
 
 Aquaponics facilities combine two dangerous elements:
 
-- **Water** — an excellent conductor of electricity
-- **Electrical equipment** — pumps, lights, heaters, controls
+- **Water**: an excellent conductor of electricity
+- **Electrical equipment**: pumps, lights, heaters, controls
 
 > [!DANGER]
 > This combination is the leading cause of serious injury in indoor grow

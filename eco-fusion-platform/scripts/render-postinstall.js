@@ -46,10 +46,10 @@ if (!process.env.DATABASE_URL || !process.env.DIRECT_URL) {
   console.warn(
     `\n[postinstall] Running on ${platform} but DATABASE_URL and/or DIRECT_URL ` +
       `are unset, so migrations were SKIPPED. Set both in the ${platform} ` +
-      `dashboard — the app cannot serve requests without them.\n`
+      `dashboard. The app cannot serve requests without them.\n`
   )
   process.exit(0)
 }
 
-console.log(`[postinstall] ${platform} build detected — applying pending migrations.`)
+console.log(`[postinstall] ${platform} build detected, applying pending migrations.`)
 prisma(['migrate', 'deploy'], { fatal: true })

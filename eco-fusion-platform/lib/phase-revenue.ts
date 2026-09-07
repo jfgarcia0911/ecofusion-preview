@@ -3,8 +3,8 @@
  *
  * A line carries an explicit `phaseId` when the seller chose one. Older rows
  * predate that column, so they fall back to matching the product name against
- * per-unit keywords. The fallback resolves to at most ONE unit — the first
- * match in `PHASE_PRODUCT_MAPPING` order — because 'energy' appears under both
+ * per-unit keywords. The fallback resolves to at most ONE unit, the first
+ * match in `PHASE_PRODUCT_MAPPING` order, because 'energy' appears under both
  * methane-gas and solar-energy, and counting such a line twice inflated the
  * combined total beyond actual revenue.
  *

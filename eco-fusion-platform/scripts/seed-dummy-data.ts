@@ -34,7 +34,7 @@ const CROPS = [
   ['Lettuce', 'Butterhead'], ['Basil', 'Genovese'], ['Kale', 'Red Russian'],
   ['Spinach', 'Bloomsdale'], ['Mint', 'Spearmint'],
 ]
-// From lib/constants.ts — the only phase ids the UI can route to.
+// From lib/constants.ts: the only phase ids the UI can route to.
 const PHASES = [
   'aquaculture', 'plant-production', 'methane-gas', 'fertilizer',
   'training-center', 'restaurant', 'solar-energy',
