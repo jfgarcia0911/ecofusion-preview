@@ -2,6 +2,8 @@
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { Thermometer, Droplets, Wind, FlaskConical, CloudRain } from "lucide-react";
+import { useUnits } from "@/lib/contexts/UnitContext";
+import { temperatureToCanonical, temperatureLabel } from "@/lib/units";
 
 interface SensorInputModalProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ export default function SensorInputModal({
     ammonia: "",
     humidity: "",
   });
+  const { units } = useUnits();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<string[]>([]);
@@ -38,7 +41,10 @@ export default function SensorInputModal({
     try {
       // Only send fields that have values
       const data: Record<string, number> = {};
-      if (readings.temperature) data.temperature = parseFloat(readings.temperature);
+      // Stored in Celsius regardless of the unit shown in the form.
+      if (readings.temperature) {
+        data.temperature = temperatureToCanonical(parseFloat(readings.temperature), units.temperature);
+      }
       if (readings.ph) data.ph = parseFloat(readings.ph);
       if (readings.dissolvedO2) data.dissolvedO2 = parseFloat(readings.dissolvedO2);
       if (readings.ammonia) data.ammonia = parseFloat(readings.ammonia);
@@ -115,7 +121,7 @@ export default function SensorInputModal({
             <div className="space-y-2">
               <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                 <Thermometer size={16} />
-                Temperature (°F)
+                Temperature ({temperatureLabel(units.temperature)})
               </label>
               <input
                 type="number"
@@ -123,7 +129,7 @@ export default function SensorInputModal({
                 value={readings.temperature}
                 onChange={(e) => setReadings({ ...readings, temperature: e.target.value })}
                 className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent/50"
-                placeholder="72.5"
+                placeholder={units.temperature === "F" ? "79.7" : "26.5"}
               />
             </div>
 

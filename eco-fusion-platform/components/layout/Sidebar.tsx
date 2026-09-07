@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal } from "lucide-react";
+import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -40,6 +40,7 @@ const userNavItems = [
 const commonNavItems = [
     { name: "Preferences", href: "/settings/preferences", icon: SlidersHorizontal, tourId: "nav-preferences" },
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
+    { name: "Billing", href: "/billing", icon: CreditCard, tourId: "nav-billing" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 

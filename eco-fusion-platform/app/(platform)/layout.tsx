@@ -5,6 +5,7 @@ import { getOrgContext } from "@/lib/tenancy";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
+import TrialBanner from "@/components/layout/TrialBanner";
 
 export default async function DashboardLayout({
     children,
@@ -38,6 +39,11 @@ export default async function DashboardLayout({
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
+                        {ctx && (
+                            <div className="mb-6">
+                                <TrialBanner access={ctx.access} />
+                            </div>
+                        )}
                         {children}
                     </main>
                 </div>
