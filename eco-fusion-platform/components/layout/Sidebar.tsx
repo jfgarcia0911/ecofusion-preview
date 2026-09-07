@@ -8,6 +8,8 @@ interface User {
     name?: string | null;
     image?: string | null;
     role?: string;
+    /** Role held in the current organization: owner | admin | manager | member. */
+    orgRole?: string;
 }
 
 // Base navigation items for all users
@@ -46,7 +48,10 @@ const commonNavItems = [
 
 export default function Sidebar({ user }: { user?: User }) {
     const pathname = usePathname() ?? '';
-    const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+    // What someone may do is decided by their role in this farm, not by the
+    // legacy global role — an owner is an administrator of their own farm.
+    const role = user?.orgRole ?? user?.role;
+    const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
 
     // Build nav items based on role
     const navItems = [
@@ -95,7 +100,7 @@ export default function Sidebar({ user }: { user?: User }) {
                     )}
                     <div className="overflow-hidden">
                         <p className="text-sm font-medium truncate">{user?.name || "Guest"}</p>
-                        <p className="text-xs text-white/50 truncate capitalize">{user?.role || "User"}</p>
+                        <p className="text-xs text-white/50 truncate capitalize">{role || "Member"}</p>
                     </div>
                 </div>
                 <form action={async () => {
