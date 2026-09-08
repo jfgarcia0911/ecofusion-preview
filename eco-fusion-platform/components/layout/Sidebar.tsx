@@ -55,10 +55,16 @@ const commonNavItems = [
 export default function Sidebar({
     user,
     business,
+    canSwitchOwn = false,
+    canCreateBusiness = false,
 }: {
     user?: User;
     /** The business these screens are showing, named at the top of the sidebar. */
     business?: { name: string; location: string | null } | null;
+    /** True when this account holds more than one business of its own. */
+    canSwitchOwn?: boolean;
+    /** True when this account owns a business and may add another. */
+    canCreateBusiness?: boolean;
 }) {
     const pathname = usePathname() ?? '';
     // What someone may do is decided by their role in this business, not by the
@@ -91,7 +97,12 @@ export default function Sidebar({
              * else is. For staff it is also the way into another one, which is
              * the same recorded act as entering from the sub account list.
              */}
-            <SubAccountSwitcher business={business ?? null} isStaff={isStaff} />
+            <SubAccountSwitcher
+                business={business ?? null}
+                isStaff={isStaff}
+                canSwitchOwn={canSwitchOwn}
+                canCreateBusiness={canCreateBusiness}
+            />
 
             <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
                 {navItems.map((item) => {

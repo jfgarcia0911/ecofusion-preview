@@ -47,13 +47,26 @@ export default async function DashboardLayout({
         showOnboarding = !user?.onboardingComplete;
     }
 
+    // Somebody who belongs to more than one business needs a way between them.
+    // Staff have their own switcher and reach every business regardless.
+    const ownBusinessCount = session?.user?.id
+        ? await prisma.membership.count({ where: { userId: session.user.id } })
+        : 0;
+
+    // An owner gets the panel even with a single business, because that panel
+    // is where another one is added. Staff have their own, and a member with
+    // one business has nowhere to go and nothing to create.
+    const canCreateBusiness = !ctx?.isStaff && ctx?.role === "owner";
+    const canSwitchOwn = !ctx?.isStaff && (ownBusinessCount > 1 || canCreateBusiness);
+
     return (
         <ToastProvider>
         <ConfirmProvider>
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
-                <Sidebar user={session?.user} business={business} />
+                <Sidebar user={session?.user} business={business} canSwitchOwn={canSwitchOwn}
+                    canCreateBusiness={canCreateBusiness} />
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
