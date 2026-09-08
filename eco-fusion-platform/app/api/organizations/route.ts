@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   getOrgContext,
   provisionOrganization,
+  evaluateAccess,
   ACTIVE_ORG_COOKIE,
 } from '@/lib/tenancy';
 
@@ -39,7 +40,21 @@ export async function GET() {
             id: true,
             name: true,
             location: true,
+            createdAt: true,
             billingParentId: true,
+            subscriptionStatus: true,
+            trialEndsAt: true,
+            currentPeriodEnd: true,
+            // A business added by an owner is paid for by the one that owns the
+            // subscription, so the badge reads from there or it would show a
+            // trial nobody is on.
+            billingParent: {
+              select: {
+                subscriptionStatus: true,
+                trialEndsAt: true,
+                currentPeriodEnd: true,
+              },
+            },
             _count: { select: { memberships: true } },
           },
         },
@@ -48,16 +63,27 @@ export async function GET() {
 
     return NextResponse.json({
       activeId: ctx.organizationId,
-      businesses: memberships.map((m) => ({
-        id: m.organization.id,
-        name: m.organization.name,
-        location: m.organization.location,
-        role: m.role,
-        memberCount: m.organization._count.memberships,
-        /** False for the one that carries the subscription. */
-        billedElsewhere: m.organization.billingParentId !== null,
-        isActive: m.organization.id === ctx.organizationId,
-      })),
+      businesses: memberships.map((m) => {
+        const org = m.organization;
+        const access = evaluateAccess(org.billingParent ?? org);
+        return {
+          id: org.id,
+          name: org.name,
+          location: org.location,
+          role: m.role,
+          memberCount: org._count.memberships,
+          createdAt: org.createdAt,
+          /** trialing | active | trial_expired | past_due | canceled */
+          status: access.reason,
+          /** Whether this business can be worked in right now. */
+          allowed: access.allowed,
+          /** Days left, when the answer is a trial. Null otherwise. */
+          trialDaysLeft: access.reason === 'trialing' ? access.daysLeft : null,
+          /** False for the one that carries the subscription. */
+          billedElsewhere: org.billingParentId !== null,
+          isActive: org.id === ctx.organizationId,
+        };
+      }),
     });
   } catch (error) {
     console.error('Failed to list businesses:', error);

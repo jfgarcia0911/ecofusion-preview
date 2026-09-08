@@ -12,10 +12,31 @@ interface Business {
     location: string | null;
     role: string;
     memberCount: number;
+    createdAt: string;
+    /** trialing | active | trial_expired | past_due | canceled */
+    status: string;
+    /** Whether this business can be worked in right now. */
+    allowed: boolean;
+    trialDaysLeft: number | null;
     /** False for the one that carries the subscription. */
     billedElsewhere: boolean;
     isActive: boolean;
 }
+
+/**
+ * What each status is called, and how loudly.
+ *
+ * Named for what it means to the reader rather than for the Stripe state
+ * behind it: somebody looking at this list wants to know whether the business
+ * works, not which webhook last fired.
+ */
+const STATUS_STYLES: Record<string, { label: string; className: string }> = {
+    active: { label: "Active", className: "border-accent/30 bg-accent/10 text-accent" },
+    trialing: { label: "Trial", className: "border-info/30 bg-info/10 text-info" },
+    trial_expired: { label: "Trial ended", className: "border-warning/30 bg-warning/10 text-warning" },
+    past_due: { label: "Past due", className: "border-error/35 bg-error/10 text-error" },
+    canceled: { label: "Cancelled", className: "border-white/15 bg-white/5 text-white/45" },
+};
 
 const ROLE_STYLES: Record<string, string> = {
     owner: "bg-accent/15 text-accent border-accent/30",
@@ -220,12 +241,38 @@ export default function SubAccountsPage() {
                                     >
                                         {business.role}
                                     </span>
+                                    {(() => {
+                                        const st = STATUS_STYLES[business.status] ?? STATUS_STYLES.canceled;
+                                        return (
+                                            <span
+                                                className={`px-2 py-0.5 rounded-full border text-[11px] ${st.className}`}
+                                                title={
+                                                    business.billedElsewhere
+                                                        ? "Follows the subscription on your main business"
+                                                        : undefined
+                                                }
+                                            >
+                                                {st.label}
+                                                {business.status === "trialing" &&
+                                                    business.trialDaysLeft !== null &&
+                                                    ` · ${business.trialDaysLeft}d`}
+                                            </span>
+                                        );
+                                    })()}
                                 </div>
                                 <p className="text-xs text-white/40 truncate">
                                     {business.location || "No location set"}
                                     {" · "}
                                     {business.memberCount}{" "}
                                     {business.memberCount === 1 ? "person" : "people"}
+                                    {" · added "}
+                                    <time dateTime={business.createdAt}>
+                                        {new Date(business.createdAt).toLocaleDateString(undefined, {
+                                            year: "numeric",
+                                            month: "short",
+                                            day: "numeric",
+                                        })}
+                                    </time>
                                     {business.billedElsewhere ? " · billed with your main account" : ""}
                                 </p>
                             </div>
