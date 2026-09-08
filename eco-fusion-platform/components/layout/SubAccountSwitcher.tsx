@@ -211,8 +211,14 @@ export default function SubAccountSwitcher({
                 <ChevronsUpDown size={15} className="text-white/40 shrink-0" />
             </button>
 
+            {/*
+             * Opens beside the sidebar rather than inside it. A list of every
+             * customer on the platform does not fit in a 256px column, and
+             * pushing it down the sidebar would bury the navigation underneath
+             * the thing meant to be read at a glance.
+             */}
             {open && (
-                <div className="absolute left-0 right-0 top-full mt-2 z-50 rounded-xl border border-white/10 bg-neutral-900 shadow-2xl overflow-hidden">
+                <div className="absolute left-full top-0 ml-4 w-92 z-50 rounded-xl border border-white/10 bg-neutral-900 shadow-2xl overflow-hidden">
                     <div className="p-3 border-b border-white/10">
                         <div className="relative">
                             <Search

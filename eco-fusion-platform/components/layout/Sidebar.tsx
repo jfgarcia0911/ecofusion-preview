@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2 } from "lucide-react";
+import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 
@@ -92,25 +92,6 @@ export default function Sidebar({
              * the same recorded act as entering from the sub account list.
              */}
             <SubAccountSwitcher business={business ?? null} isStaff={isStaff} />
-
-            {/*
-             * The way out to the agency view, and the only staff thing in this
-             * sidebar. It sits above the navigation rather than below it because
-             * what EcoFusion does across every customer is not one more thing a
-             * customer does, and because somebody looking for it should not have
-             * to scroll past a business's own screens to find it.
-             */}
-            {isStaff && (
-                <div className="px-4">
-                    <Link
-                        href="/agency/sub-accounts"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-all duration-200"
-                    >
-                        <Building2 size={18} className="text-amber-300" />
-                        <span className="font-medium text-sm">Sub Accounts</span>
-                    </Link>
-                </div>
-            )}
 
             <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
                 {navItems.map((item) => {
