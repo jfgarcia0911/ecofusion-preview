@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
+import { isPlatformAdmin, logStaffAccess, staffReachableOrganizationIds } from '@/lib/staff';
 import { evaluateAccess, provisionOrganization } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
 
@@ -25,15 +25,22 @@ export async function GET(request: Request) {
 
         const search = new URL(request.url).searchParams.get('q')?.trim();
 
+        const reachable = await staffReachableOrganizationIds(session.user.id);
+
         const organizations = await prisma.organization.findMany({
-            where: search
-                ? {
-                      OR: [
-                          { name: { contains: search, mode: 'insensitive' } },
-                          { slug: { contains: search, mode: 'insensitive' } },
-                      ],
-                  }
-                : undefined,
+            where: {
+                // The owner sees the whole platform; staff see the businesses
+                // they were handed and nothing else.
+                ...(reachable === null ? {} : { id: { in: reachable } }),
+                ...(search
+                    ? {
+                          OR: [
+                              { name: { contains: search, mode: 'insensitive' as const } },
+                              { slug: { contains: search, mode: 'insensitive' as const } },
+                          ],
+                      }
+                    : {}),
+            },
             select: {
                 id: true,
                 name: true,

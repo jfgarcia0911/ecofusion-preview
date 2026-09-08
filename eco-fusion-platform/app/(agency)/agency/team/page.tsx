@@ -1,130 +1,95 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, Search, UserPlus, ShieldCheck, KeyRound } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { KeyRound, UserPlus, Building2, Trash2, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { ASSIGNABLE_BUSINESS_ROLES } from "@/lib/roles";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import Modal from "@/components/ui/Modal";
 
 interface Business {
     id: string;
     name: string;
-    location: string | null;
-    memberCount: number;
 }
 
-interface Member {
+interface Staff {
     id: string;
-    membershipId: string;
     name: string | null;
     email: string;
-    role: string;
-    jobTitle: string | null;
-    joinedAt: string;
+    createdAt: string;
+    businesses: Business[];
 }
 
-const ROLE_STYLES: Record<string, string> = {
-    owner: "bg-accent/15 text-accent border-accent/30",
-    supervisor: "bg-white/10 text-white/70 border-white/20",
-    manager: "bg-white/10 text-white/70 border-white/20",
-    member: "bg-white/[0.06] text-white/50 border-white/10",
-};
-
 /**
- * Who can sign in to each business, as its own screen.
+ * EcoFusion's own people.
  *
- * Staff belong to no business, so the question needs one named before it means
- * anything: the businesses are on the left and the answer is on the right. That
- * is the shape of the question rather than a layout choice - picking a business
- * is the first half of asking it.
+ * Not a customer's team. Nobody listed here is employed by a business, and
+ * nothing on this page touches a business's own members - a customer's staff
+ * are managed by that customer, under Employees.
  *
- * No support session is opened. "Who can get in here" is asked often, and
- * entering a business to answer it grants the power to change everything else
- * in it as well. Creating a login is still written to that business's access
- * record, so the owner sees it either way.
+ * A staff account is the platform owner's assistant. It arrives reaching
+ * nothing, and reaches a business only because the owner hands that business
+ * over, one at a time. Somebody taken on to look after three customers cannot
+ * open the other forty, which is the whole reason this screen exists rather
+ * than everyone with a platform login seeing everything.
  */
-export default function AgencyTeamAccessPage() {
+export default function AgencyTeamPage() {
+    const [staff, setStaff] = useState<Staff[]>([]);
     const [businesses, setBusinesses] = useState<Business[]>([]);
-    const [selected, setSelected] = useState<Business | null>(null);
-    const [search, setSearch] = useState("");
-
-    const [members, setMembers] = useState<Member[]>([]);
-    const [loadingList, setLoadingList] = useState(true);
-    const [loadingMembers, setLoadingMembers] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [denied, setDenied] = useState<string | null>(null);
 
     const [adding, setAdding] = useState(false);
+    const [draft, setDraft] = useState({ name: "", email: "", password: "" });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [draft, setDraft] = useState({ name: "", email: "", password: "", role: "member" });
+
+    const [granting, setGranting] = useState<Staff | null>(null);
+    const [picked, setPicked] = useState<string[]>([]);
 
     const toast = useToast();
+    const confirmAction = useConfirm();
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch("/api/admin/organizations");
-                if (!res.ok) {
-                    toast.error("Could not load the businesses");
-                    return;
-                }
-                const data = await res.json();
-                setBusinesses(data.organizations ?? []);
-            } finally {
-                setLoadingList(false);
-            }
-        })();
-        // Once, on arrival. The list does not change while somebody reads it.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const loadMembers = useCallback(async (business: Business) => {
-        setLoadingMembers(true);
-        setError(null);
+    const load = useCallback(async () => {
         try {
-            const res = await fetch(
-                `/api/admin/members?organizationId=${encodeURIComponent(business.id)}`
-            );
+            const res = await fetch("/api/admin/staff");
             const data = await res.json();
             if (!res.ok) {
-                setError(data.error ?? "Could not read the logins for this business.");
-                setMembers([]);
+                setDenied(data.error ?? "Could not load the staff list.");
                 return;
             }
-            setMembers(data.members ?? []);
+            setStaff(data.staff ?? []);
+            setBusinesses(data.businesses ?? []);
         } catch {
-            setError("Could not reach the server. Try again.");
+            setDenied("Could not reach the server. Try again.");
         } finally {
-            setLoadingMembers(false);
+            setLoading(false);
         }
     }, []);
 
-    function choose(business: Business) {
-        setSelected(business);
-        setAdding(false);
-        setDraft({ name: "", email: "", password: "", role: "member" });
-        loadMembers(business);
-    }
+    useEffect(() => {
+        load();
+    }, [load]);
 
     async function create(event: React.FormEvent) {
         event.preventDefault();
-        if (!selected || saving) return;
-
+        if (saving) return;
         setSaving(true);
         setError(null);
         try {
-            const res = await fetch("/api/admin/members", {
+            const res = await fetch("/api/admin/staff", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ organizationId: selected.id, ...draft }),
+                body: JSON.stringify(draft),
             });
             const data = await res.json();
             if (!res.ok) {
-                setError(data.error ?? "Could not create the login.");
+                setError(data.error ?? "Could not create the account.");
                 return;
             }
-            toast.success(`${data.email} can now sign in to ${selected.name}`);
+            toast.success(`${data.email} can now sign in as EcoFusion staff`);
             setAdding(false);
-            setDraft({ name: "", email: "", password: "", role: "member" });
-            loadMembers(selected);
+            setDraft({ name: "", email: "", password: "" });
+            load();
         } catch {
             setError("Could not reach the server. Try again.");
         } finally {
@@ -132,247 +97,301 @@ export default function AgencyTeamAccessPage() {
         }
     }
 
-    const shown = useMemo(() => {
-        const needle = search.trim().toLowerCase();
-        return needle
-            ? businesses.filter((b) => b.name.toLowerCase().includes(needle))
-            : businesses;
-    }, [businesses, search]);
+    function openGrant(person: Staff) {
+        setGranting(person);
+        setPicked(person.businesses.map((b) => b.id));
+    }
 
-    return (
-        <div>
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+    async function saveGrant(event: React.FormEvent) {
+        event.preventDefault();
+        if (!granting || saving) return;
+        setSaving(true);
+        try {
+            const res = await fetch("/api/admin/staff", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: granting.id, organizationIds: picked }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                toast.error(data.error ?? "Could not save what they reach.");
+                return;
+            }
+            toast.success(
+                picked.length === 0
+                    ? `${granting.name || granting.email} now reaches nothing`
+                    : `${granting.name || granting.email} reaches ${picked.length} ${picked.length === 1 ? "business" : "businesses"}`
+            );
+            setGranting(null);
+            load();
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function remove(person: Staff) {
+        const ok = await confirmAction({
+            title: `Remove ${person.name || person.email}?`,
+            message:
+                "Their account and everything they reach go. What they did inside a business stays in that business's access record.",
+            confirmLabel: "Remove",
+            tone: "danger",
+        });
+        if (!ok) return;
+
+        const res = await fetch(`/api/admin/staff?userId=${encodeURIComponent(person.id)}`, {
+            method: "DELETE",
+        });
+        if (!res.ok) {
+            toast.error((await res.json()).error ?? "Could not remove the account.");
+            return;
+        }
+        toast.success(`${person.email} removed`);
+        load();
+    }
+
+    if (denied) {
+        return (
+            <div className="max-w-2xl">
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">
                     <KeyRound size={22} className="text-accent" />
                     Team Access
                 </h1>
-                <p className="text-white/50 mt-1 text-sm max-w-2xl">
-                    Who can sign in to each business. Creating a login is written to that
-                    business&apos;s access record, which its owner reads. No support session
-                    is opened.
+                <p className="px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white/60">
+                    {denied}
                 </p>
             </div>
+        );
+    }
 
-            <div className="grid gap-5 lg:grid-cols-[20rem_1fr] items-start">
-                {/* Left: the businesses. Picking one is half the question. */}
-                <div className="rounded-xl border border-white/10 overflow-hidden">
-                    <div className="relative border-b border-white/10">
-                        <Search
-                            size={15}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
-                        />
+    return (
+        <div>
+            <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <KeyRound size={22} className="text-accent" />
+                        Team Access
+                    </h1>
+                    <p className="text-white/50 mt-1 text-sm max-w-2xl">
+                        EcoFusion&apos;s own people. An account here reaches nothing until you
+                        hand it a business, and reaches only what you hand it. Customers
+                        manage their own staff under Employees.
+                    </p>
+                </div>
+                {!adding && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setError(null);
+                            setAdding(true);
+                        }}
+                        className="shrink-0 text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors"
+                    >
+                        <UserPlus size={16} />
+                        Add staff
+                    </button>
+                )}
+            </div>
+
+            {adding && (
+                <form
+                    onSubmit={create}
+                    className="grid gap-3 sm:grid-cols-3 p-4 mb-5 rounded-2xl border border-accent/25 bg-accent/[0.06]"
+                >
+                    <label className="flex flex-col gap-1.5">
+                        <span className="text-xs text-white/50">Name</span>
                         <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search businesses"
-                            className="w-full pl-9 pr-3 py-2.5 bg-transparent text-white placeholder:text-white/30 text-sm focus:outline-none"
+                            value={draft.name}
+                            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                            placeholder="Alex Reyes"
+                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
                         />
-                    </div>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                        <span className="text-xs text-white/50">Email</span>
+                        <input
+                            type="email"
+                            required
+                            value={draft.email}
+                            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                            placeholder="alex@llayd.com"
+                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                        <span className="text-xs text-white/50">Starting password</span>
+                        <input
+                            required
+                            value={draft.password}
+                            onChange={(e) => setDraft({ ...draft, password: e.target.value })}
+                            placeholder="At least 10 characters"
+                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm font-mono"
+                        />
+                    </label>
 
-                    <div className="max-h-[32rem] overflow-y-auto custom-scrollbar">
-                        {loadingList ? (
-                            <p className="text-white/40 text-sm py-8 text-center">Loading...</p>
-                        ) : shown.length === 0 ? (
-                            <p className="text-white/40 text-sm py-8 text-center">
-                                {search ? "No businesses match that." : "No businesses yet."}
-                            </p>
-                        ) : (
-                            shown.map((b) => (
-                                <button
+                    {error && <p className="sm:col-span-3 text-sm text-red-300">{error}</p>}
+
+                    <div className="sm:col-span-3 flex items-center gap-2">
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="px-5 py-2.5 rounded-xl bg-accent text-primary font-bold text-sm disabled:opacity-50"
+                        >
+                            {saving ? "Creating..." : "Create account"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setAdding(false)}
+                            className="px-4 py-2.5 rounded-xl border border-white/10 text-sm text-white/60 hover:text-white"
+                        >
+                            Cancel
+                        </button>
+                        <span className="text-xs text-white/30 ml-auto">
+                            They start reaching nothing. Hand them a business afterwards.
+                        </span>
+                    </div>
+                </form>
+            )}
+
+            {loading ? (
+                <p className="text-white/40 text-sm py-10 text-center">Loading...</p>
+            ) : staff.length === 0 ? (
+                <div className="flex flex-col items-center text-center py-16 rounded-2xl border border-white/10 bg-white/[0.02]">
+                    <ShieldCheck size={32} className="text-accent/50 mb-3" />
+                    <p className="text-white font-medium">No staff yet</p>
+                    <p className="text-sm text-white/40 mt-1.5 max-w-sm">
+                        You are the only EcoFusion account. Add somebody to help, then choose
+                        which businesses they can open.
+                    </p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto rounded-xl border border-white/10 custom-scrollbar">
+                    <table className="w-full border-collapse text-left text-sm">
+                        <thead>
+                            <tr className="bg-white/[0.04]">
+                                {["Name", "Email", "Reaches", "Added", ""].map((h, i) => (
+                                    <th
+                                        key={h || i}
+                                        scope="col"
+                                        className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-white/40 whitespace-nowrap"
+                                    >
+                                        {h}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {staff.map((person) => (
+                                <tr key={person.id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                                    <td className="px-4 py-3.5 text-white">
+                                        {person.name || <span className="text-white/25">-</span>}
+                                    </td>
+                                    <td className="px-4 py-3.5 text-white/55">{person.email}</td>
+                                    <td className="px-4 py-3.5">
+                                        {person.businesses.length === 0 ? (
+                                            <span className="text-xs text-white/30">Nothing yet</span>
+                                        ) : (
+                                            <span className="flex flex-wrap gap-1">
+                                                {person.businesses.map((b) => (
+                                                    <span
+                                                        key={b.id}
+                                                        className="px-2 py-0.5 rounded border border-white/10 bg-white/[0.04] text-[11px] text-white/55 whitespace-nowrap"
+                                                    >
+                                                        {b.name}
+                                                    </span>
+                                                ))}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3.5 text-white/40 whitespace-nowrap tabular-nums">
+                                        {new Date(person.createdAt).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-4 py-3.5 text-right">
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => openGrant(person)}
+                                                className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+                                            >
+                                                <Building2 size={13} />
+                                                Businesses
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => remove(person)}
+                                                aria-label={`Remove ${person.name || person.email}`}
+                                                className="p-2 rounded-lg text-white/30 hover:text-red-300 hover:bg-red-400/10 transition-all"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            <Modal
+                isOpen={granting !== null}
+                onClose={() => setGranting(null)}
+                title={`Businesses for ${granting?.name || granting?.email || ""}`}
+            >
+                <form onSubmit={saveGrant} className="space-y-4">
+                    <p className="text-sm text-white/55">
+                        They can open the ones ticked, and nothing else. Unticking takes it
+                        back; any support session they have open ends on their next request.
+                    </p>
+
+                    <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                        {businesses.map((b) => {
+                            const on = picked.includes(b.id);
+                            return (
+                                <label
                                     key={b.id}
-                                    type="button"
-                                    onClick={() => choose(b)}
-                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 transition-colors ${
-                                        selected?.id === b.id
-                                            ? "bg-accent/10 border-l-2 border-l-accent"
-                                            : "hover:bg-white/[0.03] border-l-2 border-l-transparent"
+                                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                                        on
+                                            ? "bg-accent/10 border-accent/30"
+                                            : "bg-white/5 border-white/10 hover:bg-white/10"
                                     }`}
                                 >
-                                    <Building2 size={15} className="text-white/35 shrink-0" />
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block text-sm text-white truncate">{b.name}</span>
-                                        <span className="block text-xs text-white/35 truncate">
-                                            {b.memberCount} {b.memberCount === 1 ? "login" : "logins"}
-                                        </span>
-                                    </span>
-                                </button>
-                            ))
-                        )}
+                                    <input
+                                        type="checkbox"
+                                        checked={on}
+                                        onChange={(e) =>
+                                            setPicked((prev) =>
+                                                e.target.checked
+                                                    ? [...prev, b.id]
+                                                    : prev.filter((id) => id !== b.id)
+                                            )
+                                        }
+                                        className="accent-[color:var(--color-accent)] w-4 h-4"
+                                    />
+                                    <span className="flex-1 text-sm text-white">{b.name}</span>
+                                </label>
+                            );
+                        })}
                     </div>
-                </div>
 
-                {/* Right: the answer for whichever is picked. */}
-                <div>
-                    {!selected ? (
-                        <div className="flex flex-col items-center text-center py-20 rounded-xl border border-white/10 bg-white/[0.02]">
-                            <Building2 size={32} className="text-white/20 mb-3" />
-                            <p className="text-white/60 font-medium">Pick a business</p>
-                            <p className="text-sm text-white/35 mt-1">
-                                Its logins will show here.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                    <h2 className="text-lg font-bold text-white truncate">{selected.name}</h2>
-                                    {selected.location && (
-                                        <p className="text-xs text-white/40 truncate">{selected.location}</p>
-                                    )}
-                                </div>
-                                {!adding && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setError(null);
-                                            setAdding(true);
-                                        }}
-                                        className="shrink-0 text-sm flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors"
-                                    >
-                                        <UserPlus size={15} />
-                                        Create a login
-                                    </button>
-                                )}
-                            </div>
-
-                            {error && (
-                                <p className="px-3 py-2.5 rounded-xl border border-red-400/25 bg-red-400/10 text-sm text-red-100">
-                                    {error}
-                                </p>
-                            )}
-
-                            {adding && (
-                                <form
-                                    onSubmit={create}
-                                    className="grid gap-3 sm:grid-cols-2 p-4 rounded-xl border border-accent/25 bg-accent/[0.06]"
-                                >
-                                    <label className="flex flex-col gap-1.5">
-                                        <span className="text-xs text-white/50">Name</span>
-                                        <input
-                                            value={draft.name}
-                                            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                                            placeholder="Maria Santos"
-                                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
-                                        />
-                                    </label>
-
-                                    <label className="flex flex-col gap-1.5">
-                                        <span className="text-xs text-white/50">Email</span>
-                                        <input
-                                            type="email"
-                                            required
-                                            value={draft.email}
-                                            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                                            placeholder="maria@example.com"
-                                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
-                                        />
-                                    </label>
-
-                                    <label className="flex flex-col gap-1.5">
-                                        <span className="text-xs text-white/50">Starting password</span>
-                                        <input
-                                            required
-                                            value={draft.password}
-                                            onChange={(e) => setDraft({ ...draft, password: e.target.value })}
-                                            placeholder="At least 10 characters"
-                                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm font-mono"
-                                        />
-                                    </label>
-
-                                    <label className="flex flex-col gap-1.5">
-                                        <span className="text-xs text-white/50">Role</span>
-                                        <select
-                                            value={draft.role}
-                                            onChange={(e) => setDraft({ ...draft, role: e.target.value })}
-                                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm capitalize"
-                                        >
-                                            {ASSIGNABLE_BUSINESS_ROLES.map((role) => (
-                                                <option key={role} value={role} className="bg-[#0b1a14] capitalize">
-                                                    {role}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-
-                                    <div className="sm:col-span-2 flex items-center gap-2">
-                                        <button
-                                            type="submit"
-                                            disabled={saving}
-                                            className="px-5 py-2.5 rounded-xl bg-accent text-primary font-bold text-sm disabled:opacity-50"
-                                        >
-                                            {saving ? "Creating..." : "Create login"}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setAdding(false)}
-                                            className="px-4 py-2.5 rounded-xl border border-white/10 text-sm text-white/60 hover:text-white"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <span className="text-xs text-white/30 ml-auto">
-                                            Not emailed. Hand it over; they can change it themselves.
-                                        </span>
-                                    </div>
-                                </form>
-                            )}
-
-                            {loadingMembers ? (
-                                <p className="text-white/40 text-sm py-10 text-center">Loading...</p>
-                            ) : members.length === 0 ? (
-                                <p className="text-white/40 text-sm py-10 text-center rounded-xl border border-white/10">
-                                    Nobody can sign in to this business yet.
-                                </p>
-                            ) : (
-                                <div className="overflow-x-auto rounded-xl border border-white/10 custom-scrollbar">
-                                    <table className="w-full border-collapse text-left text-sm">
-                                        <thead>
-                                            <tr className="bg-white/[0.04]">
-                                                {["Name", "Email", "Job", "Role", "Added"].map((h) => (
-                                                    <th
-                                                        key={h}
-                                                        scope="col"
-                                                        className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-white/40 whitespace-nowrap"
-                                                    >
-                                                        {h}
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {members.map((m) => (
-                                                <tr key={m.membershipId} className="border-t border-white/5">
-                                                    <td className="px-4 py-3 text-white">
-                                                        {m.name || <span className="text-white/25">-</span>}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-white/55">{m.email}</td>
-                                                    <td className="px-4 py-3 text-white/45">
-                                                        {m.jobTitle || <span className="text-white/25">-</span>}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span
-                                                            className={`px-2 py-0.5 rounded-full border text-[11px] capitalize whitespace-nowrap ${
-                                                                ROLE_STYLES[m.role] ?? ROLE_STYLES.member
-                                                            }`}
-                                                        >
-                                                            {m.role === "owner" && (
-                                                                <ShieldCheck size={11} className="inline mr-1" />
-                                                            )}
-                                                            {m.role}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-white/40 whitespace-nowrap tabular-nums">
-                                                        {new Date(m.joinedAt).toLocaleDateString()}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
+                    <div className="flex gap-2">
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="flex-1 py-2.5 rounded-xl bg-accent text-primary font-bold text-sm disabled:opacity-50"
+                        >
+                            {saving ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setGranting(null)}
+                            className="px-4 py-2.5 rounded-xl border border-white/10 text-sm text-white/60 hover:text-white"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

@@ -1,0 +1,216 @@
+import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import { auth } from '@/auth';
+import { prisma } from '@/lib/prisma';
+import { isPlatformOwner } from '@/lib/staff';
+import { validatePassword } from '@/lib/validation/password';
+import { PLATFORM_ROLES } from '@/lib/roles';
+
+/**
+ * EcoFusion's own people, and which businesses each of them may work in.
+ *
+ * Not a customer's team: nobody here is employed by a business, and none of
+ * this touches Membership. A platform_staff account is the platform owner's
+ * assistant, and reaches a business only because the owner handed it over -
+ * one business at a time, so somebody brought in to look after three customers
+ * cannot open the other forty.
+ *
+ * The owner alone works this route. An assistant who could appoint assistants
+ * would be an owner, and could reach every business by granting it to
+ * themselves.
+ */
+
+async function requireOwner(): Promise<{ userId: string } | NextResponse> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!(await isPlatformOwner(session.user.id))) {
+    return NextResponse.json(
+      { error: "Only EcoFusion's owner can manage staff" },
+      { status: 403 }
+    );
+  }
+  return { userId: session.user.id };
+}
+
+// GET - every staff account, and what each one reaches.
+export async function GET() {
+  try {
+    const guard = await requireOwner();
+    if (guard instanceof NextResponse) return guard;
+
+    const staff = await prisma.user.findMany({
+      where: { role: PLATFORM_ROLES.STAFF },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        staffBusinesses: {
+          orderBy: { createdAt: 'asc' },
+          select: { organization: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    // Offered as the things a grant can name.
+    const businesses = await prisma.organization.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+
+    return NextResponse.json({
+      staff: staff.map((s) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        createdAt: s.createdAt,
+        businesses: s.staffBusinesses.map((b) => b.organization),
+      })),
+      businesses,
+    });
+  } catch (error) {
+    console.error('Failed to list staff:', error);
+    return NextResponse.json({ error: 'Failed to list staff' }, { status: 500 });
+  }
+}
+
+// POST - take somebody on.
+export async function POST(request: Request) {
+  try {
+    const guard = await requireOwner();
+    if (guard instanceof NextResponse) return guard;
+
+    const { name, email, password } = await request.json();
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'An email and a starting password are both required' },
+        { status: 400 }
+      );
+    }
+
+    const strength = validatePassword(password);
+    if (!strength.isValid) {
+      return NextResponse.json({ error: strength.errors[0] }, { status: 400 });
+    }
+
+    const normalisedEmail = String(email).trim().toLowerCase();
+    if (await prisma.user.findUnique({ where: { email: normalisedEmail }, select: { id: true } })) {
+      return NextResponse.json({ error: 'That email already has an account' }, { status: 409 });
+    }
+
+    const created = await prisma.user.create({
+      data: {
+        name: name?.trim() || null,
+        email: normalisedEmail,
+        password: await bcrypt.hash(password, 12),
+        role: PLATFORM_ROLES.STAFF,
+        onboardingComplete: true,
+      },
+      select: { id: true, name: true, email: true, createdAt: true },
+    });
+
+    // No business comes with the account. Reach is handed over deliberately,
+    // one at a time, rather than arriving with the job.
+    return NextResponse.json({ ...created, businesses: [] }, { status: 201 });
+  } catch (error) {
+    console.error('Failed to create staff:', error);
+    return NextResponse.json({ error: 'Failed to create the staff account' }, { status: 500 });
+  }
+}
+
+// PUT - set exactly which businesses one staff account reaches.
+export async function PUT(request: Request) {
+  try {
+    const guard = await requireOwner();
+    if (guard instanceof NextResponse) return guard;
+
+    const { userId, organizationIds } = await request.json();
+    if (!userId || !Array.isArray(organizationIds)) {
+      return NextResponse.json(
+        { error: 'userId and organizationIds are required' },
+        { status: 400 }
+      );
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (target?.role !== PLATFORM_ROLES.STAFF) {
+      return NextResponse.json({ error: 'That is not a staff account' }, { status: 404 });
+    }
+
+    const wanted = [...new Set(organizationIds.map(String))];
+    const real = await prisma.organization.findMany({
+      where: { id: { in: wanted } },
+      select: { id: true },
+    });
+    const realIds = real.map((o) => o.id);
+
+    // Sent as the whole answer rather than an addition, so unticking is how
+    // access is taken away and one request cannot half-apply.
+    await prisma.$transaction([
+      prisma.staffBusinessAccess.deleteMany({
+        where: { userId, organizationId: { notIn: realIds.length ? realIds : ['-'] } },
+      }),
+      prisma.staffBusinessAccess.createMany({
+        data: realIds.map((organizationId) => ({
+          userId,
+          organizationId,
+          grantedById: guard.userId,
+        })),
+        skipDuplicates: true,
+      }),
+    ]);
+
+    const now = await prisma.staffBusinessAccess.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: { organization: { select: { id: true, name: true } } },
+    });
+
+    return NextResponse.json({ businesses: now.map((b) => b.organization) });
+  } catch (error) {
+    console.error('Failed to set staff access:', error);
+    return NextResponse.json({ error: 'Failed to set what they reach' }, { status: 500 });
+  }
+}
+
+// DELETE - let somebody go.
+export async function DELETE(request: Request) {
+  try {
+    const guard = await requireOwner();
+    if (guard instanceof NextResponse) return guard;
+
+    const userId = new URL(request.url).searchParams.get('userId');
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+    if (userId === guard.userId) {
+      return NextResponse.json(
+        { error: 'You cannot remove your own account' },
+        { status: 400 }
+      );
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (target?.role !== PLATFORM_ROLES.STAFF) {
+      return NextResponse.json({ error: 'That is not a staff account' }, { status: 404 });
+    }
+
+    // The grants go with the account; the trail of what they did does not,
+    // because that belongs to the businesses they did it in.
+    await prisma.user.delete({ where: { id: userId } });
+
+    return NextResponse.json({ removed: true });
+  } catch (error) {
+    console.error('Failed to remove staff:', error);
+    return NextResponse.json({ error: 'Failed to remove the staff account' }, { status: 500 });
+  }
+}

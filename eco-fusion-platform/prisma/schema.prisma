@@ -51,6 +51,8 @@ model User {
   grantedCourses      CourseGrant[]         @relation("GrantedCourses")
   capturedSnapshots   Snapshot[]            @relation("CapturedSnapshots")
   activity            ActivityLog[]         @relation("MemberActivity")
+  staffBusinesses     StaffBusinessAccess[] @relation("StaffBusinessAccess")
+  staffAccessGranted  StaffBusinessAccess[] @relation("StaffAccessGrantedBy")
 }
 
 model Account {
@@ -709,6 +711,7 @@ model Organization {
   phaseSettings       PhaseSettings[]
   staffAccess         StaffAccessLog[]
   activity            ActivityLog[]
+  staffBusinessAccess StaffBusinessAccess[]
   trainingCourses     TrainingCourse[]
   courseGrants        CourseGrant[]
   snapshotsTakenFrom  Snapshot[]           @relation("SnapshotSource")
@@ -780,6 +783,32 @@ model ActivityLog {
 
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
+}
+
+
+/// Which businesses a member of EcoFusion staff may work in.
+///
+/// The platform owner reaches every business because the platform is theirs.
+/// Staff are their assistants and reach only what they are handed, one business
+/// at a time, so a person hired to look after three customers cannot open the
+/// other forty.
+///
+/// Distinct from Membership, which is a customer's own person inside their own
+/// business. Nobody here is employed by the business they can open.
+model StaffBusinessAccess {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  /// The platform owner who handed it over. Kept when that account goes.
+  grantedById    String?
+  createdAt      DateTime @default(now())
+
+  user         User         @relation("StaffBusinessAccess", fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  grantedBy    User?        @relation("StaffAccessGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
 }
 
 

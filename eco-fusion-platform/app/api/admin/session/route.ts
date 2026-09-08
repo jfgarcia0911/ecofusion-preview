@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { STAFF_ORG_COOKIE, isPlatformAdmin, logStaffAccess } from '@/lib/staff';
+import { STAFF_ORG_COOKIE, isPlatformAdmin, logStaffAccess , staffMayReach } from '@/lib/staff';
 
 /** Whether the caller is staff, and who they are. */
 async function requireStaff() {
@@ -32,6 +32,14 @@ export async function POST(request: Request) {
             select: { id: true, name: true },
         });
         if (!organization) {
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
+        }
+
+        // Being staff is not the same as being handed this business. The owner
+        // reaches every one; an assistant reaches only what they were given, and
+        // is told the same thing as for a business that does not exist so the
+        // route cannot be used to find out which ids are real.
+        if (!(await staffMayReach(staffUserId, organization.id))) {
             return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 

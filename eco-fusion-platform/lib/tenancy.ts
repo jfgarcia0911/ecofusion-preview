@@ -13,7 +13,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import {
   currentStaffOrganizationId,
-  isPlatformAdmin,
+  staffMayReach,
   logStaffWriteIfAny,
 } from '@/lib/staff';
 import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
@@ -247,7 +247,9 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
   const organizationId = await currentStaffOrganizationId();
   if (!organizationId) return null;
 
-  if (!(await isPlatformAdmin(userId))) return null;
+  // Not merely staff, but staff who were handed this business. The owner
+  // reaches every one; an assistant reaches what they were given.
+  if (!(await staffMayReach(userId, organizationId))) return null;
 
   const organization = await prisma.organization.findUnique({
     where: { id: organizationId },
