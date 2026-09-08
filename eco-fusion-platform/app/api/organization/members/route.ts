@@ -25,12 +25,46 @@ export async function GET() {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Where else each of these people works, limited to businesses the caller
+    // owns. An owner needs to see that a manager already covers another site
+    // before deciding to add them to a third, and must not learn anything about
+    // businesses that are not theirs.
+    const ownedIds = (
+      await prisma.membership.findMany({
+        where: { userId: ctx.userId, role: 'owner' },
+        select: { organizationId: true },
+      })
+    ).map((m) => m.organizationId);
+
+    const elsewhere =
+      ownedIds.length > 1
+        ? await prisma.membership.findMany({
+            where: {
+              userId: { in: memberships.map((m) => m.user.id) },
+              organizationId: { in: ownedIds },
+            },
+            select: {
+              userId: true,
+              role: true,
+              organization: { select: { id: true, name: true } },
+            },
+          })
+        : [];
+
+    const byUser = new Map<string, { id: string; name: string; role: string }[]>();
+    for (const row of elsewhere) {
+      const list = byUser.get(row.userId) ?? [];
+      list.push({ id: row.organization.id, name: row.organization.name, role: row.role });
+      byUser.set(row.userId, list);
+    }
+
     return NextResponse.json(
       memberships.map((m) => ({
         membershipId: m.id,
         role: m.role,
         joinedAt: m.createdAt,
         ...m.user,
+        businesses: byUser.get(m.user.id) ?? [],
       }))
     );
   } catch (error) {

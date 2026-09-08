@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { KeyRound, Mail, Plus, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { Building2, KeyRound, Mail, Plus, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
@@ -11,6 +11,15 @@ interface Member {
     email: string;
     role: string;
     joinedAt: string;
+    /** Every business of the owner's this person is in, this one included. */
+    businesses?: { id: string; name: string; role: string }[];
+}
+
+interface OwnedBusiness {
+    id: string;
+    name: string;
+    role: string;
+    isActive: boolean;
 }
 
 const ROLE_OPTIONS = [
@@ -28,6 +37,10 @@ const ROLE_STYLES: Record<string, string> = {
 
 export default function TeamPage() {
     const confirmAction = useConfirm();
+    const [owned, setOwned] = useState<OwnedBusiness[]>([]);
+    const [assigning, setAssigning] = useState<Member | null>(null);
+    const [assignTo, setAssignTo] = useState<string[]>([]);
+    const [savingAssign, setSavingAssign] = useState(false);
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -45,6 +58,12 @@ export default function TeamPage() {
 
     const fetchMembers = useCallback(async () => {
         try {
+            // Which businesses this owner has, so a person can be put in another.
+            fetch("/api/organizations")
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d) => setOwned((d?.businesses ?? []).filter((b: OwnedBusiness) => b.role === "owner")))
+                .catch(() => setOwned([]));
+
             const res = await fetch("/api/organization/members");
             if (res.ok) setMembers(await res.json());
         } catch (err) {
@@ -113,6 +132,50 @@ export default function TeamPage() {
         setResetDone(false);
         setError(null);
     };
+
+    function openAssign(member: Member) {
+        setError(null);
+        setAssigning(member);
+        setAssignTo((member.businesses ?? []).map((b) => b.id));
+    }
+
+    async function saveAssignment(e: React.FormEvent) {
+        e.preventDefault();
+        if (!assigning) return;
+
+        // Only the businesses being added are sent; the route leaves the roles
+        // of existing memberships alone.
+        const already = new Set((assigning.businesses ?? []).map((b) => b.id));
+        const toAdd = assignTo.filter((id) => !already.has(id));
+        if (toAdd.length === 0) {
+            setAssigning(null);
+            return;
+        }
+
+        setSavingAssign(true);
+        try {
+            const res = await fetch("/api/organization/members/assign", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: assigning.id,
+                    organizationIds: toAdd,
+                    role: assigning.role === "owner" ? "member" : assigning.role,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.error ?? "Could not assign that person.");
+                return;
+            }
+            setAssigning(null);
+            fetchMembers();
+        } catch {
+            setError("Could not reach the server. Try again.");
+        } finally {
+            setSavingAssign(false);
+        }
+    }
 
     const handleRemove = async (member: Member) => {
         if (!(await confirmAction({
@@ -197,7 +260,21 @@ export default function TeamPage() {
                                         <td className="px-5 py-4 text-white font-medium">
                                             {member.name || <span className="text-white/30">-</span>}
                                         </td>
-                                        <td className="px-5 py-4 text-white/60">{member.email}</td>
+                                        <td className="px-5 py-4 text-white/60">
+                                            {member.email}
+                                            {owned.length > 1 && (member.businesses?.length ?? 0) > 1 && (
+                                                <span className="mt-1 flex flex-wrap gap-1">
+                                                    {member.businesses!.map((b) => (
+                                                        <span
+                                                            key={b.id}
+                                                            className="px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-[10px] text-white/45"
+                                                        >
+                                                            {b.name}
+                                                        </span>
+                                                    ))}
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="px-5 py-4">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs capitalize ${ROLE_STYLES[member.role] ?? ROLE_STYLES.member}`}>
                                                 {member.role === "owner" && <ShieldCheck size={12} />}
@@ -209,6 +286,16 @@ export default function TeamPage() {
                                         </td>
                                         <td className="px-5 py-4 text-right">
                                             <div className="flex items-center justify-end gap-1">
+                                                {owned.length > 1 && member.role !== "owner" && (
+                                                    <button
+                                                        onClick={() => openAssign(member)}
+                                                        className="p-2 rounded-lg text-white/30 hover:text-accent hover:bg-accent/10 transition-all"
+                                                        aria-label={`Assign ${member.name || member.email} to another business`}
+                                                        title="Assign to another business"
+                                                    >
+                                                        <Building2 size={16} />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => openReset(member)}
                                                     className="p-2 rounded-lg text-white/30 hover:text-accent hover:bg-accent/10 transition-all"
@@ -238,6 +325,76 @@ export default function TeamPage() {
                     </div>
                 </div>
             )}
+
+            <Modal
+                isOpen={assigning !== null}
+                onClose={() => setAssigning(null)}
+                title={`Businesses for ${assigning?.name || assigning?.email || ""}`}
+            >
+                <form onSubmit={saveAssignment} className="space-y-4">
+                    <p className="text-sm text-white/60">
+                        Pick every business this person works in. One login covers all of
+                        them, and they keep the role they already hold in each.
+                    </p>
+
+                    <div className="space-y-2">
+                        {owned.map((b) => {
+                            const already = (assigning?.businesses ?? []).some((x) => x.id === b.id);
+                            const checked = assignTo.includes(b.id);
+                            return (
+                                <label
+                                    key={b.id}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                                        checked
+                                            ? "bg-accent/10 border-accent/30"
+                                            : "bg-white/5 border-white/10 hover:bg-white/10"
+                                    } ${already ? "cursor-default" : "cursor-pointer"}`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        disabled={already}
+                                        onChange={(e) =>
+                                            setAssignTo((prev) =>
+                                                e.target.checked
+                                                    ? [...prev, b.id]
+                                                    : prev.filter((id) => id !== b.id)
+                                            )
+                                        }
+                                        className="accent-accent w-4 h-4"
+                                    />
+                                    <span className="flex-1 text-sm text-white">{b.name}</span>
+                                    {already && (
+                                        <span className="text-[11px] text-white/35">already in</span>
+                                    )}
+                                </label>
+                            );
+                        })}
+                    </div>
+
+                    <p className="text-xs text-white/35">
+                        Taking somebody out of a business is not done here yet. Remove them
+                        from inside that business instead.
+                    </p>
+
+                    <div className="flex gap-2 pt-1">
+                        <button
+                            type="submit"
+                            disabled={savingAssign}
+                            className="flex-1 py-2.5 rounded-xl bg-accent text-primary font-bold text-sm disabled:opacity-50"
+                        >
+                            {savingAssign ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setAssigning(null)}
+                            className="px-4 py-2.5 rounded-xl border border-white/10 text-sm text-white/60 hover:text-white"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </Modal>
 
             <Modal
                 isOpen={resetting !== null}

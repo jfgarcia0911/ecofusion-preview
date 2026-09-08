@@ -30,13 +30,25 @@ const baseNavItems = [
     { name: "AI Assistant", href: "/assistant", icon: Bot, tourId: "nav-assistant" },
 ];
 
-// Admin-only navigation items
+// Runs the working week: managers and administrators as well as the owner.
 const adminNavItems = [
-    { name: "Team Access", href: "/business/team", icon: KeyRound, tourId: "nav-team" },
     { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
-    { name: "Training Mgmt", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
     { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
     { name: "Integrations", href: "/settings/integrations", icon: Settings, tourId: "nav-integrations" },
+];
+
+/**
+ * The owner's alone.
+ *
+ * Who holds a login, what training the business is answerable for, and what it
+ * pays are decisions for the person who owns the business, not for anyone they
+ * gave an account to. Staff who have stepped into a business act with an
+ * administrator's powers and not an owner's, so these stay hidden for them too.
+ */
+const ownerNavItems = [
+    { name: "Team Access", href: "/business/team", icon: KeyRound, tourId: "nav-team" },
+    { name: "Training Mgmt", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
+    { name: "Billing", href: "/billing", icon: CreditCard, tourId: "nav-billing" },
 ];
 
 // User-only navigation items
@@ -48,7 +60,6 @@ const userNavItems = [
 const commonNavItems = [
     { name: "Preferences", href: "/settings/preferences", icon: SlidersHorizontal, tourId: "nav-preferences" },
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
-    { name: "Billing", href: "/billing", icon: CreditCard, tourId: "nav-billing" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 
@@ -71,6 +82,7 @@ export default function Sidebar({
     // legacy global role: an owner is an administrator of their own business.
     const role = user?.orgRole ?? user?.role;
     const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
+    const isOwner = role === 'owner';
 
     // Staff is a fact about the account itself, so it is read from the global
     // role rather than from `role` above, which resolves to the business.
@@ -80,6 +92,7 @@ export default function Sidebar({
     const navItems = [
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
+        ...(isOwner ? ownerNavItems : []),
         ...commonNavItems,
     ];
 
