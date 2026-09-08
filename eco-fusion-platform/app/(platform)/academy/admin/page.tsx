@@ -1,9 +1,16 @@
 "use client";
-import React, { useState } from "react";
-import { COURSES } from "@/lib/data/lms-seed";
+import React, { useEffect, useState } from "react";
 import { Users, BookOpen, Plus, Search, CheckCircle, MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
 import { useToast } from "@/components/ui/Toast";
+
+interface CatalogCourse {
+    id: string;
+    title: string;
+    category: string;
+    duration: number;
+    lessonCount: number;
+}
 
 const MOCK_EMPLOYEES = [
     { id: "e1", name: "Sarah Chen", role: "Hydroponics Lead", assigned: ["course-101"] },
@@ -17,6 +24,23 @@ export default function AdminLmsPage() {
     const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [search, setSearch] = useState("");
+    const [courses, setCourses] = useState<CatalogCourse[]>([]);
+
+    // The classes this business actually carries. The employees below are
+    // still fixtures, and assigning still only says it did: the working
+    // version of this screen is Training Management under settings.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const res = await fetch("/api/training/catalog");
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!cancelled) setCourses(data.courses ?? []);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const filteredEmployees = MOCK_EMPLOYEES.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -115,12 +139,12 @@ export default function AdminLmsPage() {
                     <div className="glass-card p-6 rounded-2xl">
                         <h3 className="text-lg font-bold text-white mb-4">Top Performing Courses</h3>
                         <div className="space-y-3">
-                            {COURSES.slice(0, 3).map((course, i) => (
+                            {courses.slice(0, 3).map((course, i) => (
                                 <div key={course.id} className="flex items-center gap-3">
                                     <div className="text-lg font-bold text-white/20 w-4">#{i + 1}</div>
                                     <div className="flex-1">
                                         <p className="text-sm font-bold text-white line-clamp-1">{course.title}</p>
-                                        <p className="text-xs text-white/50">{course.modules.reduce((acc, m) => acc + m.lessons.length, 0)} lessons</p>
+                                        <p className="text-xs text-white/50">{course.lessonCount} lessons</p>
                                     </div>
                                 </div>
                             ))}
@@ -138,7 +162,7 @@ export default function AdminLmsPage() {
                             <p className="text-white/50">Assigning to {MOCK_EMPLOYEES.find(e => e.id === selectedEmployee)?.name}</p>
                         </div>
                         <div className="p-4 max-h-96 overflow-y-auto space-y-2">
-                            {COURSES.map(course => {
+                            {courses.map(course => {
                                 const isAssigned = MOCK_EMPLOYEES.find(e => e.id === selectedEmployee)?.assigned.includes(course.id);
                                 return (
                                     <button
@@ -151,7 +175,7 @@ export default function AdminLmsPage() {
                                     >
                                         <div>
                                             <p className="font-bold text-white text-sm">{course.title}</p>
-                                            <p className="text-xs text-white/50">{course.level} • {course.duration}</p>
+                                            <p className="text-xs text-white/50">{course.category} • {Math.round(course.duration / 60)} hr</p>
                                         </div>
                                         {isAssigned ? (
                                             <div className="flex items-center gap-1 text-xs font-bold text-green-500 uppercase">

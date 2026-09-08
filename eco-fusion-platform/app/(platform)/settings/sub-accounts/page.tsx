@@ -24,28 +24,6 @@ interface Business {
 }
 
 /**
- * What each status is called, and how loudly.
- *
- * Named for what it means to the reader rather than for the Stripe state
- * behind it: somebody looking at this list wants to know whether the business
- * works, not which webhook last fired.
- */
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-    active: { label: "Active", className: "border-accent/30 bg-accent/10 text-accent" },
-    trialing: { label: "Trial", className: "border-info/30 bg-info/10 text-info" },
-    trial_expired: { label: "Trial ended", className: "border-warning/30 bg-warning/10 text-warning" },
-    past_due: { label: "Past due", className: "border-error/35 bg-error/10 text-error" },
-    canceled: { label: "Cancelled", className: "border-white/15 bg-white/5 text-white/45" },
-};
-
-const ROLE_STYLES: Record<string, string> = {
-    owner: "bg-accent/15 text-accent border-accent/30",
-    admin: "bg-white/10 text-white/70 border-white/20",
-    manager: "bg-white/10 text-white/70 border-white/20",
-    member: "bg-white/[0.06] text-white/50 border-white/10",
-};
-
-/**
  * Every business this account reaches, and the way to add another.
  *
  * Sits in the account half of settings rather than the business half, because
@@ -164,7 +142,7 @@ export default function SubAccountsPage() {
                         className="shrink-0 text-sm flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-primary font-bold hover:bg-accent/90"
                     >
                         <Plus size={15} />
-                        Add a business
+                        Create sub account
                     </button>
                 )}
             </div>
@@ -177,7 +155,7 @@ export default function SubAccountsPage() {
                     className="flex flex-col gap-3 p-4 mb-4 max-w-xl rounded-2xl border border-accent/25 bg-accent/[0.06]"
                 >
                     <label className="flex flex-col gap-1.5">
-                        <span className="text-xs text-white/50">Name of the new business</span>
+                        <span className="text-xs text-white/50">Name of the new sub account</span>
                         <input
                             autoFocus
                             value={newName}
@@ -196,7 +174,7 @@ export default function SubAccountsPage() {
                             disabled={!newName.trim() || busy === "new"}
                             className="px-5 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-50 text-sm"
                         >
-                            {busy === "new" ? "Creating..." : "Create business"}
+                            {busy === "new" ? "Creating..." : "Create sub account"}
                         </button>
                         <button
                             type="button"
@@ -225,7 +203,7 @@ export default function SubAccountsPage() {
                         <table className="w-full border-collapse text-left text-sm">
                             <thead>
                                 <tr className="bg-white/[0.04]">
-                                    {["Business", "Role", "Status", "Location", "People", "Added", ""].map(
+                                    {["Business", "Location", "People", "Added", ""].map(
                                         (heading, i) => (
                                             <th
                                                 key={heading || i}
@@ -241,9 +219,7 @@ export default function SubAccountsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {businesses.map((business) => {
-                                    const status = STATUS_STYLES[business.status] ?? STATUS_STYLES.canceled;
-                                    return (
+                                {businesses.map((business) => (
                                         <tr
                                             key={business.id}
                                             className={`border-t border-white/5 ${
@@ -267,26 +243,7 @@ export default function SubAccountsPage() {
                                                 </div>
                                             </td>
 
-                                            <td className="px-4 py-3.5">
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full border text-[11px] capitalize whitespace-nowrap ${
-                                                        ROLE_STYLES[business.role] ?? ROLE_STYLES.member
-                                                    }`}
-                                                >
-                                                    {business.role}
-                                                </span>
-                                            </td>
 
-                                            <td className="px-4 py-3.5">
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap ${status.className}`}
-                                                >
-                                                    {status.label}
-                                                    {business.status === "trialing" &&
-                                                        business.trialDaysLeft !== null &&
-                                                        ` · ${business.trialDaysLeft}d`}
-                                                </span>
-                                            </td>
 
                                             <td className="px-4 py-3.5 text-white/55">
                                                 {business.location || <span className="text-white/25">-</span>}
@@ -323,8 +280,7 @@ export default function SubAccountsPage() {
                                                 )}
                                             </td>
                                         </tr>
-                                    );
-                                })}
+                                ))}
                             </tbody>
                         </table>
                     </div>
