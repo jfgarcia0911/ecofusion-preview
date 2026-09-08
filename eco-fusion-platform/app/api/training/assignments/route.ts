@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getOrgContext, canAdminister, isSameOrganization } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { isPlatformRole } from '@/lib/roles';
 
 // GET - Fetch course assignments
 export async function GET(request: Request) {
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
             where: { id: assigneeId },
             select: { role: true },
         });
-        if (assignee?.role === 'admin') {
+        if (isPlatformRole(assignee?.role)) {
             return NextResponse.json(
                 { error: 'Courses cannot be assigned to an EcoFusion account' },
                 { status: 400 }

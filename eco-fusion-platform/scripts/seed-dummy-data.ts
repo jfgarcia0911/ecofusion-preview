@@ -91,7 +91,7 @@ async function seed() {
       id: userIds[i],
       email: `seed.user${pad(i)}@ecofusion.test`,
       name: `Seed User ${pad(i)}`,
-      role: i === 0 ? 'admin' : i < 4 ? 'manager' : 'user',
+      role: 'user',
       onboardingComplete: i % 3 !== 0,
       // No password: these accounts cannot sign in with credentials.
       password: null,

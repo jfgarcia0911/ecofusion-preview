@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LogIn, Users, Building2, GraduationCap, Camera, Plus, Pencil } from "lucide-react";
+import { Search, LogIn, Users, Building2, GraduationCap, Camera, Plus, Pencil , KeyRound } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadClassesModal from "@/components/admin/LoadClassesModal";
+import TeamAccessModal from "@/components/admin/TeamAccessModal";
 import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
 import CreateSubAccountModal from "@/components/admin/CreateSubAccountModal";
 import EditSubAccountModal from "@/components/admin/EditSubAccountModal";
@@ -64,6 +65,7 @@ export default function SubAccountsPage() {
     // The business whose class list is open. Loading classes needs no support
     // session: it decides what a business may reach, not what is inside it.
     const [classesFor, setClassesFor] = useState<{ id: string; name: string } | null>(null);
+    const [teamFor, setTeamFor] = useState<{ id: string; name: string } | null>(null);
     // Capturing reads a setup without entering it, so no support session is
     // opened and none is needed.
     const [captureFrom, setCaptureFrom] = useState<{ id: string; name: string } | null>(null);
@@ -222,6 +224,16 @@ export default function SubAccountsPage() {
 
                             <button
                                 type="button"
+                                onClick={() => setTeamFor({ id: business.id, name: business.name })}
+                                title="Who can sign in to this business"
+                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+                            >
+                                <KeyRound size={13} />
+                                Logins
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={() => setCaptureFrom({ id: business.id, name: business.name })}
                                 title="Capture this setup as a template"
                                 className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -259,6 +271,7 @@ export default function SubAccountsPage() {
                 }
             />
             <LoadClassesModal business={classesFor} onClose={() => setClassesFor(null)} />
+            <TeamAccessModal business={teamFor} onClose={() => setTeamFor(null)} />
             <CaptureSnapshotModal business={captureFrom} onClose={() => setCaptureFrom(null)} />
         </div>
     );

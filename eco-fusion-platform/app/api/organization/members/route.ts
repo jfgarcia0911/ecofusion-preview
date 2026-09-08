@@ -3,8 +3,9 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { getOrgContext, canManageMembers } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
+import { ASSIGNABLE_BUSINESS_ROLES } from '@/lib/roles';
 
-const ROLES = ['admin', 'manager', 'member'];
+const ROLES = ASSIGNABLE_BUSINESS_ROLES;
 
 /** Which role wins when one person holds different ones in different businesses. */
 const RANK: Record<string, number> = { owner: 3, admin: 2, manager: 1, member: 0 };
@@ -172,7 +173,7 @@ export async function POST(request: Request) {
       where: {
         userId: ctx.userId,
         organizationId: { in: requestedOrgIds },
-        role: { in: ['owner', 'admin'] },
+        role: { in: ['owner', 'supervisor'] },
       },
       select: { organizationId: true },
     });
@@ -277,7 +278,7 @@ export async function DELETE(request: Request) {
     // Removing an admin is the same decision as demoting one, so it rests with
     // the owner too. Otherwise an admin could simply delete the colleagues who
     // would have reversed it.
-    if (membership.role === 'admin' && ctx.role !== 'owner') {
+    if (membership.role === 'supervisor' && ctx.role !== 'owner') {
       return NextResponse.json(
         { error: "Only the owner can remove an admin" },
         { status: 403 }
@@ -337,7 +338,7 @@ export async function PATCH(request: Request) {
           { status: 403 }
         );
       }
-      if (membership.role === 'admin' && ctx.role !== 'owner') {
+      if (membership.role === 'supervisor' && ctx.role !== 'owner') {
         return NextResponse.json(
           { error: "Only the owner can reset an admin's password" },
           { status: 403 }

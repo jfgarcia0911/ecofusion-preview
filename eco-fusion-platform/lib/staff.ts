@@ -9,6 +9,7 @@
 
 import { cookies, headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import { isPlatformRole } from '@/lib/roles';
 
 /** The farm a staff member is currently working inside. */
 export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
@@ -26,7 +27,7 @@ export async function isPlatformAdmin(userId: string): Promise<boolean> {
         where: { id: userId },
         select: { role: true },
     });
-    return user?.role === 'admin';
+    return isPlatformRole(user?.role);
 }
 
 /** The farm named by the staff cookie, or null when there is none. */

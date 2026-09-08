@@ -139,7 +139,7 @@ export async function billingFactsFor(organizationId: string): Promise<BillingFa
 
 /** Roles allowed to administer an organization rather than just work in it. */
 export function canAdminister(ctx: OrgContext): boolean {
-  return ctx.role === 'owner' || ctx.role === 'admin' || ctx.role === 'manager';
+  return ctx.role === 'owner' || ctx.role === 'supervisor' || ctx.role === 'manager';
 }
 
 /**
@@ -152,7 +152,7 @@ export function canAdminister(ctx: OrgContext): boolean {
  * data, belongs with the people answerable for the farm itself.
  */
 export function canManageMembers(ctx: OrgContext): boolean {
-  return ctx.role === 'owner' || ctx.role === 'admin';
+  return ctx.role === 'owner' || ctx.role === 'supervisor';
 }
 
 /**
@@ -260,7 +260,7 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
   return {
     userId,
     organizationId,
-    role: 'admin',
+    role: 'supervisor',
     access: evaluateAccess(organization),
     isStaff: true,
   };

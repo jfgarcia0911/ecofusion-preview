@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getOrgContext, canAdminister, canManageMembers } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { ALL_BUSINESS_ROLES, PLATFORM_ROLES } from '@/lib/roles';
+
+// EcoFusion's own accounts are not a customer's colleagues.
+const PLATFORM_ROLE_VALUES = [PLATFORM_ROLES.OWNER, PLATFORM_ROLES.STAFF];
 
 // GET - People in the caller's organization (admin only)
 export async function GET() {
@@ -28,7 +32,7 @@ export async function GET() {
                 // employed by the business, nothing is assigned to them, and a
                 // support account appearing in a customer's list of people to
                 // train is a support account that looks like an employee.
-                user: { role: { not: 'admin' } },
+                user: { role: { notIn: PLATFORM_ROLE_VALUES } },
                 OR: [
                     { organizationId: ctx.organizationId },
                     ...(ctx.isStaff
@@ -110,7 +114,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        if (!['owner', 'admin', 'manager', 'member'].includes(role)) {
+        if (!ALL_BUSINESS_ROLES.includes(role)) {
             return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
         }
 
@@ -141,7 +145,7 @@ export async function PATCH(request: Request) {
                     { status: 403 }
                 );
             }
-            if (membership.role === 'admin') {
+            if (membership.role === 'supervisor') {
                 return NextResponse.json(
                     { error: "Only the owner can change an admin's role" },
                     { status: 403 }

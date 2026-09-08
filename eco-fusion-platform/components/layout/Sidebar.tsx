@@ -6,13 +6,14 @@ import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 import SettingsNav from "@/components/layout/SettingsNav";
 import { isSettingsPath } from "@/lib/settings-sections";
+import { isPlatformRole } from "@/lib/roles";
 
 interface User {
     name?: string | null;
     image?: string | null;
     /**
      * The account's standing on the platform, not within a business. Only
-     * EcoFusion staff hold 'admin' here; a customer's own administrator is an
+     * EcoFusion holds a platform role here; a customer's own supervisor is a
      * admin in `orgRole` and an ordinary 'user' in this one.
      */
     role?: string;
@@ -101,11 +102,11 @@ export default function Sidebar({
     // What someone may do is decided by their role in this business, not by the
     // legacy global role: an owner is an administrator of their own business.
     const role = user?.orgRole ?? user?.role;
-    const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
+    const isAdmin = role === 'owner' || role === 'supervisor' || role === 'manager';
 
     // Staff is a fact about the account itself, so it is read from the global
     // role rather than from `role` above, which resolves to the business.
-    const isStaff = user?.role === 'admin';
+    const isStaff = isPlatformRole(user?.role);
 
     // Build nav items based on role
     const navItems = [

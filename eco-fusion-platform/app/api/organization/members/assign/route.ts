@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrgContext } from '@/lib/tenancy';
+import { ASSIGNABLE_BUSINESS_ROLES } from '@/lib/roles';
 
 /**
  * Put somebody who already has a login into another of your businesses.
@@ -16,7 +17,7 @@ import { getOrgContext } from '@/lib/tenancy';
  * id.
  */
 
-const ROLES = ['admin', 'manager', 'member'];
+const ROLES = ASSIGNABLE_BUSINESS_ROLES;
 
 export async function POST(request: Request) {
   try {
