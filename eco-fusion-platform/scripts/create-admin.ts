@@ -1,10 +1,15 @@
 /**
- * Admin User Creation Script
+ * Creates or promotes a staff account.
  *
- * Usage: npx ts-node scripts/create-admin.ts
- * Or: npx tsx scripts/create-admin.ts
+ * Usage:
+ *   ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npx tsx scripts/create-admin.ts
  *
- * This script creates or updates admin users in the database.
+ * Optional: ADMIN_NAME, ADMIN_ROLE (admin | manager, default admin).
+ *
+ * The credentials are read from the environment and never written down here.
+ * A password committed to a repository is a password that has been published:
+ * this file previously carried a live one, and it had to be treated as burned
+ * the moment the repository was readable by anyone who was not meant to see it.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -19,22 +24,28 @@ interface AdminUser {
     role: 'admin' | 'manager';
 }
 
-// Define admin users to create
-const ADMIN_USERS: AdminUser[] = [
-    {
-        email: 'support@llayd.com',
-        password: 'C@sper11',
-        name: 'LLAYD Support',
-        role: 'admin',
-    },
-    // Add more admin users here as needed
-    // {
-    //     email: 'admin@example.com',
-    //     password: 'SecurePassword123!',
-    //     name: 'Admin User',
-    //     role: 'admin',
-    // },
-];
+function adminUsersFromEnv(): AdminUser[] {
+    const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const password = process.env.ADMIN_PASSWORD;
+    const role = (process.env.ADMIN_ROLE ?? 'admin') as AdminUser['role'];
+
+    if (!email || !password) {
+        console.error(
+            'ADMIN_EMAIL and ADMIN_PASSWORD must both be set. For example:\n' +
+                "  ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npx tsx scripts/create-admin.ts"
+        );
+        process.exit(1);
+    }
+
+    if (role !== 'admin' && role !== 'manager') {
+        console.error(`ADMIN_ROLE must be 'admin' or 'manager', not '${role}'.`);
+        process.exit(1);
+    }
+
+    return [{ email, password, role, name: process.env.ADMIN_NAME ?? email }];
+}
+
+const ADMIN_USERS: AdminUser[] = adminUsersFromEnv();
 
 async function createAdminUsers() {
     console.log('🔐 Starting admin user creation...\n');
