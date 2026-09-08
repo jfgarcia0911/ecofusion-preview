@@ -112,7 +112,11 @@ export default function SubAccountsPage() {
     }
 
     return (
-        <div className="max-w-3xl">
+        // Full width on purpose. This is a list that grows - a business per row,
+        // each with a name, a role, a location and a headcount - so it reads
+        // like a register rather than an article. The prose below keeps its own
+        // measure, because that is the one part narrow lines actually help.
+        <div>
             <Link
                 href="/settings"
                 className="inline-flex items-center gap-2 text-sm text-white/40 hover:text-white mb-6 transition-colors"
@@ -147,7 +151,9 @@ export default function SubAccountsPage() {
             {adding && (
                 <form
                     onSubmit={create}
-                    className="flex flex-col gap-3 p-4 mb-4 rounded-2xl border border-accent/25 bg-accent/[0.06]"
+                    // The list is wide; a single name field should not be. An
+                    // input stretched the width of a monitor reads as a mistake.
+                    className="flex flex-col gap-3 p-4 mb-4 max-w-xl rounded-2xl border border-accent/25 bg-accent/[0.06]"
                 >
                     <label className="flex flex-col gap-1.5">
                         <span className="text-xs text-white/50">Name of the new business</span>
