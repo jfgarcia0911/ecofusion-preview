@@ -6,14 +6,32 @@ import { validatePassword } from "@/lib/validation/password";
 import { ensurePersonalOrganization } from "@/lib/tenancy";
 
 const DUPLICATE_EMAIL = "User with this email already exists";
+const COMPANY_NAME_MAX = 100;
 
 export async function POST(request: Request) {
     try {
-        const { name, email, password } = await request.json();
+        const { name, email, password, companyName } = await request.json();
 
         if (!email || !password) {
             return NextResponse.json(
                 { error: "Email and password are required" },
+                { status: 400 }
+            );
+        }
+
+        // The business is named here or not at all: this is the only moment the
+        // signup flow asks, and a business named after whoever happened to
+        // register is a placeholder every screen then repeats.
+        const company = String(companyName ?? "").trim();
+        if (!company) {
+            return NextResponse.json(
+                { error: "Company name is required" },
+                { status: 400 }
+            );
+        }
+        if (company.length > COMPANY_NAME_MAX) {
+            return NextResponse.json(
+                { error: `Company name must be ${COMPANY_NAME_MAX} characters or fewer` },
                 { status: 400 }
             );
         }
@@ -69,7 +87,7 @@ export async function POST(request: Request) {
         }
 
         // A new account owns a farm of its own, or it can do nothing at all.
-        await ensurePersonalOrganization(user.id, user.name, user.email);
+        await ensurePersonalOrganization(user.id, user.name, user.email, company);
 
         return NextResponse.json(
             {

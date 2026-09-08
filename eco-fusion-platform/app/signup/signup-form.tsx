@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { googleSignIn } from '@/lib/actions';
-import { Lock, Mail, User, ArrowRight, Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
+import { Lock, Mail, User, Building2, ArrowRight, Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
 
 interface PasswordStrength {
     score: number;
@@ -85,6 +85,7 @@ export default function SignupForm() {
         setError(null);
 
         const formData = new FormData(e.currentTarget);
+        const companyName = formData.get('companyName') as string;
         const name = formData.get('name') as string;
         const email = formData.get('email') as string;
         const confirmPassword = formData.get('confirmPassword') as string;
@@ -108,7 +109,7 @@ export default function SignupForm() {
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, password }),
+                body: JSON.stringify({ companyName, name, email, password }),
             });
 
             const data = await res.json();
@@ -146,6 +147,24 @@ export default function SignupForm() {
     return (
         <div className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2">
+                    <label htmlFor="companyName" className="text-sm font-medium text-white/70 flex items-center gap-2">
+                        <Building2 size={14} /> Company Name
+                    </label>
+                    <input
+                        className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
+                        id="companyName"
+                        type="text"
+                        name="companyName"
+                        placeholder="Green Valley Aquaponics"
+                        maxLength={100}
+                        autoComplete="organization"
+                        required
+                    />
+                    <p className="text-xs text-white/30">
+                        This names your business across the platform. You can change it later.
+                    </p>
+                </div>
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                         <User size={14} /> Full Name

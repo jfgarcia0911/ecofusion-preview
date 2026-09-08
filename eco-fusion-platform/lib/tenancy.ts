@@ -290,7 +290,8 @@ export async function provisionOrganization(options: {
 export async function ensurePersonalOrganization(
   userId: string,
   name?: string | null,
-  email?: string | null
+  email?: string | null,
+  companyName?: string | null
 ): Promise<string> {
   const existing = await prisma.membership.findFirst({
     where: { userId },
@@ -299,10 +300,16 @@ export async function ensurePersonalOrganization(
   });
   if (existing) return existing.organizationId;
 
+  // A company name given at signup is the business's real name and is used as
+  // it was typed. Only when there is none - an OAuth sign-in, which never asks
+  // for one - is a name derived from the person, which is a placeholder rather
+  // than an answer.
+  const company = companyName?.trim();
   const label = name?.trim() || email?.split('@')[0] || 'My';
+
   return provisionOrganization({
     ownerUserId: userId,
-    name: `${label} Business`,
+    name: company || `${label} Business`,
     // Derived from the user, so a second attempt collides rather than
     // quietly producing a second business for the same person.
     organizationId: `org_${userId}`,
