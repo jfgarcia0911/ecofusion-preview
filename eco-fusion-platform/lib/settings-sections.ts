@@ -17,7 +17,6 @@
  */
 
 import {
-    Building2,
     CreditCard,
     KeyRound,
     GraduationCap,
@@ -39,12 +38,6 @@ export interface SettingsSection {
 
 /** Follows the account. Changing one of these changes it in every business. */
 export const ACCOUNT_SECTIONS: SettingsSection[] = [
-    {
-        href: '/settings/sub-accounts',
-        name: 'Sub Accounts',
-        description: 'Every business this login reaches, and the way to add another.',
-        icon: Building2,
-    },
     {
         href: '/business/team',
         name: 'Team Access',

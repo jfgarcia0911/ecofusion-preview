@@ -60,12 +60,9 @@ function writeList(key: string, value: string[]): void {
 export default function SubAccountSwitcher({
     business,
     isStaff,
-    canSwitchOwn = false,
 }: {
     business: { name: string; location: string | null } | null;
     isStaff: boolean;
-    /** True when this account belongs to more than one business of its own. */
-    canSwitchOwn?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -107,34 +104,22 @@ export default function SubAccountSwitcher({
         async (q: string) => {
             setLoading(true);
             try {
-                // Staff choose from every business on the platform; an owner
-                // chooses from the ones that are already theirs.
                 const res = await fetch(
-                    isStaff
-                        ? `/api/admin/organizations?q=${encodeURIComponent(q)}`
-                        : "/api/organizations"
+                    `/api/admin/organizations?q=${encodeURIComponent(q)}`
                 );
                 if (!res.ok) {
-                    toast.error("Could not load your businesses");
+                    toast.error("Could not load the sub account list");
                     return;
                 }
                 const data = await res.json();
-                const list: SubAccount[] = data.organizations ?? data.businesses ?? [];
-                // The owner's list is short enough to filter here rather than
-                // asking the server for it again on every keystroke.
-                const needle = q.trim().toLowerCase();
-                setAccounts(
-                    isStaff || !needle
-                        ? list
-                        : list.filter((a) => a.name.toLowerCase().includes(needle))
-                );
+                setAccounts(data.organizations ?? []);
             } catch {
-                toast.error("Could not load your businesses");
+                toast.error("Could not load the sub account list");
             } finally {
                 setLoading(false);
             }
         },
-        [toast, isStaff]
+        [toast]
     );
 
     useEffect(() => {
@@ -171,16 +156,12 @@ export default function SubAccountSwitcher({
     async function switchTo(account: SubAccount) {
         setEntering(account.id);
         try {
-            // Staff entering somebody else's business opens a recorded support
-            // session. An owner moving between their own is neither of those.
-            const res = await fetch(
-                isStaff ? "/api/admin/session" : "/api/organizations/active",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ organizationId: account.id }),
-                }
-            );
+            // Entering somebody else's business opens a recorded support session.
+            const res = await fetch("/api/admin/session", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ organizationId: account.id }),
+            });
             if (!res.ok) {
                 toast.error((await res.json()).error ?? "Could not open that business");
                 return;
@@ -214,7 +195,9 @@ export default function SubAccountSwitcher({
     );
 
     // One business, nowhere else to go: the name is information, not a control.
-    if (!isStaff && !canSwitchOwn) {
+    // Everybody but staff is in exactly one, and staff are in whichever they
+    // stepped into, so this is the only reader with somewhere else to be.
+    if (!isStaff) {
         return (
             <div className="mx-4 flex items-center gap-3 px-3 py-2.5 rounded-xl bg-black/20 border border-white/10">
                 {identity}

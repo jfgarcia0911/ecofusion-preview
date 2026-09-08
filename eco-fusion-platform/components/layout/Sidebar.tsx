@@ -72,21 +72,18 @@ const commonNavItems = [
     // question is which one; the sidebar already lists everything the index
     // would have offered, so a page of the same links in card form was a stop
     // on the way rather than a destination.
-    { name: "Settings", href: "/settings/sub-accounts", icon: Settings, tourId: "nav-settings" },
+    { name: "Settings", href: "/settings", icon: Settings, tourId: "nav-settings" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 
 export default function Sidebar({
     user,
     business,
-    canSwitchOwn = false,
     isOwner = false,
 }: {
     user?: User;
     /** The business these screens are showing, named at the top of the sidebar. */
     business?: { name: string; location: string | null } | null;
-    /** True when this account holds more than one business of its own. */
-    canSwitchOwn?: boolean;
     /**
      * Whether this reader owns the business they are looking at. Decided by the
      * layout from the request's own context rather than from the session, which
@@ -136,7 +133,6 @@ export default function Sidebar({
             <SubAccountSwitcher
                 business={business ?? null}
                 isStaff={isStaff}
-                canSwitchOwn={canSwitchOwn}
             />
 
             {inSettings ? (
