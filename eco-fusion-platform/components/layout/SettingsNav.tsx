@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import clsx from "clsx";
 import { visibleSections, type SettingsSection } from "@/lib/settings-sections";
@@ -27,27 +26,21 @@ export default function SettingsNav({
     /** Named in the business group's caption, so "here" means somewhere. */
     businessName?: string | null;
 }) {
-    const router = useRouter();
     const { account, business } = visibleSections(isOwner);
-
-    function goBack() {
-        // Back where they came from when that was inside the app, and to the
-        // dashboard when settings was opened cold - a bookmark, a fresh tab,
-        // a redirect from billing. Sending someone to the previous site
-        // because they arrived directly would be a strange way to leave.
-        if (typeof window !== "undefined" && window.history.length > 1) {
-            router.back();
-            return;
-        }
-        router.push("/dashboard/executive");
-    }
 
     return (
         <>
             <div className="px-4 pb-4">
-                <button
-                    type="button"
-                    onClick={goBack}
+                {/*
+                  * Always the executive summary of the business you are in,
+                  * rather than wherever you happened to be. Settings is
+                  * reached from several places and left from one, so the way
+                  * out is a place rather than a direction: somebody who
+                  * arrived from a billing redirect or a bookmark gets the same
+                  * door as somebody who came from the sidebar.
+                  */}
+                <Link
+                    href="/dashboard/executive"
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-full bg-black/40 border border-white/10 text-white font-semibold hover:bg-black/60 transition-colors group"
                 >
                     <ArrowLeft
@@ -55,7 +48,7 @@ export default function SettingsNav({
                         className="group-hover:-translate-x-0.5 transition-transform"
                     />
                     Go Back
-                </button>
+                </Link>
             </div>
 
             <nav className="flex-1 px-4 pb-4 overflow-y-auto custom-scrollbar">
