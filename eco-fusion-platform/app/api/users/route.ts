@@ -15,12 +15,33 @@ export async function GET() {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
-        // Scoped to this organization. An admin of one farm has no visibility
-        // into the people of another.
+        // Everyone the caller can reach: the business they are in, plus every
+        // other business they own. Training is assigned from an account screen
+        // now, so offering only the people of whichever business happened to be
+        // open would hide half a team behind the switcher.
+        //
+        // An admin or manager still sees one business. They own none, so the
+        // second clause matches nothing and this is the previous behaviour.
         const memberships = await prisma.membership.findMany({
-            where: { organizationId: ctx.organizationId },
+            where: {
+                OR: [
+                    { organizationId: ctx.organizationId },
+                    ...(ctx.isStaff
+                        ? []
+                        : [
+                              {
+                                  organization: {
+                                      memberships: {
+                                          some: { userId: ctx.userId, role: 'owner' },
+                                      },
+                                  },
+                              },
+                          ]),
+                ],
+            },
             select: {
                 role: true,
+                organization: { select: { id: true, name: true } },
                 user: {
                     select: {
                         id: true,
@@ -34,7 +55,28 @@ export async function GET() {
             orderBy: { user: { name: 'asc' } },
         });
 
-        const users = memberships.map(({ user, role }) => ({ ...user, role }));
+        // One entry per person. Somebody in two of the caller's businesses is
+        // one person to assign a course to, not two rows offering the same one.
+        const RANK: Record<string, number> = { owner: 3, admin: 2, manager: 1, member: 0 };
+        const byUser = new Map<string, ReturnType<typeof shape>>();
+
+        function shape({ user, role, organization }: (typeof memberships)[number]) {
+            return { ...user, role, businesses: [organization] };
+        }
+
+        for (const m of memberships) {
+            const existing = byUser.get(m.user.id);
+            if (!existing) {
+                byUser.set(m.user.id, shape(m));
+                continue;
+            }
+            if (!existing.businesses.some((b) => b.id === m.organization.id)) {
+                existing.businesses.push(m.organization);
+            }
+            if (RANK[m.role] > RANK[existing.role]) existing.role = m.role;
+        }
+
+        const users = [...byUser.values()];
 
         return NextResponse.json(users);
     } catch (error) {

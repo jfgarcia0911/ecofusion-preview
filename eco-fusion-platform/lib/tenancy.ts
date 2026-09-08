@@ -277,11 +277,30 @@ export async function getActiveOrgContext(): Promise<OrgContext | null> {
 /** Whether `userId` belongs to the caller's organization. */
 export async function isSameOrganization(ctx: OrgContext, userId: string): Promise<boolean> {
   if (userId === ctx.userId) return true;
-  const membership = await prisma.membership.findUnique({
+
+  const here = await prisma.membership.findUnique({
     where: { userId_organizationId: { userId, organizationId: ctx.organizationId } },
     select: { id: true },
   });
-  return membership !== null;
+  if (here) return true;
+
+  // An owner's reach is their whole account, not whichever business is open.
+  // Training is assigned to people, and a person who works at two of an
+  // owner's sites is the owner's to train from either. This widens for owners
+  // only, and only as far as businesses they own: a manager still reaches the
+  // one business they were added to, which is the previous behaviour exactly.
+  if (ctx.isStaff) return false;
+
+  const shared = await prisma.membership.findFirst({
+    where: {
+      userId,
+      organization: {
+        memberships: { some: { userId: ctx.userId, role: 'owner' } },
+      },
+    },
+    select: { id: true },
+  });
+  return shared !== null;
 }
 
 /** A business name that is safe to put in a URL, and unlike any other. */

@@ -53,6 +53,13 @@ export const ACCOUNT_SECTIONS: SettingsSection[] = [
         ownerOnly: true,
     },
     {
+        href: '/admin/training',
+        name: 'Training Management',
+        description: 'Assign courses to anyone on your team, wherever they work.',
+        icon: GraduationCap,
+        ownerOnly: true,
+    },
+    {
         href: '/settings/preferences',
         name: 'Preferences',
         description: 'Units, and the password you sign in with.',
@@ -74,13 +81,6 @@ export const BUSINESS_SECTIONS: SettingsSection[] = [
         name: 'Business Units',
         description: 'The silos this business runs, and what lands in each.',
         icon: Layers,
-        ownerOnly: true,
-    },
-    {
-        href: '/admin/training',
-        name: 'Training Management',
-        description: 'Assign courses, track completions, export the record.',
-        icon: GraduationCap,
         ownerOnly: true,
     },
     {
