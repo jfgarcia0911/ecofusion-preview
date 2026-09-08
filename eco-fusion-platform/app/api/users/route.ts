@@ -24,6 +24,11 @@ export async function GET() {
         // second clause matches nothing and this is the previous behaviour.
         const memberships = await prisma.membership.findMany({
             where: {
+                // EcoFusion staff are never a name to pick from. They are not
+                // employed by the business, nothing is assigned to them, and a
+                // support account appearing in a customer's list of people to
+                // train is a support account that looks like an employee.
+                user: { role: { not: 'admin' } },
                 OR: [
                     { organizationId: ctx.organizationId },
                     ...(ctx.isStaff

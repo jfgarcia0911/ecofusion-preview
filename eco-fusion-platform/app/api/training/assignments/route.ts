@@ -105,6 +105,23 @@ export async function POST(request: Request) {
         const data = await request.json();
         const { courseId, assigneeId, dueDate, priority, notes } = data;
 
+        // EcoFusion assigns to the person answerable for a business, and that
+        // is its owner. Training a customer's employees over their head is the
+        // owner's call to make, not ours; what staff can do is put a course in
+        // front of the person who decides.
+        if (ctx.isStaff && assigneeId !== ctx.userId) {
+            const owns = await prisma.membership.findFirst({
+                where: { userId: assigneeId, organizationId: ctx.organizationId, role: 'owner' },
+                select: { id: true },
+            });
+            if (!owns) {
+                return NextResponse.json(
+                    { error: "EcoFusion can only assign courses to a business's owner" },
+                    { status: 403 }
+                );
+            }
+        }
+
         if (!courseId || !assigneeId) {
             return NextResponse.json({ error: 'Course ID and Assignee ID are required' }, { status: 400 });
         }
