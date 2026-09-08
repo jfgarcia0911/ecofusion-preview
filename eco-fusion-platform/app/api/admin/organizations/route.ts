@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { isPlatformAdmin } from '@/lib/staff';
+import { evaluateAccess } from '@/lib/tenancy';
 
 // GET - Every business on the platform, for EcoFusion staff.
 //
@@ -38,7 +39,18 @@ export async function GET(request: Request) {
                 plan: true,
                 subscriptionStatus: true,
                 trialEndsAt: true,
+                currentPeriodEnd: true,
                 createdAt: true,
+                // A business an owner added is paid for by the one that owns
+                // the subscription, so its standing is decided there. Asking
+                // its own row would report a trial nobody is on.
+                billingParent: {
+                    select: {
+                        subscriptionStatus: true,
+                        trialEndsAt: true,
+                        currentPeriodEnd: true,
+                    },
+                },
                 memberships: {
                     where: { role: 'owner' },
                     select: { user: { select: { name: true, email: true } } },
@@ -51,18 +63,33 @@ export async function GET(request: Request) {
         });
 
         return NextResponse.json({
-            organizations: organizations.map((org) => ({
-                id: org.id,
-                name: org.name,
-                slug: org.slug,
-                location: org.location,
-                plan: org.plan,
-                subscriptionStatus: org.subscriptionStatus,
-                trialEndsAt: org.trialEndsAt,
-                createdAt: org.createdAt,
-                memberCount: org._count.memberships,
-                owner: org.memberships[0]?.user ?? null,
-            })),
+            organizations: organizations.map((org) => {
+                const access = evaluateAccess(org.billingParent ?? org);
+                return {
+                    id: org.id,
+                    name: org.name,
+                    slug: org.slug,
+                    location: org.location,
+                    plan: org.plan,
+                    subscriptionStatus: org.subscriptionStatus,
+                    trialEndsAt: org.trialEndsAt,
+                    createdAt: org.createdAt,
+                    memberCount: org._count.memberships,
+                    owner: org.memberships[0]?.user ?? null,
+                    // Three standings, not Stripe's five. A business is paying,
+                    // trying, or neither, and the third covers a trial that ran
+                    // out as well as a subscription that stopped - from the
+                    // outside they are the same thing: nobody is paying and
+                    // nobody is inside.
+                    standing:
+                        access.reason === 'active'
+                            ? ('active' as const)
+                            : access.reason === 'trialing'
+                              ? ('trial' as const)
+                              : ('inactive' as const),
+                    trialDaysLeft: access.reason === 'trialing' ? access.daysLeft : null,
+                };
+            }),
         });
     } catch (error) {
         console.error('Failed to list organizations:', error);

@@ -19,13 +19,26 @@ export interface SubAccount {
     createdAt: string;
     memberCount: number;
     owner: { name: string | null; email: string } | null;
+    /** active = paying, trial = trying, inactive = neither. */
+    standing: "active" | "trial" | "inactive";
+    trialDaysLeft: number | null;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-    active: "bg-accent/15 text-accent border-accent/30",
-    trialing: "bg-white/10 text-white/70 border-white/20",
-    past_due: "bg-red-400/15 text-red-300 border-red-400/30",
-    canceled: "bg-red-400/10 text-red-300/70 border-red-400/20",
+/**
+ * How a business's standing is shown.
+ *
+ * Three words rather than Stripe's vocabulary, because the person reading this
+ * list is asking whether a customer is paying, still deciding, or gone - not
+ * which webhook last fired. "Inactive" covers a trial that lapsed and a
+ * subscription that stopped, which look the same from here.
+ */
+const STANDING: Record<
+    SubAccount["standing"],
+    { label: string; className: string }
+> = {
+    active: { label: "Active", className: "border-accent/30 bg-accent/10 text-accent" },
+    trial: { label: "Trial", className: "border-info/30 bg-info/10 text-info" },
+    inactive: { label: "Inactive", className: "border-white/15 bg-white/5 text-white/40" },
 };
 
 /**
@@ -152,12 +165,14 @@ export default function SubAccountsPage() {
                                         {business.name}
                                     </span>
                                     <span
-                                        className={`px-2 py-0.5 rounded-full border text-[11px] ${
-                                            STATUS_STYLES[business.subscriptionStatus] ??
-                                            STATUS_STYLES.trialing
+                                        className={`px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap ${
+                                            STANDING[business.standing].className
                                         }`}
                                     >
-                                        {business.subscriptionStatus}
+                                        {STANDING[business.standing].label}
+                                        {business.standing === "trial" &&
+                                            business.trialDaysLeft !== null &&
+                                            ` · ${business.trialDaysLeft}d`}
                                     </span>
                                 </div>
                                 <div className="text-xs text-white/40 mt-0.5 truncate">
