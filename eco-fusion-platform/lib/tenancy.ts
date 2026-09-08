@@ -14,7 +14,7 @@ import {
   isPlatformAdmin,
   logStaffWriteIfAny,
 } from '@/lib/staff';
-import { DEFAULT_BUSINESS_UNITS } from '@/lib/business-units';
+import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
 
 /** Days a new farm may use the platform before it has to subscribe. */
 export const TRIAL_DAYS = 15;
@@ -230,6 +230,11 @@ export async function ensurePersonalOrganization(
   const label = name?.trim() || email?.split('@')[0] || 'My';
   const organizationId = `org_${userId}`;
 
+  // Read before the transaction, so the farm's opening configuration is
+  // settled by the time anything is written.
+  const template = await defaultSnapshot();
+  const businessUnits = await startingBusinessUnits();
+
   await prisma.$transaction([
     prisma.organization.create({
       data: {
@@ -244,13 +249,20 @@ export async function ensurePersonalOrganization(
       data: { userId, organizationId, role: 'owner' },
     }),
     prisma.businessUnit.createMany({
-      data: DEFAULT_BUSINESS_UNITS.map((unit, index) => ({
-        organizationId,
-        ...unit,
-        sortOrder: index + 1,
-      })),
+      data: businessUnits.map((unit) => ({ ...unit, organizationId })),
     }),
   ]);
+
+  // The rest of the template - zones, growing parameters, which classes the
+  // farm carries. Outside the transaction because a farm that exists with a
+  // thin setup is a better outcome than a signup that failed on its scenery.
+  if (template) {
+    try {
+      await applySnapshot(template, organizationId, userId);
+    } catch (error) {
+      console.error('[snapshots] could not apply the default to a new farm:', error);
+    }
+  }
 
   return organizationId;
 }

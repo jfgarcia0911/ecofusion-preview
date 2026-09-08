@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2 } from "lucide-react";
+import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2, Camera } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -20,6 +20,7 @@ interface User {
 /** Reachable only by EcoFusion staff, and only ever about other farms. */
 const staffNavItems = [
     { name: "Farms", href: "/admin/farms", icon: Building2, tourId: undefined },
+    { name: "Snapshots", href: "/admin/snapshots", icon: Camera, tourId: undefined },
 ];
 
 // Base navigation items for all users

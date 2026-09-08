@@ -49,6 +49,7 @@ model User {
   employeeRecord      Employee?             @relation("EmployeeAccount")
   staffAccess         StaffAccessLog[]      @relation("StaffAccess")
   grantedCourses      CourseGrant[]         @relation("GrantedCourses")
+  capturedSnapshots   Snapshot[]            @relation("CapturedSnapshots")
 }
 
 model Account {
@@ -692,6 +693,40 @@ model Organization {
   staffAccess         StaffAccessLog[]
   trainingCourses     TrainingCourse[]
   courseGrants        CourseGrant[]
+  snapshotsTakenFrom  Snapshot[]            @relation("SnapshotSource")
+}
+
+/// A configured farm, captured so others can be started from it.
+///
+/// A farm set up well is the best description of how a farm should be set up,
+/// so a snapshot is taken from a real one rather than written by hand. What it
+/// holds is configuration - units, zones, thresholds, growing parameters, which
+/// classes to carry - and never a record of anything that happened: no stock,
+/// no sales, no readings, nobody's training history.
+///
+/// The capture is a copy, not a link. A farm started from a snapshot owns what
+/// it was given and may change it freely, which is the opposite of how a course
+/// grant works, and deliberately so: a starting point is meant to be departed
+/// from.
+model Snapshot {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  /// Applied to every farm created from here on. At most one is marked.
+  isDefault      Boolean  @default(false)
+  /// The shape of `payload`. Read before applying, so a snapshot taken today
+  /// still says something intelligible after the models it describes move on.
+  version        Int      @default(1)
+  payload        Json
+  capturedFromId String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  capturedFrom Organization? @relation("SnapshotSource", fields: [capturedFromId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("CapturedSnapshots", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isDefault])
 }
 
 /// Every time EcoFusion staff work inside a customer's farm.

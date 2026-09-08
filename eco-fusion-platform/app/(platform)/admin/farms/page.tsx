@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ShieldAlert, LogIn, Users, Building2, GraduationCap } from "lucide-react";
+import { Search, ShieldAlert, LogIn, Users, Building2, GraduationCap, Camera } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadClassesModal from "@/components/admin/LoadClassesModal";
+import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
 
 interface Farm {
     id: string;
@@ -43,6 +44,9 @@ export default function SupportFarmsPage() {
     // The farm whose class list is open. Loading classes needs no support
     // session: it decides what a farm may reach, not what is inside it.
     const [classesFor, setClassesFor] = useState<{ id: string; name: string } | null>(null);
+    // Capturing reads a farm's setup without entering it, so no support session
+    // is opened and none is needed.
+    const [captureFrom, setCaptureFrom] = useState<{ id: string; name: string } | null>(null);
     const router = useRouter();
     const toast = useToast();
     const confirmAction = useConfirm();
@@ -183,6 +187,16 @@ export default function SupportFarmsPage() {
 
                             <button
                                 type="button"
+                                onClick={() => setCaptureFrom({ id: farm.id, name: farm.name })}
+                                title="Capture this farm's setup as a template"
+                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+                            >
+                                <Camera size={13} />
+                                Capture
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={() => enter(farm)}
                                 disabled={entering === farm.id}
                                 className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-50 transition-colors"
@@ -196,6 +210,7 @@ export default function SupportFarmsPage() {
             )}
 
             <LoadClassesModal farm={classesFor} onClose={() => setClassesFor(null)} />
+            <CaptureSnapshotModal farm={captureFrom} onClose={() => setCaptureFrom(null)} />
         </div>
     );
 }
