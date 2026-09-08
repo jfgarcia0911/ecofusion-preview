@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-    CreditCard, KeyRound, GraduationCap, Settings as SettingsIcon,
-    ScrollText, SlidersHorizontal, ChevronRight, Lock, Building2, UserCog, Layers,
-} from "lucide-react";
+import { ChevronRight, Lock, Building2, UserCog } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext } from "@/lib/tenancy";
 
@@ -20,69 +17,8 @@ import { getOrgContext } from "@/lib/tenancy";
  * do it, which is an invitation rather than an explanation.
  */
 
-interface Section {
-    href: string;
-    name: string;
-    description: string;
-    icon: typeof CreditCard;
-    ownerOnly?: boolean;
-}
 
-/** Follows the account. Changing one of these changes it in every business. */
-const ACCOUNT_SECTIONS: Section[] = [
-    {
-        href: "/settings/preferences",
-        name: "Preferences",
-        description: "Units, and the password you sign in with.",
-        icon: SlidersHorizontal,
-    },
-    {
-        href: "/billing",
-        name: "Billing",
-        description: "One subscription, covering every business you run.",
-        icon: CreditCard,
-        ownerOnly: true,
-    },
-];
-
-/** Stops at the business you are in. Each one you run has its own. */
-const BUSINESS_SECTIONS: Section[] = [
-    {
-        href: "/settings/business-units",
-        name: "Business Units",
-        description: "The silos this business runs, and what lands in each.",
-        icon: Layers,
-        ownerOnly: true,
-    },
-    {
-        href: "/business/team",
-        name: "Team Access",
-        description: "Create logins and set what each person may do here.",
-        icon: KeyRound,
-        ownerOnly: true,
-    },
-    {
-        href: "/admin/training",
-        name: "Training Management",
-        description: "Assign courses, track completions, export the record.",
-        icon: GraduationCap,
-        ownerOnly: true,
-    },
-    {
-        href: "/settings/integrations",
-        name: "Integrations",
-        description: "Connect the systems this business already uses.",
-        icon: SettingsIcon,
-        ownerOnly: true,
-    },
-    {
-        href: "/settings/audit-log",
-        name: "Access Record",
-        description: "When EcoFusion staff opened this business, and what they changed.",
-        icon: ScrollText,
-        ownerOnly: true,
-    },
-];
+import { type SettingsSection as Section, visibleSections } from "@/lib/settings-sections";
 
 function SectionList({ sections }: { sections: Section[] }) {
     return (
@@ -124,8 +60,7 @@ export default async function SettingsPage() {
         prisma.membership.count({ where: { userId: ctx.userId, role: "owner" } }),
     ]);
 
-    const account = ACCOUNT_SECTIONS.filter((s) => !s.ownerOnly || isOwner);
-    const business_ = BUSINESS_SECTIONS.filter((s) => !s.ownerOnly || isOwner);
+    const { account, business: business_ } = visibleSections(isOwner);
 
     return (
         <div className="max-w-3xl space-y-10">

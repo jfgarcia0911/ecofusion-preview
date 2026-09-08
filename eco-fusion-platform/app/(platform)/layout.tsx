@@ -56,6 +56,11 @@ export default async function DashboardLayout({
     // An owner gets the panel even with a single business, because that panel
     // is where another one is added. Staff have their own, and a member with
     // one business has nowhere to go and nothing to create.
+    // The settings the sidebar offers depend on this, and the session's own
+    // orgRole is the wrong answer while staff are inside somebody else's
+    // business: it still names their own membership somewhere else.
+    const isOwner = ctx?.role === "owner" && !ctx.isStaff;
+
     const canCreateBusiness = !ctx?.isStaff && ctx?.role === "owner";
     const canSwitchOwn = !ctx?.isStaff && (ownBusinessCount > 1 || canCreateBusiness);
 
@@ -66,7 +71,7 @@ export default async function DashboardLayout({
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
                 <Sidebar user={session?.user} business={business} canSwitchOwn={canSwitchOwn}
-                    canCreateBusiness={canCreateBusiness} />
+                    canCreateBusiness={canCreateBusiness} isOwner={isOwner} />
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">

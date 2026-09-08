@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot } from "lucide-react";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
+import SettingsNav from "@/components/layout/SettingsNav";
+import { isSettingsPath } from "@/lib/settings-sections";
 
 interface User {
     name?: string | null;
@@ -62,6 +64,7 @@ export default function Sidebar({
     business,
     canSwitchOwn = false,
     canCreateBusiness = false,
+    isOwner = false,
 }: {
     user?: User;
     /** The business these screens are showing, named at the top of the sidebar. */
@@ -70,6 +73,13 @@ export default function Sidebar({
     canSwitchOwn?: boolean;
     /** True when this account owns a business and may add another. */
     canCreateBusiness?: boolean;
+    /**
+     * Whether this reader owns the business they are looking at. Decided by the
+     * layout from the request's own context rather than from the session, which
+     * still names the account's own membership while staff are inside somebody
+     * else's business.
+     */
+    isOwner?: boolean;
 }) {
     const pathname = usePathname() ?? '';
     // What someone may do is decided by their role in this business, not by the
@@ -87,6 +97,12 @@ export default function Sidebar({
         ...(isAdmin ? adminNavItems : userNavItems),
         ...commonNavItems,
     ];
+
+    // Inside settings the column becomes settings, rather than settings
+    // becoming one more entry in a list of places to be. Nothing on screen
+    // then invites somebody back into the working week by accident, and
+    // leaving is the one button that says so.
+    const inSettings = isSettingsPath(pathname);
 
     return (
         <aside data-tour="sidebar" className="w-64 border-r border-white/10 glass-panel flex flex-col z-20">
@@ -109,6 +125,15 @@ export default function Sidebar({
                 canCreateBusiness={canCreateBusiness}
             />
 
+            {inSettings ? (
+                <div className="flex-1 flex flex-col mt-4 min-h-0">
+                    <SettingsNav
+                        pathname={pathname}
+                        isOwner={isOwner}
+                        businessName={business?.name}
+                    />
+                </div>
+            ) : (
             <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
                 {navItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);
@@ -130,6 +155,7 @@ export default function Sidebar({
                     );
                 })}
             </nav>
+            )}
             <div className="p-4 border-t border-white/10 space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20">
                     {user?.image ? (
