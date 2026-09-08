@@ -6,18 +6,18 @@ import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
 /**
- * Captures a farm's setup as a template other farms can start from.
+ * Captures a business's setup as a template other businesses can start from.
  *
  * Deliberately says what does and does not travel. The distinction matters to
- * whoever presses the button: capturing a customer's farm sounds like copying
+ * whoever presses the button: capturing a customer's setup sounds like copying
  * their business, and the only way to make it obviously not that is to name
  * what is left behind.
  */
 export default function CaptureSnapshotModal({
-    farm,
+    business,
     onClose,
 }: {
-    farm: { id: string; name: string } | null;
+    business: { id: string; name: string } | null;
     onClose: () => void;
 }) {
     const [name, setName] = useState("");
@@ -28,29 +28,29 @@ export default function CaptureSnapshotModal({
     const router = useRouter();
 
     useEffect(() => {
-        if (farm) {
-            setName(`${farm.name} setup`);
+        if (business) {
+            setName(`${business.name} setup`);
             setDescription("");
             setMakeDefault(false);
         }
-    }, [farm]);
+    }, [business]);
 
     async function capture() {
-        if (!farm || !name.trim()) return;
+        if (!business || !name.trim()) return;
         setSaving(true);
         try {
             const res = await fetch("/api/admin/snapshots", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    organizationId: farm.id,
+                    organizationId: business.id,
                     name: name.trim(),
                     description: description.trim(),
                     isDefault: makeDefault,
                 }),
             });
             if (!res.ok) {
-                toast.error((await res.json()).error ?? "Could not capture that farm");
+                toast.error((await res.json()).error ?? "Could not capture that business");
                 return;
             }
             const { contents } = await res.json();
@@ -66,20 +66,20 @@ export default function CaptureSnapshotModal({
 
     return (
         <Modal
-            isOpen={farm !== null}
+            isOpen={business !== null}
             onClose={onClose}
-            title={farm ? `Capture ${farm.name}` : "Capture farm"}
+            title={business ? `Capture ${business.name}` : "Capture business"}
             size="md"
         >
             <div className="flex flex-col gap-5">
                 <div className="text-sm text-white/50 leading-relaxed">
                     <p>
-                        Takes this farm&apos;s <strong className="text-white/80">setup</strong> as a
+                        Takes this business&apos;s <strong className="text-white/80">setup</strong> as a
                         template: business units, zones and their alert thresholds, growing
                         parameters, and which EcoFusion classes it carries.
                     </p>
                     <p className="mt-2">
-                        Nothing that happened on the farm is copied. No stock, sales, sensor
+                        Nothing that happened in the business is copied. No stock, sales, sensor
                         readings, training records or people.
                     </p>
                 </div>
@@ -103,7 +103,7 @@ export default function CaptureSnapshotModal({
                         onChange={(e) => setDescription(e.target.value)}
                         rows={2}
                         className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm resize-none"
-                        placeholder="For small farms running fish and leafy greens"
+                        placeholder="For small businesses running fish and leafy greens"
                     />
                 </label>
 
@@ -115,9 +115,9 @@ export default function CaptureSnapshotModal({
                         className="w-4 h-4 mt-0.5 rounded bg-white/10 border-white/20"
                     />
                     <span className="text-sm text-white/70">
-                        Start every new farm from this
+                        Start every new business from this
                         <span className="block text-xs text-white/40 mt-0.5">
-                            Replaces whichever snapshot currently does. Farms already created are
+                            Replaces whichever snapshot currently does. Businesses already created are
                             not touched.
                         </span>
                     </span>

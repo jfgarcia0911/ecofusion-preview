@@ -6,11 +6,11 @@ import type { OrgAccess } from "@/lib/tenancy";
 import { formatClock, useTrialCountdown } from "@/components/billing/trial-countdown";
 
 /**
- * Standing notice of where a farm is in its trial.
+ * Standing notice of where a business is in its trial.
  *
  * A trial that expires without warning reads as the product breaking, so the
  * banner is always present while trialing and grows more insistent as the end
- * approaches. Paid farms see nothing.
+ * approaches. Paid businesses see nothing.
  *
  * The remaining time counts down live rather than sitting on a day count: "15
  * days left" is the same sentence for twenty-four hours, which reads as a label
@@ -30,7 +30,7 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
                 <AlertTriangle size={17} className="text-red-300 shrink-0" />
                 <span className="text-sm text-red-100 flex-1">
                     <span className="font-semibold">Payment is overdue.</span> Update your billing
-                    details to keep access to this farm.
+                    details to keep access to this business.
                 </span>
                 <span className="text-xs text-red-200/70 flex items-center gap-1 shrink-0">
                     Fix now

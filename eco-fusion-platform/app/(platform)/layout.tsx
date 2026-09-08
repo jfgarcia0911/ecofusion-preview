@@ -20,13 +20,13 @@ export default async function DashboardLayout({
     // Access belongs to the farm, so one check here covers every page for every
     // member, including accounts an owner created for staff.
     const ctx = await getOrgContext();
-    // A lapsed farm is often why staff were called in, so it opens for them.
+    // A lapsed business is often why staff were called in, so it opens for them.
     if (ctx && !ctx.access.allowed && !ctx.isStaff) {
         redirect("/billing");
     }
 
-    // Named rather than left as an id, so the banner can say whose farm this is.
-    const staffFarm = ctx?.isStaff
+    // Named rather than left as an id, so the banner can say whose business this is.
+    const staffBusiness = ctx?.isStaff
         ? await prisma.organization.findUnique({
               where: { id: ctx.organizationId },
               select: { name: true },
@@ -53,9 +53,9 @@ export default async function DashboardLayout({
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
-                        {staffFarm && (
+                        {staffBusiness && (
                             <div className="mb-6">
-                                <StaffBanner farmName={staffFarm.name} />
+                                <StaffBanner businessName={staffBusiness.name} />
                             </div>
                         )}
                         {ctx && !ctx.isStaff && (

@@ -15,7 +15,7 @@ export default async function PhasesDashboard() {
     const ctx = await getOrgContext();
     const { startOfMonth, endOfMonth } = monthRange();
 
-    // The units this farm actually runs, and the month's sale lines. Both are
+    // The units this business actually runs, and the month's sale lines. Both are
     // single queries; every card's total is derived from the second.
     const [units, items] = ctx
         ? await Promise.all([
@@ -63,7 +63,7 @@ export default async function PhasesDashboard() {
 
             {units.length === 0 ? (
                 <div className="glass-card rounded-2xl border border-white/10 p-8 text-center">
-                    <p className="text-white/70">This farm has no business units yet.</p>
+                    <p className="text-white/70">This business has no business units yet.</p>
                     <p className="text-sm text-white/40 mt-1">
                         Add the silos you operate to start tracking revenue against them.
                     </p>

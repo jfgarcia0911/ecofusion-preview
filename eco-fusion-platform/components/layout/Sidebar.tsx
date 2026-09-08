@@ -1,14 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2, Camera } from "lucide-react";
+import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Shield } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
     name?: string | null;
     image?: string | null;
     /**
-     * The account's standing on the platform, not within a farm. Only
+     * The account's standing on the platform, not within a business. Only
      * EcoFusion staff hold 'admin' here; a customer's own administrator is an
      * admin in `orgRole` and an ordinary 'user' in this one.
      */
@@ -16,12 +16,6 @@ interface User {
     /** Role held in the current organization: owner | admin | manager | member. */
     orgRole?: string;
 }
-
-/** Reachable only by EcoFusion staff, and only ever about other farms. */
-const staffNavItems = [
-    { name: "Farms", href: "/admin/farms", icon: Building2, tourId: undefined },
-    { name: "Snapshots", href: "/admin/snapshots", icon: Camera, tourId: undefined },
-];
 
 // Base navigation items for all users
 const baseNavItems = [
@@ -59,13 +53,13 @@ const commonNavItems = [
 
 export default function Sidebar({ user }: { user?: User }) {
     const pathname = usePathname() ?? '';
-    // What someone may do is decided by their role in this farm, not by the
-    // legacy global role: an owner is an administrator of their own farm.
+    // What someone may do is decided by their role in this business, not by the
+    // legacy global role: an owner is an administrator of their own business.
     const role = user?.orgRole ?? user?.role;
     const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
 
     // Staff is a fact about the account itself, so it is read from the global
-    // role rather than from `role` above, which resolves to the farm.
+    // role rather than from `role` above, which resolves to the business.
     const isStaff = user?.role === 'admin';
 
     // Build nav items based on role
@@ -73,7 +67,6 @@ export default function Sidebar({ user }: { user?: User }) {
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
         ...commonNavItems,
-        ...(isStaff ? staffNavItems : []),
     ];
 
     return (
@@ -106,6 +99,22 @@ export default function Sidebar({ user }: { user?: User }) {
                 })}
             </nav>
             <div className="p-4 border-t border-white/10 space-y-4">
+                {/*
+                 * The way out to the agency view, and the only staff thing in
+                 * this sidebar. What EcoFusion does across every customer lives
+                 * on the other side of this link rather than mixed in above it,
+                 * so nothing here is ever ambiguous about whose business it acts on.
+                 */}
+                {isStaff && (
+                    <Link
+                        href="/agency/sub-accounts"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-all duration-200"
+                    >
+                        <Shield size={18} className="text-amber-300" />
+                        <span className="font-medium text-sm">Agency view</span>
+                    </Link>
+                )}
+
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20">
                     {user?.image ? (
                         <img src={user.image} alt={user.name ?? "User"} className="w-8 h-8 rounded-full" />

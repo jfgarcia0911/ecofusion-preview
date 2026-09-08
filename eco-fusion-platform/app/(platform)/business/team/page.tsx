@@ -14,7 +14,7 @@ interface Member {
 }
 
 const ROLE_OPTIONS = [
-    { value: "member", label: "Member", hint: "Day-to-day access to the farm's operations" },
+    { value: "member", label: "Member", hint: "Day-to-day access to the business's operations" },
     { value: "manager", label: "Manager", hint: "Also manages schedules and training" },
     { value: "admin", label: "Admin", hint: "Also adds and removes people" },
 ];
@@ -117,7 +117,7 @@ export default function TeamPage() {
     const handleRemove = async (member: Member) => {
         if (!(await confirmAction({
             title: `Remove ${member.name || member.email}?`,
-            message: "They lose access to this farm immediately.",
+            message: "They lose access to this business immediately.",
             confirmLabel: "Remove",
             tone: "danger",
         }))) {
@@ -142,7 +142,7 @@ export default function TeamPage() {
                         Team Access
                     </h1>
                     <p className="text-white/50 mt-1 max-w-2xl">
-                        People who can sign in to this farm. Everyone here shares the farm&apos;s
+                        People who can sign in to this business. Everyone here shares the business&apos;s
                         subscription. If it lapses, all of these accounts pause together.
                     </p>
                 </div>
@@ -168,7 +168,7 @@ export default function TeamPage() {
                     <UserPlus className="mx-auto text-white/20 mb-4" size={40} />
                     <p className="text-white/70 mb-1">No one else has access yet</p>
                     <p className="text-white/40 text-sm mb-6">
-                        Create a login for someone and they can sign in to this farm.
+                        Create a login for someone and they can sign in to this business.
                     </p>
                     <button
                         onClick={() => setShowAddModal(true)}
@@ -224,7 +224,7 @@ export default function TeamPage() {
                                                         onClick={() => handleRemove(member)}
                                                         className="p-2 rounded-lg text-white/30 hover:text-red-300 hover:bg-red-400/10 transition-all"
                                                         aria-label={`Remove ${member.name || member.email}`}
-                                                        title="Remove from farm"
+                                                        title="Remove from business"
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>

@@ -22,7 +22,7 @@ interface Snapshot {
     };
 }
 
-interface Farm {
+interface Business {
     id: string;
     name: string;
 }
@@ -30,13 +30,13 @@ interface Farm {
 /**
  * The template library.
  *
- * A snapshot is taken from a farm on the Farms page; this is where they are
- * kept, marked as the one new farms start from, applied to a farm that already
+ * A snapshot is taken from a business on the Sub Accounts page; this is where they are
+ * kept, marked as the one new businesses start from, applied to a business that already
  * exists, and thrown away.
  */
 export default function SnapshotsPage() {
     const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
-    const [farms, setFarms] = useState<Farm[]>([]);
+    const [businesses, setBusinesses] = useState<Business[]>([]);
     const [loading, setLoading] = useState(true);
     const [denied, setDenied] = useState(false);
     const [busy, setBusy] = useState<string | null>(null);
@@ -54,11 +54,11 @@ export default function SnapshotsPage() {
             const data = await res.json();
             setSnapshots(data.snapshots ?? []);
 
-            const farmRes = await fetch("/api/admin/organizations");
-            if (farmRes.ok) {
-                const farmData = await farmRes.json();
-                setFarms(
-                    (farmData.organizations ?? []).map((o: { id: string; name: string }) => ({
+            const businessRes = await fetch("/api/admin/organizations");
+            if (businessRes.ok) {
+                const businessData = await businessRes.json();
+                setBusinesses(
+                    (businessData.organizations ?? []).map((o: { id: string; name: string }) => ({
                         id: o.id,
                         name: o.name,
                     }))
@@ -89,8 +89,8 @@ export default function SnapshotsPage() {
             }
             toast.success(
                 snapshot.isDefault
-                    ? "New farms will start from the built-in defaults again"
-                    : `New farms will start from "${snapshot.name}"`
+                    ? "New businesses will start from the built-in defaults again"
+                    : `New businesses will start from "${snapshot.name}"`
             );
             await load();
         } finally {
@@ -102,7 +102,7 @@ export default function SnapshotsPage() {
         const ok = await confirmAction({
             title: `Delete "${snapshot.name}"?`,
             message:
-                "Farms already started from it keep everything they were given. Only the template goes.",
+                "Businesses already started from it keep everything they were given. Only the template goes.",
             confirmLabel: "Delete snapshot",
             tone: "danger",
         });
@@ -125,15 +125,15 @@ export default function SnapshotsPage() {
     async function apply(snapshot: Snapshot) {
         const organizationId = applyTo[snapshot.id];
         if (!organizationId) {
-            toast.error("Choose a farm first");
+            toast.error("Choose a business first");
             return;
         }
-        const farm = farms.find((f) => f.id === organizationId);
+        const business = businesses.find((f) => f.id === organizationId);
 
         const ok = await confirmAction({
-            title: `Apply "${snapshot.name}" to ${farm?.name ?? "this farm"}?`,
+            title: `Apply "${snapshot.name}" to ${business?.name ?? "this business"}?`,
             message:
-                "Adds anything the farm does not already have under the same name. Nothing is removed or overwritten, and no existing records are touched.",
+                "Adds anything the business does not already have under the same name. Nothing is removed or overwritten, and no existing records are touched.",
             confirmLabel: "Apply snapshot",
         });
         if (!ok) return;
@@ -149,13 +149,13 @@ export default function SnapshotsPage() {
                 toast.error((await res.json()).error ?? "Could not apply that snapshot");
                 return;
             }
-            const { applied, farm: farmName } = await res.json();
+            const { applied, business: businessName } = await res.json();
             const added =
                 applied.businessUnits + applied.zones + applied.growthParameters + applied.courses;
             toast.success(
                 added === 0
-                    ? `${farmName} already had everything in this snapshot`
-                    : `Added to ${farmName}`,
+                    ? `${businessName} already had everything in this snapshot`
+                    : `Added to ${businessName}`,
                 {
                     description:
                         added === 0
@@ -186,8 +186,8 @@ export default function SnapshotsPage() {
                     Snapshots
                 </h1>
                 <p className="text-white/50 mt-1 max-w-2xl text-sm">
-                    Farm setups captured as templates. Mark one to start every new farm from it, or
-                    apply one to a farm that already exists. Capture a new snapshot from the Farms
+                    Business setups captured as templates. Mark one to start every new business from it, or
+                    apply one to a business that already exists. Capture a new snapshot from the Sub Accounts
                     page.
                 </p>
             </div>
@@ -199,7 +199,7 @@ export default function SnapshotsPage() {
                     <Camera className="mx-auto text-white/20 mb-3" size={28} />
                     <p className="text-white/50 text-sm">No snapshots yet.</p>
                     <p className="text-white/30 text-xs mt-1">
-                        Set a farm up the way you want, then capture it from the Farms page.
+                        Set a business up the way you want, then capture it from the Sub Accounts page.
                     </p>
                 </div>
             ) : (
@@ -219,7 +219,7 @@ export default function SnapshotsPage() {
                                         <span className="text-white font-medium">{snapshot.name}</span>
                                         {snapshot.isDefault && (
                                             <span className="px-2 py-0.5 rounded-full border border-accent/30 bg-accent/15 text-accent text-[11px]">
-                                                new farms start here
+                                                new businesses start here
                                             </span>
                                         )}
                                         {snapshot.stale && (
@@ -234,7 +234,7 @@ export default function SnapshotsPage() {
                                     <div className="text-xs text-white/35 mt-1.5">
                                         {snapshot.capturedFrom
                                             ? `From ${snapshot.capturedFrom}`
-                                            : "Source farm since deleted"}
+                                            : "Source business since deleted"}
                                         {snapshot.createdBy ? ` · by ${snapshot.createdBy}` : ""}
                                     </div>
 
@@ -261,8 +261,8 @@ export default function SnapshotsPage() {
                                         disabled={busy === snapshot.id || snapshot.stale}
                                         title={
                                             snapshot.isDefault
-                                                ? "Stop new farms starting from this"
-                                                : "Start new farms from this"
+                                                ? "Stop new businesses starting from this"
+                                                : "Start new businesses from this"
                                         }
                                         className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
                                             snapshot.isDefault
@@ -296,11 +296,11 @@ export default function SnapshotsPage() {
                                     className="flex-1 min-w-0 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
                                 >
                                     <option value="" className="bg-neutral-900">
-                                        Apply to an existing farm...
+                                        Apply to an existing business...
                                     </option>
-                                    {farms.map((farm) => (
-                                        <option key={farm.id} value={farm.id} className="bg-neutral-900">
-                                            {farm.name}
+                                    {businesses.map((business) => (
+                                        <option key={business.id} value={business.id} className="bg-neutral-900">
+                                            {business.name}
                                         </option>
                                     ))}
                                 </select>

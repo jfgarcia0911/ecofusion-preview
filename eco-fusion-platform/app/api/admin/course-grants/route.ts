@@ -10,7 +10,7 @@ async function requireStaff(): Promise<string | null> {
     return (await isPlatformAdmin(session.user.id)) ? session.user.id : null;
 }
 
-// GET - Which of EcoFusion's courses one farm currently holds.
+// GET - Which of EcoFusion's courses one business currently holds.
 export async function GET(request: Request) {
     try {
         if (!(await requireStaff())) {
@@ -34,15 +34,15 @@ export async function GET(request: Request) {
     }
 }
 
-// PUT - Set exactly which courses a farm holds.
+// PUT - Set exactly which courses a business holds.
 //
 // The whole set is sent rather than one change at a time, so the request says
-// what the farm should end up with and repeating it changes nothing. Courses
-// dropped from the set are unloaded; the farm's own courses are untouched,
+// what the business should end up with and repeating it changes nothing. Courses
+// dropped from the set are unloaded; the business's own courses are untouched,
 // since they were never grants.
 //
 // Unloading leaves completions alone. Someone who finished a course still
-// finished it, whether or not their farm still carries it.
+// finished it, whether or not their business still carries it.
 export async function PUT(request: Request) {
     try {
         const staffUserId = await requireStaff();
@@ -63,10 +63,10 @@ export async function PUT(request: Request) {
             select: { id: true },
         });
         if (!organization) {
-            return NextResponse.json({ error: 'No such farm' }, { status: 404 });
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
-        // Only EcoFusion's own courses can be loaded. A farm's private course
+        // Only EcoFusion's own courses can be loaded. A business's private course
         // is not ours to hand to anybody, including its author's neighbours.
         const grantable = await prisma.trainingCourse.findMany({
             where: { id: { in: courseIds }, organizationId: null },
@@ -82,8 +82,8 @@ export async function PUT(request: Request) {
         }
 
         // Work out the difference rather than clearing and rewriting, so a
-        // course the farm already had keeps the date it was loaded and the name
-        // of whoever loaded it. Those are the only record of how this farm's
+        // course the business already had keeps the date it was loaded and the name
+        // of whoever loaded it. Those are the only record of how this business's
         // academy came to look the way it does.
         const held = await prisma.courseGrant.findMany({
             where: { organizationId },

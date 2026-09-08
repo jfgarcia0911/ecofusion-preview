@@ -238,7 +238,7 @@ export default function EmployeesPage() {
                         <p className="text-sm text-white/50">
                             They will sign in with{" "}
                             <span className="text-white/80">{grantingFor?.email}</span> and share this
-                            farm&apos;s subscription.
+                            business&apos;s subscription.
                         </p>
                         <div>
                             <label className="block text-sm text-white/60 mb-1.5">

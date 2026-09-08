@@ -10,7 +10,7 @@ async function requireStaff(): Promise<string | null> {
   return (await isPlatformAdmin(session.user.id)) ? session.user.id : null;
 }
 
-// PATCH - Rename a snapshot, or make it the one new farms start from.
+// PATCH - Rename a snapshot, or make it the one new businesses start from.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ snapshotId: string }> }
@@ -60,7 +60,7 @@ export async function PATCH(
 
 // DELETE - Discard a snapshot.
 //
-// Farms already started from it are unaffected: applying copies, so nothing
+// Businesses already started from it are unaffected: applying copies, so nothing
 // downstream refers back to this row.
 export async function DELETE(
   request: Request,
@@ -85,7 +85,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           error:
-            'This is the snapshot new farms start from. Make another one the default first, or clear the default.',
+            'This is the snapshot new businesses start from. Make another one the default first, or clear the default.',
         },
         { status: 400 }
       );

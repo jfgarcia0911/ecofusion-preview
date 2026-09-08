@@ -36,7 +36,7 @@ export function subscriptionPeriodEnd(subscription: Stripe.Subscription): Date |
   return null;
 }
 
-/** Map Stripe's status onto the farm's, which has fewer states. */
+/** Map Stripe's status onto the business's, which has fewer states. */
 function statusFor(subscription: Stripe.Subscription): { status: string; plan: string } {
   // Stripe reports several states; only these two admit a farm.
   if (subscription.status === 'active' || subscription.status === 'trialing') {

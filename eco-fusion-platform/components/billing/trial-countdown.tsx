@@ -43,7 +43,7 @@ export function formatClock(left: Remaining): string {
  * access where it is actually enforced, rather than leaving a stale page that
  * believes the trial is still running.
  *
- * Returns null only when the farm has no trial end date at all.
+ * Returns null only when the business has no trial end date at all.
  */
 export function useTrialCountdown(endsAt: number | null): Remaining | null {
     const [left, setLeft] = useState(() => (endsAt === null ? null : remainingFrom(endsAt)));

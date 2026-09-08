@@ -11,7 +11,7 @@ async function requireStaff() {
     return (await isPlatformAdmin(session.user.id)) ? session.user.id : null;
 }
 
-// POST - Step into a farm.
+// POST - Step into a business.
 //
 // Recorded before the cookie is set, so a crash between the two leaves an
 // entry that overstates the trail rather than one that hides access.
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
             select: { id: true, name: true },
         });
         if (!organization) {
-            return NextResponse.json({ error: 'No such farm' }, { status: 404 });
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
         await logStaffAccess(staffUserId, organization.id, 'enter');
@@ -49,12 +49,12 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ entered: organization.id, name: organization.name });
     } catch (error) {
-        console.error('Failed to enter farm:', error);
-        return NextResponse.json({ error: 'Failed to enter farm' }, { status: 500 });
+        console.error('Failed to enter business:', error);
+        return NextResponse.json({ error: 'Failed to enter business' }, { status: 500 });
     }
 }
 
-// DELETE - Leave the farm and go back to being yourself.
+// DELETE - Leave the business and go back to being yourself.
 export async function DELETE() {
     try {
         const staffUserId = await requireStaff();
@@ -71,7 +71,7 @@ export async function DELETE() {
 
         return NextResponse.json({ left: organizationId ?? null });
     } catch (error) {
-        console.error('Failed to leave farm:', error);
-        return NextResponse.json({ error: 'Failed to leave farm' }, { status: 500 });
+        console.error('Failed to leave business:', error);
+        return NextResponse.json({ error: 'Failed to leave business' }, { status: 500 });
     }
 }

@@ -52,14 +52,14 @@ export async function POST(request: Request) {
 
     if (!canManageMembers(ctx)) {
       return NextResponse.json(
-        { error: 'Only an owner or admin can add people to this farm' },
+        { error: 'Only an owner or admin can add people to this business' },
         { status: 403 }
       );
     }
 
     if (!ctx.access.allowed) {
       return NextResponse.json(
-        { error: 'This farm has no active subscription. Renew it to add people.' },
+        { error: 'This business has no active subscription. Renew it to add people.' },
         { status: 402 }
       );
     }
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: alreadyHere
-            ? 'That person is already on this farm'
+            ? 'That person is already on this business'
             : 'That email already has an account',
         },
         { status: 409 }
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
         select: { id: true, accountId: true },
       });
       if (!employee) {
-        return NextResponse.json({ error: 'That employee is not on this farm' }, { status: 404 });
+        return NextResponse.json({ error: 'That employee is not on this business' }, { status: 404 });
       }
       if (employee.accountId) {
         return NextResponse.json({ error: 'That employee already has a login' }, { status: 409 });
@@ -169,7 +169,7 @@ export async function DELETE(request: Request) {
     });
 
     if (!membership) {
-      return NextResponse.json({ error: 'That person is not on this farm' }, { status: 404 });
+      return NextResponse.json({ error: 'That person is not on this business' }, { status: 404 });
     }
 
     if (membership.role === 'owner') {
@@ -181,7 +181,7 @@ export async function DELETE(request: Request) {
     // would have reversed it.
     if (membership.role === 'admin' && ctx.role !== 'owner') {
       return NextResponse.json(
-        { error: "Only the farm's owner can remove an admin" },
+        { error: "Only the owner can remove an admin" },
         { status: 403 }
       );
     }
@@ -226,7 +226,7 @@ export async function PATCH(request: Request) {
     });
 
     if (!membership) {
-      return NextResponse.json({ error: 'That person is not on this farm' }, { status: 404 });
+      return NextResponse.json({ error: 'That person is not on this business' }, { status: 404 });
     }
 
     // A reset hands over the account, so it follows the same line as changing
@@ -241,7 +241,7 @@ export async function PATCH(request: Request) {
       }
       if (membership.role === 'admin' && ctx.role !== 'owner') {
         return NextResponse.json(
-          { error: "Only the farm's owner can reset an admin's password" },
+          { error: "Only the owner can reset an admin's password" },
           { status: 403 }
         );
       }

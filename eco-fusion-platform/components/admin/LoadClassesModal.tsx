@@ -16,18 +16,18 @@ interface PlatformCourse {
 }
 
 /**
- * Chooses which of EcoFusion's classes a farm carries.
+ * Chooses which of EcoFusion's classes a business carries.
  *
  * The whole selection is saved at once rather than a course at a time, so what
- * is on screen when Save is pressed is what the farm ends up with. Unticking a
- * class takes it out of that farm's academy; it does not touch anyone's record
+ * is on screen when Save is pressed is what the business ends up with. Unticking a
+ * class takes it out of that business's academy; it does not touch anyone's record
  * of having completed it.
  */
 export default function LoadClassesModal({
-    farm,
+    business,
     onClose,
 }: {
-    farm: { id: string; name: string } | null;
+    business: { id: string; name: string } | null;
     onClose: () => void;
 }) {
     const [courses, setCourses] = useState<PlatformCourse[]>([]);
@@ -37,7 +37,7 @@ export default function LoadClassesModal({
     const toast = useToast();
 
     useEffect(() => {
-        if (!farm) return;
+        if (!business) return;
         let cancelled = false;
 
         (async () => {
@@ -45,7 +45,7 @@ export default function LoadClassesModal({
             try {
                 const [catalogue, held] = await Promise.all([
                     fetch("/api/admin/courses").then((r) => r.json()),
-                    fetch(`/api/admin/course-grants?organizationId=${farm.id}`).then((r) => r.json()),
+                    fetch(`/api/admin/course-grants?organizationId=${business.id}`).then((r) => r.json()),
                 ]);
                 if (cancelled) return;
                 setCourses(catalogue.courses ?? []);
@@ -60,7 +60,7 @@ export default function LoadClassesModal({
         return () => {
             cancelled = true;
         };
-    }, [farm, toast]);
+    }, [business, toast]);
 
     function toggle(courseId: string) {
         setSelected((current) => {
@@ -72,13 +72,13 @@ export default function LoadClassesModal({
     }
 
     async function save() {
-        if (!farm) return;
+        if (!business) return;
         setSaving(true);
         try {
             const res = await fetch("/api/admin/course-grants", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ organizationId: farm.id, courseIds: [...selected] }),
+                body: JSON.stringify({ organizationId: business.id, courseIds: [...selected] }),
             });
             if (!res.ok) {
                 toast.error((await res.json()).error ?? "Could not update classes");
@@ -87,8 +87,8 @@ export default function LoadClassesModal({
             const { loaded, unloaded } = await res.json();
             toast.success(
                 loaded || unloaded
-                    ? `${farm.name}: ${loaded} loaded, ${unloaded} unloaded`
-                    : `${farm.name} already had exactly those classes`
+                    ? `${business.name}: ${loaded} loaded, ${unloaded} unloaded`
+                    : `${business.name} already had exactly those classes`
             );
             onClose();
         } finally {
@@ -98,14 +98,14 @@ export default function LoadClassesModal({
 
     return (
         <Modal
-            isOpen={farm !== null}
+            isOpen={business !== null}
             onClose={onClose}
-            title={farm ? `Classes for ${farm.name}` : "Classes"}
+            title={business ? `Classes for ${business.name}` : "Classes"}
             size="lg"
         >
             <p className="text-sm text-white/50 mb-4">
-                Tick the EcoFusion classes this farm should carry. They stay ours: corrections
-                reach every farm holding them, and the farm cannot edit them. Classes the farm
+                Tick the EcoFusion classes this business should carry. They stay ours: corrections
+                reach every business holding them, and the business cannot edit them. Classes the business
                 wrote itself are not listed here and are not affected.
             </p>
 

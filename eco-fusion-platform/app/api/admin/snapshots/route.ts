@@ -56,11 +56,11 @@ export async function GET() {
   }
 }
 
-// POST - Capture a farm's configuration as a snapshot.
+// POST - Capture a business's configuration as a snapshot.
 //
-// Taken from a real farm rather than written by hand, because a farm someone
+// Taken from a real business rather than written by hand, because a business someone
 // has set up properly is a better description of a good setup than a form.
-// Configuration only: nothing that happened on the farm travels.
+// Configuration only: nothing that happened on the business travels.
 export async function POST(request: Request) {
   try {
     const staffUserId = await requireStaff();
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       select: { id: true, name: true },
     });
     if (!organization) {
-      return NextResponse.json({ error: 'No such farm' }, { status: 404 });
+      return NextResponse.json({ error: 'No such business' }, { status: 404 });
     }
 
     const payload = await captureSnapshot(organizationId);

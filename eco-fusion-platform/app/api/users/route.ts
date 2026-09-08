@@ -90,13 +90,13 @@ export async function PATCH(request: Request) {
         if (ctx.role !== 'owner') {
             if (role === 'owner' || membership.role === 'owner') {
                 return NextResponse.json(
-                    { error: "Only the farm's owner can grant or remove ownership" },
+                    { error: "Only the owner can grant or remove ownership" },
                     { status: 403 }
                 );
             }
             if (membership.role === 'admin') {
                 return NextResponse.json(
-                    { error: "Only the farm's owner can change an admin's role" },
+                    { error: "Only the owner can change an admin's role" },
                     { status: 403 }
                 );
             }

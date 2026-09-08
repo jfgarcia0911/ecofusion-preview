@@ -9,7 +9,7 @@
  *   if (!(await confirm({ title: 'Delete this sale?', tone: 'danger' }))) return;
  *
  * Destructive actions default to focusing Cancel, so a stray Enter keypress
- * does not delete a farm's records.
+ * does not delete a business's records.
  */
 
 import React, {

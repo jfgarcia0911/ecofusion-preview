@@ -207,13 +207,82 @@ export async function isSameOrganization(ctx: OrgContext, userId: string): Promi
   return membership !== null;
 }
 
+/** A business name that is safe to put in a URL, and unlike any other. */
+function slugify(name: string, seed: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  // The suffix is what makes it unique. Two businesses may legitimately share
+  // a name - two branches of the same operation - and neither should be the
+  // one that fails to be created.
+  return `${base || 'business'}-${seed.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(-8)}`;
+}
+
 /**
- * Give a new account its own farm.
+ * Create a business and hand it to its owner.
+ *
+ * The single place a business comes into existence, whether someone signed
+ * themselves up or EcoFusion staff set them up. Both routes must produce the
+ * same thing: a trial, an owner, the starting business units, and whatever
+ * the default snapshot carries.
+ */
+export async function provisionOrganization(options: {
+  ownerUserId: string;
+  /** Shown everywhere. Defaults to the owner's name or email. */
+  name: string;
+  /** Fixed id, for the personal business whose id is derived from the user. */
+  organizationId?: string;
+}): Promise<string> {
+  const { ownerUserId, name } = options;
+  const organizationId = options.organizationId ?? `org_${ownerUserId}`;
+
+  // Read before the transaction, so the business's opening configuration is
+  // settled by the time anything is written.
+  const template = await defaultSnapshot();
+  const businessUnits = await startingBusinessUnits();
+
+  await prisma.$transaction([
+    prisma.organization.create({
+      data: {
+        id: organizationId,
+        name,
+        slug: slugify(name, organizationId),
+        subscriptionStatus: 'trialing',
+        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+      },
+    }),
+    prisma.membership.create({
+      data: { userId: ownerUserId, organizationId, role: 'owner' },
+    }),
+    prisma.businessUnit.createMany({
+      data: businessUnits.map((unit) => ({ ...unit, organizationId })),
+    }),
+  ]);
+
+  // The rest of the template - zones, growing parameters, which classes the
+  // business carries. Outside the transaction because a business that exists
+  // with a thin setup is a better outcome than a signup that failed on its
+  // scenery.
+  if (template) {
+    try {
+      await applySnapshot(template, organizationId, ownerUserId);
+    } catch (error) {
+      console.error('[snapshots] could not apply the default to a new business:', error);
+    }
+  }
+
+  return organizationId;
+}
+
+/**
+ * Give a new account its own business.
  *
  * Every user needs an organization or nothing they do has an owner and every
  * request fails authorization. Called when an account is first created, by
  * either sign-in route. Idempotent, so a retry or a race cannot produce two
- * farms for one person.
+ * businesses for one person.
  */
 export async function ensurePersonalOrganization(
   userId: string,
@@ -228,41 +297,11 @@ export async function ensurePersonalOrganization(
   if (existing) return existing.organizationId;
 
   const label = name?.trim() || email?.split('@')[0] || 'My';
-  const organizationId = `org_${userId}`;
-
-  // Read before the transaction, so the farm's opening configuration is
-  // settled by the time anything is written.
-  const template = await defaultSnapshot();
-  const businessUnits = await startingBusinessUnits();
-
-  await prisma.$transaction([
-    prisma.organization.create({
-      data: {
-        id: organizationId,
-        name: `${label} Farm`,
-        slug: `farm-${userId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`,
-        subscriptionStatus: 'trialing',
-        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
-      },
-    }),
-    prisma.membership.create({
-      data: { userId, organizationId, role: 'owner' },
-    }),
-    prisma.businessUnit.createMany({
-      data: businessUnits.map((unit) => ({ ...unit, organizationId })),
-    }),
-  ]);
-
-  // The rest of the template - zones, growing parameters, which classes the
-  // farm carries. Outside the transaction because a farm that exists with a
-  // thin setup is a better outcome than a signup that failed on its scenery.
-  if (template) {
-    try {
-      await applySnapshot(template, organizationId, userId);
-    } catch (error) {
-      console.error('[snapshots] could not apply the default to a new farm:', error);
-    }
-  }
-
-  return organizationId;
+  return provisionOrganization({
+    ownerUserId: userId,
+    name: `${label} Business`,
+    // Derived from the user, so a second attempt collides rather than
+    // quietly producing a second business for the same person.
+    organizationId: `org_${userId}`,
+  });
 }

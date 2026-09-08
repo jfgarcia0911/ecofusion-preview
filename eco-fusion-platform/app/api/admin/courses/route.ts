@@ -5,8 +5,8 @@ import { isPlatformAdmin } from '@/lib/staff';
 
 // GET - EcoFusion's own course catalogue.
 //
-// Platform courses only: a farm's private courses are its own business and are
-// not listed here, even to staff. Seeing inside a farm means entering it.
+// Platform courses only: a business's private courses are its own business and are
+// not listed here, even to staff. Seeing inside a business means entering it.
 export async function GET() {
     try {
         const session = await auth();
@@ -43,7 +43,7 @@ export async function GET() {
                 isRequired: course.isRequired,
                 isActive: course.isActive,
                 lessonCount: course._count.lessons,
-                loadedIntoFarms: course._count.grants,
+                loadedIntoBusinesses: course._count.grants,
             })),
         });
     } catch (error) {

@@ -8,7 +8,7 @@ import { getOrgContext, evaluateAccess, TRIAL_DAYS } from "@/lib/tenancy";
 import { isBillingConfigured, isTestMode } from "@/lib/stripe";
 import { syncSubscriptionFromStripe } from "@/lib/billing";
 
-// Outside the (platform) group on purpose: this is the one page a farm can
+// Outside the (platform) group on purpose: this is the one page a business can
 // still reach once its access has lapsed.
 export default async function BillingPage({
     searchParams,
@@ -63,10 +63,10 @@ export default async function BillingPage({
                   );
 
     const explanation = access.allowed
-        ? `Every part of ${org?.name ?? "your farm"} is available until your trial ends. Subscribe any time to keep it.`
+        ? `Every part of ${org?.name ?? "your business"} is available until your trial ends. Subscribe any time to keep it.`
         : isOwner
-          ? `Access to ${org?.name ?? "your farm"} is paused. Your data is safe and nothing has been deleted. Subscribing restores everything exactly as you left it.`
-          : `Access to ${org?.name ?? "this farm"} is paused. The farm's owner needs to renew the subscription; anyone they added shares the same access.`;
+          ? `Access to ${org?.name ?? "your business"} is paused. Your data is safe and nothing has been deleted. Subscribing restores everything exactly as you left it.`
+          : `Access to ${org?.name ?? "this business"} is paused. The owner needs to renew the subscription; anyone they added shares the same access.`;
 
     return (
         <main className="flex items-center justify-center min-h-screen bg-primary font-sans p-6">
@@ -82,7 +82,7 @@ export default async function BillingPage({
 
                     <dl className="space-y-3 mb-8">
                         <div className="flex items-center justify-between py-3 px-4 bg-white/5 rounded-xl">
-                            <dt className="text-sm text-white/50">Farm</dt>
+                            <dt className="text-sm text-white/50">Business</dt>
                             <dd className="text-sm font-medium text-white">{org?.name ?? "-"}</dd>
                         </div>
                         <div className="flex items-center justify-between py-3 px-4 bg-white/5 rounded-xl">
@@ -109,7 +109,7 @@ export default async function BillingPage({
                         <SubscribeButton configured={isBillingConfigured()} />
                     ) : (
                         <p className="text-center text-sm text-white/40 py-3">
-                            Only the farm&apos;s owner can manage the subscription.
+                            Only the business&apos;s owner can manage the subscription.
                         </p>
                     )}
 

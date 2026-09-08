@@ -14,7 +14,7 @@ export async function POST() {
     // The subscription belongs to the farm, so only its owner may buy it.
     if (ctx.role !== 'owner') {
       return NextResponse.json(
-        { error: "Only the farm's owner can manage the subscription" },
+        { error: "Only the owner can manage the subscription" },
         { status: 403 }
       );
     }
