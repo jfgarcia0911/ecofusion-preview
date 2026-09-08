@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Camera, ScrollText, ArrowLeft } from "lucide-react";
+import { Building2, KeyRound, Camera, ScrollText, ArrowLeft } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -22,6 +22,7 @@ interface User {
  */
 const agencyNavItems = [
     { name: "Sub Accounts", href: "/agency/sub-accounts", icon: Building2 },
+    { name: "Team Access", href: "/agency/team", icon: KeyRound },
     { name: "Snapshots", href: "/agency/snapshots", icon: Camera },
     { name: "Access Log", href: "/agency/access-log", icon: ScrollText },
 ];
