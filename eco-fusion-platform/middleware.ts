@@ -36,8 +36,15 @@ export default async function middleware(request: NextRequest) {
       );
     }
 
+    // Carry the method and path forward so a route handler's callees can see
+    // them. Nothing downstream can reach the request itself, and the staff
+    // access trail needs to name the change it is recording.
+    const forwarded = new Headers(request.headers);
+    forwarded.set('x-request-method', request.method);
+    forwarded.set('x-request-path', pathname);
+
     // Add rate limit headers to successful requests
-    const response = NextResponse.next();
+    const response = NextResponse.next({ request: { headers: forwarded } });
     const headers = getRateLimitHeaders(rateLimitResult);
     Object.entries(headers).forEach(([key, value]) => {
       response.headers.set(key, value);

@@ -1,16 +1,26 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal } from "lucide-react";
+import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2 } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
     name?: string | null;
     image?: string | null;
+    /**
+     * The account's standing on the platform, not within a farm. Only
+     * EcoFusion staff hold 'admin' here; a customer's own administrator is an
+     * admin in `orgRole` and an ordinary 'user' in this one.
+     */
     role?: string;
     /** Role held in the current organization: owner | admin | manager | member. */
     orgRole?: string;
 }
+
+/** Reachable only by EcoFusion staff, and only ever about other farms. */
+const staffNavItems = [
+    { name: "Farms", href: "/admin/farms", icon: Building2, tourId: undefined },
+];
 
 // Base navigation items for all users
 const baseNavItems = [
@@ -53,11 +63,16 @@ export default function Sidebar({ user }: { user?: User }) {
     const role = user?.orgRole ?? user?.role;
     const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
 
+    // Staff is a fact about the account itself, so it is read from the global
+    // role rather than from `role` above, which resolves to the farm.
+    const isStaff = user?.role === 'admin';
+
     // Build nav items based on role
     const navItems = [
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
         ...commonNavItems,
+        ...(isStaff ? staffNavItems : []),
     ];
 
     return (

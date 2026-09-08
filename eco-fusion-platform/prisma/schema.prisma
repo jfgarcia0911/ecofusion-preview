@@ -47,6 +47,7 @@ model User {
   zones               Zone[]
   memberships         Membership[]
   employeeRecord      Employee?             @relation("EmployeeAccount")
+  staffAccess         StaffAccessLog[]      @relation("StaffAccess")
 }
 
 model Account {
@@ -651,6 +652,31 @@ model Organization {
   alerts              Alert[]
   cameras             Camera[]
   phaseSettings       PhaseSettings[]
+  staffAccess         StaffAccessLog[]
+}
+
+/// Every time EcoFusion staff work inside a customer's farm.
+///
+/// Staff reach farms they are not members of, so the organization scoping that
+/// accounts for everyone else cannot account for them. Entering a farm is
+/// written here, as is each change made while inside one, and the app never
+/// deletes from this table.
+model StaffAccessLog {
+  id             String   @id @default(cuid())
+  staffUserId    String
+  organizationId String
+  /// enter | leave | write
+  action         String
+  /// Method and path of the request, for a write. Null for enter and leave.
+  method         String?
+  path           String?
+  createdAt      DateTime @default(now())
+
+  staffUser    User         @relation("StaffAccess", fields: [staffUserId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([staffUserId, createdAt])
 }
 
 /// A user's role is held per organization, not on the user record, so the same

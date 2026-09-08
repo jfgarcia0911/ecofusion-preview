@@ -6,6 +6,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
 import TrialBanner from "@/components/layout/TrialBanner";
+import StaffBanner from "@/components/layout/StaffBanner";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
@@ -19,9 +20,18 @@ export default async function DashboardLayout({
     // Access belongs to the farm, so one check here covers every page for every
     // member, including accounts an owner created for staff.
     const ctx = await getOrgContext();
-    if (ctx && !ctx.access.allowed) {
+    // A lapsed farm is often why staff were called in, so it opens for them.
+    if (ctx && !ctx.access.allowed && !ctx.isStaff) {
         redirect("/billing");
     }
+
+    // Named rather than left as an id, so the banner can say whose farm this is.
+    const staffFarm = ctx?.isStaff
+        ? await prisma.organization.findUnique({
+              where: { id: ctx.organizationId },
+              select: { name: true },
+          })
+        : null;
 
     // Check if user needs onboarding
     let showOnboarding = false;
@@ -43,7 +53,12 @@ export default async function DashboardLayout({
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
-                        {ctx && (
+                        {staffFarm && (
+                            <div className="mb-6">
+                                <StaffBanner farmName={staffFarm.name} />
+                            </div>
+                        )}
+                        {ctx && !ctx.isStaff && (
                             <div className="mb-6">
                                 <TrialBanner access={ctx.access} />
                             </div>
