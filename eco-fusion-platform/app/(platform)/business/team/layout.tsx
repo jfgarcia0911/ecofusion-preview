@@ -2,16 +2,15 @@ import { redirect } from "next/navigation";
 import { getOrgContext } from "@/lib/tenancy";
 
 /**
- * Team Access belongs to the owner.
+ * Team Access is EcoFusion's view of who can sign in to a business.
  *
- * The sidebar stops showing the link to everyone else, but a link is not a
- * lock: the page is a URL somebody can type, and an account created for an
- * employee must not reach it by doing so. Checked on the server, where the
- * answer cannot be edited.
+ * An owner does not come here. They manage their people under Employees, where
+ * giving somebody a login sits beside the record of who that person is and what
+ * they do - one screen for one subject, rather than two that overlap.
  *
- * Staff who have stepped into a business are turned away here as well. They
- * act with an administrator's powers and not an owner's, and who holds a login
- * to a customer's business is the customer's decision.
+ * This is the same list without the employment side of it, which is what staff
+ * need when looking at a business they did not staff themselves. Anyone else is
+ * sent to Employees, which is the screen they actually wanted.
  */
 export default async function TeamAccessLayout({
     children,
@@ -20,7 +19,7 @@ export default async function TeamAccessLayout({
 }) {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
-    if (ctx.role !== "owner" || ctx.isStaff) redirect("/dashboard/executive");
+    if (!ctx.isStaff) redirect("/business/employees");
 
     return <>{children}</>;
 }

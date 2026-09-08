@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2 } from "lucide-react";
+import { KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2 } from "lucide-react";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 import SettingsNav from "@/components/layout/SettingsNav";
@@ -61,7 +61,12 @@ const userNavItems = [
  * the address, which is how the sub account list, the snapshot library and the
  * class loader all sat finished and unreachable.
  */
+// Only EcoFusion sees these, and only while inside a customer's business.
 const staffNavItems = [
+    // The owner's equivalent is Employees, which is the same people with the
+    // employment side attached. Staff looking at a business they did not staff
+    // want the logins on their own.
+    { name: "Team Access", href: "/business/team", icon: KeyRound, tourId: undefined },
     { name: "Agency", href: "/agency", icon: Building2, tourId: undefined },
 ];
 

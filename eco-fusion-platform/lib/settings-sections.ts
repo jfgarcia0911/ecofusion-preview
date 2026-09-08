@@ -6,9 +6,10 @@
  * know that changing a password changes it everywhere, and that renaming a
  * business unit changes it in one place only.
  *
- * Team Access sits in the account half. A login is not a thing a business
- * owns - one person can work in several - so the screen that grants them is
- * about the account and says, per person, which businesses they reach.
+ * Team Access is not here. An owner manages their people in one place, under
+ * Employees, where giving somebody a login sits beside the record of who they
+ * are. The screen that lists memberships on their own is EcoFusion's, for
+ * looking at a business it did not staff.
  *
  * Held here rather than on the settings page because the sidebar shows the
  * same list while you are inside settings. Two copies would drift, and the
@@ -18,7 +19,6 @@
 
 import {
     CreditCard,
-    KeyRound,
     GraduationCap,
     Settings as SettingsIcon,
     ScrollText,
@@ -38,13 +38,6 @@ export interface SettingsSection {
 
 /** Follows the account. Changing one of these changes it in every business. */
 export const ACCOUNT_SECTIONS: SettingsSection[] = [
-    {
-        href: '/business/team',
-        name: 'Team Access',
-        description: 'Create logins, and choose which businesses each person reaches.',
-        icon: KeyRound,
-        ownerOnly: true,
-    },
     {
         href: '/admin/training',
         name: 'Training Management',
