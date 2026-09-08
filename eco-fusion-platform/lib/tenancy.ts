@@ -17,6 +17,7 @@ import {
   logStaffWriteIfAny,
 } from '@/lib/staff';
 import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
+import { logMemberWriteIfAny } from '@/lib/activity';
 
 /** Days a new farm may use the platform before it has to subscribe. */
 export const TRIAL_DAYS = 15;
@@ -213,6 +214,11 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     select,
   });
   if (!membership) return null;
+
+  // The business's own record of what its people did. Staff changes are
+  // recorded by resolveStaffContext instead, into the separate trail an owner
+  // reads to see who from EcoFusion has been in.
+  await logMemberWriteIfAny(session.user.id, membership.organizationId);
 
   return {
     userId: session.user.id,

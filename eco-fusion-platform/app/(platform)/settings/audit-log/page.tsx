@@ -6,16 +6,21 @@ import { ArrowLeft, ScrollText, LogIn, LogOut, PenLine, ShieldCheck } from "luci
 
 interface Entry {
     id: string;
+    /** staff = EcoFusion coming in. member = the business's own people. */
+    by: "staff" | "member";
     action: string;
     method: string | null;
     path: string | null;
     createdAt: string;
-    staffUser: { name: string | null; email: string } | null;
+    who: { name: string | null; email: string } | null;
 }
 
 const ACTIONS: Record<string, { label: string; icon: typeof LogIn; tint: string }> = {
+    // EcoFusion staff.
     enter: { label: "Opened this business", icon: LogIn, tint: "text-info" },
     leave: { label: "Left this business", icon: LogOut, tint: "text-white/40" },
+    // Your own people.
+    signin: { label: "Signed in", icon: LogIn, tint: "text-white/40" },
     write: { label: "Made a change", icon: PenLine, tint: "text-warning" },
 };
 
@@ -66,8 +71,9 @@ export default function AuditLogPage() {
                     Access Record
                 </h1>
                 <p className="text-white/50 mt-2">
-                    Every time EcoFusion staff opened this business, and every change they
-                    made while they were in it. Written by the platform and never edited.
+                    Who has been in this business and what they changed: your own
+                    people signing in and making changes, and any time EcoFusion
+                    support opened it. Written by the platform and never edited.
                 </p>
             </div>
 
@@ -82,10 +88,11 @@ export default function AuditLogPage() {
             ) : entries.length === 0 && !error ? (
                 <div className="flex flex-col items-center text-center py-16 rounded-2xl border border-white/10 bg-white/[0.02]">
                     <ShieldCheck size={36} className="text-accent/60 mb-4" />
-                    <p className="text-white font-semibold">Nobody has been in</p>
+                    <p className="text-white font-semibold">Nothing recorded yet</p>
                     <p className="text-sm text-white/45 mt-1.5 max-w-sm">
-                        No EcoFusion staff has opened this business. If support ever does,
-                        every visit and change will be listed here.
+                        Nobody has signed in or changed anything since this record began.
+                        Sign-ins, changes, and any visit by EcoFusion support will appear
+                        here.
                     </p>
                 </div>
             ) : (
@@ -111,8 +118,17 @@ export default function AuditLogPage() {
                                             </span>
                                         )}
                                     </p>
-                                    <p className="text-xs text-white/40 mt-0.5">
-                                        {entry.staffUser?.name || entry.staffUser?.email || "A staff account"}
+                                    <p className="text-xs text-white/40 mt-0.5 flex items-center gap-1.5">
+                                        <span
+                                            className={`px-1.5 py-0.5 rounded border text-[10px] ${
+                                                entry.by === "staff"
+                                                    ? "border-info/30 bg-info/10 text-info"
+                                                    : "border-white/10 bg-white/[0.04] text-white/45"
+                                            }`}
+                                        >
+                                            {entry.by === "staff" ? "EcoFusion" : "Your team"}
+                                        </span>
+                                        {entry.who?.name || entry.who?.email || "A deleted account"}
                                     </p>
                                 </div>
                                 <time

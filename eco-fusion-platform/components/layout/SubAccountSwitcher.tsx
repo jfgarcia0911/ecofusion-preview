@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, Search, Undo2, Pin, PinOff, Plus } from "lucide-react";
+import { ChevronsUpDown, Search, Undo2, Pin, PinOff } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
 interface SubAccount {
@@ -61,23 +61,17 @@ export default function SubAccountSwitcher({
     business,
     isStaff,
     canSwitchOwn = false,
-    canCreateBusiness = false,
 }: {
     business: { name: string; location: string | null } | null;
     isStaff: boolean;
     /** True when this account belongs to more than one business of its own. */
     canSwitchOwn?: boolean;
-    /** True when this account owns a business and may therefore add another. */
-    canCreateBusiness?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [accounts, setAccounts] = useState<SubAccount[]>([]);
     const [loading, setLoading] = useState(false);
     const [entering, setEntering] = useState<string | null>(null);
-    const [adding, setAdding] = useState(false);
-    const [newName, setNewName] = useState("");
-    const [creating, setCreating] = useState(false);
     const [recent, setRecent] = useState<string[]>([]);
     const [pinned, setPinned] = useState<string[]>([]);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -202,38 +196,6 @@ export default function SubAccountSwitcher({
         }
     }
 
-    async function createBusiness(event: React.FormEvent) {
-        event.preventDefault();
-        const name = newName.trim();
-        if (!name || creating) return;
-
-        setCreating(true);
-        try {
-            const res = await fetch("/api/organizations", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                toast.error(data.error ?? "Could not add that business");
-                return;
-            }
-            // The route already made it the active one, so the reload lands
-            // inside the business that was just created.
-            toast.success(`${name} is ready`);
-            setOpen(false);
-            setAdding(false);
-            setNewName("");
-            router.push("/dashboard/executive");
-            router.refresh();
-        } catch {
-            toast.error("Could not add that business");
-        } finally {
-            setCreating(false);
-        }
-    }
-
     const label = business?.name ?? "No business";
     const initial = label[0]?.toUpperCase() ?? "?";
 
@@ -306,52 +268,6 @@ export default function SubAccountSwitcher({
                         </Link>
                     )}
 
-                    {canCreateBusiness && !adding && (
-                        <button
-                            type="button"
-                            onClick={() => setAdding(true)}
-                            className="w-full flex items-center gap-2 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
-                        >
-                            <Plus size={15} />
-                            Add a business
-                        </button>
-                    )}
-
-                    {canCreateBusiness && adding && (
-                        <form onSubmit={createBusiness} className="px-4 py-3 border-t border-white/10 space-y-2">
-                            <label htmlFor="new-business-name" className="block text-xs text-white/50">
-                                Name the new business
-                            </label>
-                            <input
-                                id="new-business-name"
-                                autoFocus
-                                value={newName}
-                                onChange={(e) => setNewName(e.target.value)}
-                                maxLength={100}
-                                placeholder="Second Site"
-                                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 text-sm"
-                            />
-                            <p className="text-[11px] text-white/35">
-                                Covered by the subscription you already have.
-                            </p>
-                            <div className="flex gap-2 pt-1">
-                                <button
-                                    type="submit"
-                                    disabled={!newName.trim() || creating}
-                                    className="flex-1 py-2 rounded-lg bg-accent text-primary text-sm font-bold disabled:opacity-50"
-                                >
-                                    {creating ? "Creating..." : "Create"}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setAdding(false); setNewName(""); }}
-                                    className="px-3 py-2 rounded-lg border border-white/10 text-sm text-white/60 hover:text-white"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    )}
 
                     <div className="max-h-80 overflow-y-auto custom-scrollbar border-t border-white/10">
                         {loading && accounts.length === 0 ? (

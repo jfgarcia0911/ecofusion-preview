@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext } from "@/lib/tenancy";
+import { isPlatformAdmin } from "@/lib/staff";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
@@ -23,6 +24,14 @@ export default async function DashboardLayout({
     // A lapsed business is often why staff were called in, so it opens for them.
     if (ctx && !ctx.access.allowed && !ctx.isStaff) {
         redirect("/billing");
+    }
+
+    // A support account belongs to no business, which is the point of it: it is
+    // not somebody's employee and holds nothing of its own. These screens are
+    // all scoped to a business, so without one there is nothing here to show -
+    // the agency view is where that account actually works.
+    if (!ctx && session?.user?.id && (await isPlatformAdmin(session.user.id))) {
+        redirect("/agency");
     }
 
     // Named rather than left as an id, so the sidebar and the banner can both
@@ -70,8 +79,7 @@ export default async function DashboardLayout({
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
-                <Sidebar user={session?.user} business={business} canSwitchOwn={canSwitchOwn}
-                    canCreateBusiness={canCreateBusiness} isOwner={isOwner} />
+                <Sidebar user={session?.user} business={business} canSwitchOwn={canSwitchOwn} isOwner={isOwner} />
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">

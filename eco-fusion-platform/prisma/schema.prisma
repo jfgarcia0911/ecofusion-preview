@@ -50,6 +50,7 @@ model User {
   staffAccess         StaffAccessLog[]      @relation("StaffAccess")
   grantedCourses      CourseGrant[]         @relation("GrantedCourses")
   capturedSnapshots   Snapshot[]            @relation("CapturedSnapshots")
+  activity            ActivityLog[]         @relation("MemberActivity")
 }
 
 model Account {
@@ -707,6 +708,7 @@ model Organization {
   cameras             Camera[]
   phaseSettings       PhaseSettings[]
   staffAccess         StaffAccessLog[]
+  activity            ActivityLog[]
   trainingCourses     TrainingCourse[]
   courseGrants        CourseGrant[]
   snapshotsTakenFrom  Snapshot[]           @relation("SnapshotSource")
@@ -753,6 +755,34 @@ model Snapshot {
 /// accounts for everyone else cannot account for them. Entering a farm is
 /// written here, as is each change made while inside one, and the app never
 /// deletes from this table.
+/// What a business's own people did in it.
+///
+/// Separate from StaffAccessLog, which records EcoFusion visiting somebody
+/// else's business and is a different kind of fact. This one is the business's
+/// own record of itself: who signed in, and who changed what.
+///
+/// Written by the platform and never edited or deleted by it. A record its
+/// subject could revise would not be worth showing them.
+model ActivityLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  /// signin | write
+  action         String
+  /// Method and path of the request, for a write. Null for a sign-in.
+  method         String?
+  path           String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Kept when the account goes, so the record does not quietly lose entries.
+  user         User?        @relation("MemberActivity", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+
 model StaffAccessLog {
   id             String   @id @default(cuid())
   staffUserId    String

@@ -80,7 +80,6 @@ export default function Sidebar({
     user,
     business,
     canSwitchOwn = false,
-    canCreateBusiness = false,
     isOwner = false,
 }: {
     user?: User;
@@ -88,8 +87,6 @@ export default function Sidebar({
     business?: { name: string; location: string | null } | null;
     /** True when this account holds more than one business of its own. */
     canSwitchOwn?: boolean;
-    /** True when this account owns a business and may add another. */
-    canCreateBusiness?: boolean;
     /**
      * Whether this reader owns the business they are looking at. Decided by the
      * layout from the request's own context rather than from the session, which
@@ -140,7 +137,6 @@ export default function Sidebar({
                 business={business ?? null}
                 isStaff={isStaff}
                 canSwitchOwn={canSwitchOwn}
-                canCreateBusiness={canCreateBusiness}
             />
 
             {inSettings ? (
