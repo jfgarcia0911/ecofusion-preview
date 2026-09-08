@@ -85,6 +85,19 @@ export function canAdminister(ctx: OrgContext): boolean {
 }
 
 /**
+ * Roles allowed to change who reaches the farm and how it connects to other
+ * systems: adding and removing people, resetting their passwords, setting
+ * their roles, and holding the integration credentials.
+ *
+ * Narrower than `canAdminister` on purpose. A manager runs the working week;
+ * deciding who has a login, and what an outside system may do with the farm's
+ * data, belongs with the people answerable for the farm itself.
+ */
+export function canManageMembers(ctx: OrgContext): boolean {
+  return ctx.role === 'owner' || ctx.role === 'admin';
+}
+
+/**
  * The signed-in user's organization, or null when there is no session.
  *
  * Reads from the token where possible. Sessions issued before organizations

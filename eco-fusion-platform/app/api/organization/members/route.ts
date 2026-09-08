@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { getOrgContext } from '@/lib/tenancy';
+import { getOrgContext, canManageMembers } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
 
 const ROLES = ['admin', 'manager', 'member'];
-
-function canManageMembers(role: string) {
-  return role === 'owner' || role === 'admin';
-}
 
 // GET - Everyone with access to this farm.
 export async function GET() {
@@ -54,7 +50,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!canManageMembers(ctx.role)) {
+    if (!canManageMembers(ctx)) {
       return NextResponse.json(
         { error: 'Only an owner or admin can add people to this farm' },
         { status: 403 }
@@ -158,7 +154,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!canManageMembers(ctx.role)) {
+    if (!canManageMembers(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -178,6 +174,16 @@ export async function DELETE(request: Request) {
 
     if (membership.role === 'owner') {
       return NextResponse.json({ error: 'The owner cannot be removed' }, { status: 400 });
+    }
+
+    // Removing an admin is the same decision as demoting one, so it rests with
+    // the owner too. Otherwise an admin could simply delete the colleagues who
+    // would have reversed it.
+    if (membership.role === 'admin' && ctx.role !== 'owner') {
+      return NextResponse.json(
+        { error: "Only the farm's owner can remove an admin" },
+        { status: 403 }
+      );
     }
 
     await prisma.membership.delete({ where: { id: membership.id } });
@@ -200,7 +206,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!canManageMembers(ctx.role)) {
+    if (!canManageMembers(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -223,12 +229,22 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'That person is not on this farm' }, { status: 404 });
     }
 
-    // An admin must not be able to seize the owner's account.
-    if (membership.role === 'owner' && ctx.userId !== userId) {
-      return NextResponse.json(
-        { error: "Only the owner can change the owner's password" },
-        { status: 403 }
-      );
+    // A reset hands over the account, so it follows the same line as changing
+    // someone's role: an admin must not be able to seize the owner's account,
+    // nor a fellow admin's. Resetting your own password is always allowed.
+    if (ctx.userId !== userId) {
+      if (membership.role === 'owner') {
+        return NextResponse.json(
+          { error: "Only the owner can change the owner's password" },
+          { status: 403 }
+        );
+      }
+      if (membership.role === 'admin' && ctx.role !== 'owner') {
+        return NextResponse.json(
+          { error: "Only the farm's owner can reset an admin's password" },
+          { status: 403 }
+        );
+      }
     }
 
     await prisma.user.update({

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { getOrgContext, canAdminister, canManageMembers } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - People in the caller's organization (admin only)
@@ -52,7 +52,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+        if (!canManageMembers(ctx)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
@@ -78,6 +78,28 @@ export async function PATCH(request: Request) {
                 { error: 'That person is not a member of this organization' },
                 { status: 404 }
             );
+        }
+
+        // Who is an owner, and who is an admin, is the owner's call alone.
+        //
+        // An admin able to grant ownership would promote itself and then demote
+        // the owner straight past the last-owner guard below, taking the farm
+        // and its billing with it. An admin able to demote a fellow admin could
+        // do the same thing sideways, by stripping everyone who might undo it.
+        // The password reset in organization/members already draws this line.
+        if (ctx.role !== 'owner') {
+            if (role === 'owner' || membership.role === 'owner') {
+                return NextResponse.json(
+                    { error: "Only the farm's owner can grant or remove ownership" },
+                    { status: 403 }
+                );
+            }
+            if (membership.role === 'admin') {
+                return NextResponse.json(
+                    { error: "Only the farm's owner can change an admin's role" },
+                    { status: 403 }
+                );
+            }
         }
 
         // An organization must keep at least one owner.

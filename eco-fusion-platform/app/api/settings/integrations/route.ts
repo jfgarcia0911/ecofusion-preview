@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { getOrgContext, canManageMembers } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
@@ -60,12 +60,20 @@ export async function GET() {
   }
 }
 
-// POST - Create or update integration settings
+// POST - Create or update integration settings.
+//
+// Writing here hands an outside system the farm's data, so it is owner and
+// admin only. Reading stays open: the key comes back masked, and anyone may
+// need to see whether the integration is connected.
 export async function POST(request: Request) {
   try {
     const ctx = await getOrgContext();
     if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!canManageMembers(ctx)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const data = await request.json();
@@ -111,12 +119,16 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Remove integration settings
+// DELETE - Remove integration settings.
 export async function DELETE() {
   try {
     const ctx = await getOrgContext();
     if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!canManageMembers(ctx)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     await prisma.integrationSettings.delete({
