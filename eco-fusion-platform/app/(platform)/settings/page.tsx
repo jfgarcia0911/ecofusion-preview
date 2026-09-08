@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
     CreditCard, KeyRound, GraduationCap, Settings as SettingsIcon,
-    ScrollText, SlidersHorizontal, ChevronRight, Lock, Building2, UserCog,
+    ScrollText, SlidersHorizontal, ChevronRight, Lock, Building2, UserCog, Layers,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext } from "@/lib/tenancy";
@@ -47,6 +47,13 @@ const ACCOUNT_SECTIONS: Section[] = [
 
 /** Stops at the business you are in. Each one you run has its own. */
 const BUSINESS_SECTIONS: Section[] = [
+    {
+        href: "/settings/business-units",
+        name: "Business Units",
+        description: "The silos this business runs, and what lands in each.",
+        icon: Layers,
+        ownerOnly: true,
+    },
     {
         href: "/business/team",
         name: "Team Access",

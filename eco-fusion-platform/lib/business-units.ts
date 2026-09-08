@@ -36,7 +36,50 @@ export interface BusinessUnitView {
 }
 
 /**
- * What a new farm starts with: EcoFusion's seven silos, matching the values
+ * Colours a silo may take.
+ *
+ * A fixed list rather than free text, because Tailwind ships only the classes
+ * it finds in the source. A gradient typed into a form and stored in the
+ * database is a class name nothing scanned, so it would reach the browser
+ * meaning nothing and the silo would render with no colour at all. Every value
+ * here is written out as a literal for exactly that reason.
+ */
+export const UNIT_PALETTES = [
+  { name: 'Blue',   color: 'from-blue-400 to-blue-600',     accent: 'text-blue-400' },
+  { name: 'Green',  color: 'from-green-400 to-emerald-600', accent: 'text-green-400' },
+  { name: 'Grey',   color: 'from-gray-400 to-gray-600',     accent: 'text-gray-400' },
+  { name: 'Amber',  color: 'from-amber-600 to-yellow-600',  accent: 'text-amber-500' },
+  { name: 'Purple', color: 'from-purple-400 to-purple-600', accent: 'text-purple-400' },
+  { name: 'Orange', color: 'from-orange-400 to-red-500',    accent: 'text-orange-400' },
+  { name: 'Yellow', color: 'from-yellow-300 to-orange-400', accent: 'text-yellow-300' },
+  { name: 'Teal',   color: 'from-teal-400 to-cyan-600',     accent: 'text-teal-400' },
+  { name: 'Rose',   color: 'from-rose-400 to-pink-600',     accent: 'text-rose-400' },
+  { name: 'Indigo', color: 'from-indigo-400 to-indigo-600', accent: 'text-indigo-400' },
+];
+
+/** Whether a colour pair is one this build actually ships classes for. */
+export function isKnownPalette(color: string, accent: string): boolean {
+  return UNIT_PALETTES.some((p) => p.color === color && p.accent === accent);
+}
+
+/**
+ * A stable identifier derived from a title.
+ *
+ * Sales, tasks and phase settings record a silo by this key as a plain string
+ * with no foreign key behind it, so it is set once when the silo is created
+ * and never changed: editing it would leave that history pointing at a silo
+ * that no longer answers.
+ */
+export function keyFromTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+/**
+ * What a new business starts with: EcoFusion's seven silos, matching the values
  * the organizations migration seeded for existing accounts. An operator can
  * disable, reorder or replace any of them afterwards.
  */

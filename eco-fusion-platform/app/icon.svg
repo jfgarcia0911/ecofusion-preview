@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="EcoFusion">
+  <!--
+    The same mark the app wears inside itself: the accent tile with a dark leaf,
+    as drawn on the billing screen and the sign-in card.
+
+    Filled rather than stroked. Lucide's leaf is an outline, which at 16px in a
+    tab strip thins to grey fuzz; a solid silhouette on a bright tile survives
+    the size, which is the only size a favicon is ever judged at.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5ee88f"/>
+      <stop offset="1" stop-color="#3ecf72"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7.5" fill="url(#tile)"/>
+
+  <g transform="translate(4.3 3.7) scale(0.97)"
+     fill="#05140e" stroke="#05140e"
+     stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Blade. A closed path, so it fills as one shape. -->
+    <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+    <!-- Stem, which is what stops the blade reading as a plain blob. -->
+    <path fill="none" d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+  </g>
+</svg>
