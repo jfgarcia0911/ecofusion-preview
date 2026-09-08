@@ -24,6 +24,7 @@ export default function CreateSubAccountModal({
     onCreated: (business: SubAccount) => void;
 }) {
     const [name, setName] = useState("");
+    const [location, setLocation] = useState("");
     const [ownerName, setOwnerName] = useState("");
     const [ownerEmail, setOwnerEmail] = useState("");
     const [ownerPassword, setOwnerPassword] = useState("");
@@ -33,6 +34,7 @@ export default function CreateSubAccountModal({
     useEffect(() => {
         if (open) {
             setName("");
+            setLocation("");
             setOwnerName("");
             setOwnerEmail("");
             setOwnerPassword("");
@@ -53,6 +55,7 @@ export default function CreateSubAccountModal({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: name.trim(),
+                    location: location.trim(),
                     ownerName: ownerName.trim(),
                     ownerEmail: ownerEmail.trim(),
                     ownerPassword,
@@ -91,15 +94,29 @@ export default function CreateSubAccountModal({
                     </p>
                 </div>
 
-                <label className="flex flex-col gap-1.5">
-                    <span className="text-xs text-white/50">Business name</span>
-                    <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
-                        placeholder="Riverbend Aquaponics"
-                    />
-                </label>
+                <div className="grid grid-cols-2 gap-3">
+                    <label className="flex flex-col gap-1.5">
+                        <span className="text-xs text-white/50">Business name</span>
+                        <input
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
+                            placeholder="Riverbend Aquaponics"
+                        />
+                    </label>
+
+                    <label className="flex flex-col gap-1.5">
+                        <span className="text-xs text-white/50">
+                            Location <span className="text-white/25">(optional)</span>
+                        </span>
+                        <input
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                            className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
+                            placeholder="701 Whitelock St, Baltimore, MD"
+                        />
+                    </label>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1.5">

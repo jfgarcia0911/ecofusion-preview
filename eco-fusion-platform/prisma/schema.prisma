@@ -658,6 +658,11 @@ model Organization {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  /// Where the business is, written the way somebody would say it out loud:
+  /// "701 Whitelock St, Baltimore, MD". Free text and optional, because it
+  /// exists to tell two businesses of similar name apart in a list, not to be
+  /// posted to. Nothing routes, bills or reports on it.
+  location  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

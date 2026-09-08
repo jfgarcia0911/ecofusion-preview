@@ -38,6 +38,7 @@ export async function GET(request: Request) {
                 id: true,
                 name: true,
                 slug: true,
+                location: true,
                 plan: true,
                 subscriptionStatus: true,
                 trialEndsAt: true,
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
                 id: org.id,
                 name: org.name,
                 slug: org.slug,
+                location: org.location,
                 plan: org.plan,
                 subscriptionStatus: org.subscriptionStatus,
                 trialEndsAt: org.trialEndsAt,
@@ -95,6 +97,7 @@ export async function POST(request: Request) {
         const name = String(body.name ?? '').trim();
         const ownerName = String(body.ownerName ?? '').trim();
         const ownerEmail = String(body.ownerEmail ?? '').trim().toLowerCase();
+        const location = String(body.location ?? '').trim();
         const ownerPassword = String(body.ownerPassword ?? '');
 
         if (!name) {
@@ -143,6 +146,7 @@ export async function POST(request: Request) {
         const organizationId = await provisionOrganization({
             ownerUserId: owner.id,
             name,
+            location: location || null,
         });
 
         // Written to the same trail as any other staff act on a business, so
@@ -158,6 +162,7 @@ export async function POST(request: Request) {
                 id: true,
                 name: true,
                 slug: true,
+                location: true,
                 plan: true,
                 subscriptionStatus: true,
                 trialEndsAt: true,
@@ -187,5 +192,68 @@ export async function POST(request: Request) {
         }
         console.error('Failed to create business:', error);
         return NextResponse.json({ error: 'Failed to create the business' }, { status: 500 });
+    }
+}
+
+// PATCH - Correct a business's name or where it is.
+//
+// Staff only, and deliberately limited to the two fields that exist to
+// identify a business in a list. Nothing here touches a subscription, a
+// membership, or anything the business itself owns: changing those means
+// stepping inside, which is recorded.
+export async function PATCH(request: Request) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (!(await isPlatformAdmin(session.user.id))) {
+            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+        }
+
+        const body = await request.json();
+        const organizationId = String(body.organizationId ?? '').trim();
+        if (!organizationId) {
+            return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
+        }
+
+        const name = body.name === undefined ? undefined : String(body.name).trim();
+        if (name !== undefined && !name) {
+            return NextResponse.json({ error: 'A business name is required' }, { status: 400 });
+        }
+
+        // An empty location clears it, which is a real thing to want: a
+        // business that moved and has not said where yet.
+        const location =
+            body.location === undefined ? undefined : String(body.location).trim() || null;
+
+        if (name === undefined && location === undefined) {
+            return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
+        }
+
+        const existing = await prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
+        }
+
+        const organization = await prisma.organization.update({
+            where: { id: organizationId },
+            data: { ...(name !== undefined && { name }), ...(location !== undefined && { location }) },
+            select: { id: true, name: true, slug: true, location: true },
+        });
+
+        await logStaffAccess(session.user.id, organizationId, 'write', {
+            method: 'PATCH',
+            path: '/api/admin/organizations',
+        });
+
+        return NextResponse.json({ organization });
+    } catch (error) {
+        console.error('Failed to update business:', error);
+        return NextResponse.json({ error: 'Failed to update the business' }, { status: 500 });
     }
 }

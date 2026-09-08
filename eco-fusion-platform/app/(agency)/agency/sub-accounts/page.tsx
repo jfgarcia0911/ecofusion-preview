@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LogIn, Users, Building2, GraduationCap, Camera, Plus } from "lucide-react";
+import { Search, LogIn, Users, Building2, GraduationCap, Camera, Plus, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadClassesModal from "@/components/admin/LoadClassesModal";
 import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
 import CreateSubAccountModal from "@/components/admin/CreateSubAccountModal";
+import EditSubAccountModal from "@/components/admin/EditSubAccountModal";
 
 export interface SubAccount {
     id: string;
     name: string;
     slug: string;
+    location: string | null;
     plan: string;
     subscriptionStatus: string;
     trialEndsAt: string | null;
@@ -45,6 +47,7 @@ export default function SubAccountsPage() {
     const [loading, setLoading] = useState(true);
     const [entering, setEntering] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<SubAccount | null>(null);
     // The business whose class list is open. Loading classes needs no support
     // session: it decides what a business may reach, not what is inside it.
     const [classesFor, setClassesFor] = useState<{ id: string; name: string } | null>(null);
@@ -170,6 +173,8 @@ export default function SubAccountsPage() {
                                     </span>
                                 </div>
                                 <div className="text-xs text-white/40 mt-0.5 truncate">
+                                    {business.location ?? "No location on record"}
+                                    <span className="text-white/20"> &middot; </span>
                                     {business.owner
                                         ? `${business.owner.name ?? business.owner.email} (${business.owner.email})`
                                         : "No owner on record"}
@@ -180,6 +185,16 @@ export default function SubAccountsPage() {
                                 <Users size={13} />
                                 {business.memberCount}
                             </span>
+
+                            <button
+                                type="button"
+                                onClick={() => setEditing(business)}
+                                title="Edit the name or location"
+                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+                            >
+                                <Pencil size={13} />
+                                Edit
+                            </button>
 
                             <button
                                 type="button"
@@ -218,6 +233,17 @@ export default function SubAccountsPage() {
                 open={creating}
                 onClose={() => setCreating(false)}
                 onCreated={(business) => setBusinesses((current) => [business, ...current])}
+            />
+            <EditSubAccountModal
+                business={editing}
+                onClose={() => setEditing(null)}
+                onSaved={(saved) =>
+                    setBusinesses((current) =>
+                        current.map((b) =>
+                            b.id === saved.id ? { ...b, name: saved.name, location: saved.location } : b
+                        )
+                    )
+                }
             />
             <LoadClassesModal business={classesFor} onClose={() => setClassesFor(null)} />
             <CaptureSnapshotModal business={captureFrom} onClose={() => setCaptureFrom(null)} />

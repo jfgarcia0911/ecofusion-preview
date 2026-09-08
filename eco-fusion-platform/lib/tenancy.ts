@@ -232,6 +232,8 @@ export async function provisionOrganization(options: {
   ownerUserId: string;
   /** Shown everywhere. Defaults to the owner's name or email. */
   name: string;
+  /** Where the business is, free text. Optional. */
+  location?: string | null;
   /** Fixed id, for the personal business whose id is derived from the user. */
   organizationId?: string;
 }): Promise<string> {
@@ -249,6 +251,7 @@ export async function provisionOrganization(options: {
         id: organizationId,
         name,
         slug: slugify(name, organizationId),
+        location: options.location ?? null,
         subscriptionStatus: 'trialing',
         trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
       },

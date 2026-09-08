@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2 } from "lucide-react";
 import clsx from "clsx";
+import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 
 interface User {
     name?: string | null;
@@ -51,7 +52,14 @@ const commonNavItems = [
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 
-export default function Sidebar({ user }: { user?: User }) {
+export default function Sidebar({
+    user,
+    business,
+}: {
+    user?: User;
+    /** The business these screens are showing, named at the top of the sidebar. */
+    business?: { name: string; location: string | null } | null;
+}) {
     const pathname = usePathname() ?? '';
     // What someone may do is decided by their role in this business, not by the
     // legacy global role: an owner is an administrator of their own business.
@@ -77,6 +85,13 @@ export default function Sidebar({ user }: { user?: User }) {
                 </h1>
                 <p className="text-xs text-white/50 tracking-wider mt-1">INTEGRATED PLATFORM</p>
             </div>
+
+            {/*
+             * Whose business these screens are showing, said before anything
+             * else is. For staff it is also the way into another one, which is
+             * the same recorded act as entering from the sub account list.
+             */}
+            <SubAccountSwitcher business={business ?? null} isStaff={isStaff} />
 
             {/*
              * The way out to the agency view, and the only staff thing in this
