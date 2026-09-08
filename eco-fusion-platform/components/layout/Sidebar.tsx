@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2 } from "lucide-react";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 import SettingsNav from "@/components/layout/SettingsNav";
@@ -53,6 +53,18 @@ const userNavItems = [
  * so /settings lists the ones the reader may actually open and the sidebar
  * carries a single line instead of five.
  */
+/**
+ * The way into the agency view, for EcoFusion staff only.
+ *
+ * That view has its own shell and its own sidebar, so nothing here reaches it
+ * once you are inside. Without this line it could only be reached by typing
+ * the address, which is how the sub account list, the snapshot library and the
+ * class loader all sat finished and unreachable.
+ */
+const staffNavItems = [
+    { name: "Agency", href: "/agency", icon: Building2, tourId: undefined },
+];
+
 const commonNavItems = [
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
     // Lands on Sub Accounts rather than the index of settings. Opening
@@ -101,6 +113,7 @@ export default function Sidebar({
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
         ...commonNavItems,
+        ...(isStaff ? staffNavItems : []),
     ];
 
     // Inside settings the column becomes settings, rather than settings
