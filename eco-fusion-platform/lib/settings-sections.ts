@@ -3,8 +3,12 @@
  *
  * Split by what a setting actually touches, because the two are easy to
  * confuse and expensive to confuse: an owner with three businesses needs to
- * know that changing a password changes it everywhere, and that adding
- * somebody to Team Access adds them here and nowhere else.
+ * know that changing a password changes it everywhere, and that renaming a
+ * business unit changes it in one place only.
+ *
+ * Team Access sits in the account half. A login is not a thing a business
+ * owns - one person can work in several - so the screen that grants them is
+ * about the account and says, per person, which businesses they reach.
  *
  * Held here rather than on the settings page because the sidebar shows the
  * same list while you are inside settings. Two copies would drift, and the
@@ -42,6 +46,13 @@ export const ACCOUNT_SECTIONS: SettingsSection[] = [
         icon: Building2,
     },
     {
+        href: '/business/team',
+        name: 'Team Access',
+        description: 'Create logins, and choose which businesses each person reaches.',
+        icon: KeyRound,
+        ownerOnly: true,
+    },
+    {
         href: '/settings/preferences',
         name: 'Preferences',
         description: 'Units, and the password you sign in with.',
@@ -63,13 +74,6 @@ export const BUSINESS_SECTIONS: SettingsSection[] = [
         name: 'Business Units',
         description: 'The silos this business runs, and what lands in each.',
         icon: Layers,
-        ownerOnly: true,
-    },
-    {
-        href: '/business/team',
-        name: 'Team Access',
-        description: 'Create logins and set what each person may do here.',
-        icon: KeyRound,
         ownerOnly: true,
     },
     {

@@ -55,6 +55,10 @@ export default function TeamPage() {
         password: "",
         role: "member",
     });
+    // Which businesses the new login reaches. Empty means the one being viewed,
+    // which is what the route falls back to and what a single-business owner
+    // expects without being asked.
+    const [newMemberOrgs, setNewMemberOrgs] = useState<string[]>([]);
 
     const fetchMembers = useCallback(async () => {
         try {
@@ -85,7 +89,10 @@ export default function TeamPage() {
             const res = await fetch("/api/organization/members", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newMember),
+                body: JSON.stringify({
+                    ...newMember,
+                    organizationIds: newMemberOrgs.length > 0 ? newMemberOrgs : undefined,
+                }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -210,7 +217,7 @@ export default function TeamPage() {
                     </p>
                 </div>
                 <button
-                    onClick={() => { setError(null); setShowAddModal(true); }}
+                    onClick={() => { setError(null); setNewMemberOrgs([]); setShowAddModal(true); }}
                     className="shrink-0 px-4 py-2.5 bg-accent text-primary font-semibold rounded-xl flex items-center gap-2 hover:bg-accent/90 transition-all"
                 >
                     <Plus size={18} />
@@ -250,6 +257,7 @@ export default function TeamPage() {
                                     <th className="px-5 py-3 font-medium text-white/40 text-xs uppercase tracking-wider">Name</th>
                                     <th className="px-5 py-3 font-medium text-white/40 text-xs uppercase tracking-wider">Email</th>
                                     <th className="px-5 py-3 font-medium text-white/40 text-xs uppercase tracking-wider">Role</th>
+                                    <th className="px-5 py-3 font-medium text-white/40 text-xs uppercase tracking-wider">Businesses</th>
                                     <th className="px-5 py-3 font-medium text-white/40 text-xs uppercase tracking-wider">Added</th>
                                     <th className="px-5 py-3"></th>
                                 </tr>
@@ -279,6 +287,21 @@ export default function TeamPage() {
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs capitalize ${ROLE_STYLES[member.role] ?? ROLE_STYLES.member}`}>
                                                 {member.role === "owner" && <ShieldCheck size={12} />}
                                                 {member.role}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-4">
+                                            <span className="flex flex-wrap gap-1">
+                                                {(member.businesses ?? []).map((b) => (
+                                                    <span
+                                                        key={b.id}
+                                                        className="px-2 py-0.5 rounded border border-white/10 bg-white/[0.04] text-[11px] text-white/55 whitespace-nowrap"
+                                                    >
+                                                        {b.name}
+                                                    </span>
+                                                ))}
+                                                {(member.businesses?.length ?? 0) === 0 && (
+                                                    <span className="text-white/25 text-xs">-</span>
+                                                )}
                                             </span>
                                         </td>
                                         <td className="px-5 py-4 text-white/40 tabular-nums">
@@ -534,6 +557,60 @@ export default function TeamPage() {
                             ))}
                         </div>
                     </div>
+
+                    {owned.length > 1 && (
+                        <div>
+                            <label className="block text-sm text-white/60 mb-1.5">
+                                Businesses they can reach
+                            </label>
+                            <div className="space-y-2">
+                                {owned.map((b) => {
+                                    const checked =
+                                        newMemberOrgs.length === 0
+                                            ? b.isActive
+                                            : newMemberOrgs.includes(b.id);
+                                    return (
+                                        <label
+                                            key={b.id}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                                                checked
+                                                    ? "border-accent/40 bg-accent/5"
+                                                    : "border-white/10 hover:border-white/20"
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={(e) => {
+                                                    // The first tick turns the
+                                                    // implied default into a real
+                                                    // list, so nothing is lost by
+                                                    // touching it.
+                                                    const base =
+                                                        newMemberOrgs.length === 0
+                                                            ? owned.filter((o) => o.isActive).map((o) => o.id)
+                                                            : newMemberOrgs;
+                                                    setNewMemberOrgs(
+                                                        e.target.checked
+                                                            ? [...new Set([...base, b.id])]
+                                                            : base.filter((id) => id !== b.id)
+                                                    );
+                                                }}
+                                                className="accent-[color:var(--color-accent)] w-4 h-4"
+                                            />
+                                            <span className="flex-1 text-sm text-white">{b.name}</span>
+                                            {b.isActive && (
+                                                <span className="text-[11px] text-white/35">current</span>
+                                            )}
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-white/35 mt-2">
+                                One login, the same role in each. They can be moved later.
+                            </p>
+                        </div>
+                    )}
 
                     {error && <p className="text-sm text-red-300">{error}</p>}
 

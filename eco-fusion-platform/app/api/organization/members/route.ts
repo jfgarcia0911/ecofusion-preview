@@ -6,6 +6,9 @@ import { validatePassword } from '@/lib/validation/password';
 
 const ROLES = ['admin', 'manager', 'member'];
 
+/** Which role wins when one person holds different ones in different businesses. */
+const RANK: Record<string, number> = { owner: 3, admin: 2, manager: 1, member: 0 };
+
 // GET - Everyone with access to this farm.
 export async function GET() {
   try {
@@ -14,59 +17,79 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const memberships = await prisma.membership.findMany({
-      where: { organizationId: ctx.organizationId },
-      select: {
-        id: true,
-        role: true,
-        createdAt: true,
-        user: { select: { id: true, name: true, email: true, image: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Where else each of these people works, limited to businesses the caller
-    // owns. An owner needs to see that a manager already covers another site
-    // before deciding to add them to a third, and must not learn anything about
-    // businesses that are not theirs.
-    const ownedIds = (
+    // Every business the caller owns. Team Access is an account screen now: a
+    // login is not a thing one business holds, so listing only the people in
+    // the business that happens to be open would hide half a team from the
+    // person who created it.
+    const owned = (
       await prisma.membership.findMany({
         where: { userId: ctx.userId, role: 'owner' },
         select: { organizationId: true },
       })
     ).map((m) => m.organizationId);
 
-    const elsewhere =
-      ownedIds.length > 1
-        ? await prisma.membership.findMany({
-            where: {
-              userId: { in: memberships.map((m) => m.user.id) },
-              organizationId: { in: ownedIds },
-            },
-            select: {
-              userId: true,
-              role: true,
-              organization: { select: { id: true, name: true } },
-            },
-          })
-        : [];
+    // Staff enter one business and hold no membership, so theirs is the only
+    // one they can be shown.
+    const scope = ctx.isStaff || owned.length === 0 ? [ctx.organizationId] : owned;
 
-    const byUser = new Map<string, { id: string; name: string; role: string }[]>();
-    for (const row of elsewhere) {
-      const list = byUser.get(row.userId) ?? [];
-      list.push({ id: row.organization.id, name: row.organization.name, role: row.role });
-      byUser.set(row.userId, list);
-    }
+    const memberships = await prisma.membership.findMany({
+      where: { organizationId: { in: scope } },
+      select: {
+        id: true,
+        role: true,
+        createdAt: true,
+        user: { select: { id: true, name: true, email: true, image: true } },
+        organization: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    return NextResponse.json(
-      memberships.map((m) => ({
+    // One row per person, carrying every business of the caller's they reach.
+    // Somebody in two businesses appears once, not twice.
+    const people = new Map<
+      string,
+      {
+        id: string;
+        membershipId: string;
+        name: string | null;
+        email: string;
+        image: string | null;
+        role: string;
+        joinedAt: Date;
+        businesses: { id: string; name: string; role: string }[];
+      }
+    >();
+
+    for (const m of memberships) {
+      const existing = people.get(m.user.id);
+      const entry = {
+        id: m.organization.id,
+        name: m.organization.name,
+        role: m.role,
+      };
+
+      if (existing) {
+        existing.businesses.push(entry);
+        // The strongest role they hold anywhere is the one worth showing, so a
+        // manager of one business does not read as a member because of another.
+        if (RANK[m.role] > RANK[existing.role]) existing.role = m.role;
+        if (m.createdAt < existing.joinedAt) existing.joinedAt = m.createdAt;
+        continue;
+      }
+
+      people.set(m.user.id, {
+        id: m.user.id,
         membershipId: m.id,
+        name: m.user.name,
+        email: m.user.email,
+        image: m.user.image,
         role: m.role,
         joinedAt: m.createdAt,
-        ...m.user,
-        businesses: byUser.get(m.user.id) ?? [],
-      }))
-    );
+        businesses: [entry],
+      });
+    }
+
+    return NextResponse.json([...people.values()]);
   } catch (error) {
     console.error('Failed to fetch members:', error);
     return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 });
