@@ -1,0 +1,527 @@
+<title>Four Fixes for EcoFusion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper:      #F2F5F1;
+    --surface:    #FFFFFF;
+    --surface-2:  #E9EEE8;
+    --ink:        #08150F;
+    --ink-soft:   #3E5348;
+    --ink-faint:  #6E8479;
+    --rule:       #D2DCD3;
+    --accent:     #15784F;
+    --accent-dim: #E2F0E6;
+    --warn:       #8A5A05;
+    --warn-dim:   #F7EDD8;
+    --crit:       #973024;
+    --crit-dim:   #F8E5E1;
+
+    --display: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #05140E;
+      --surface:    #0B1F17;
+      --surface-2:  #122C21;
+      --ink:        #EAF3ED;
+      --ink-soft:   #A9C0B4;
+      --ink-faint:  #7A968A;
+      --rule:       #1E3A2D;
+      --accent:     #4ADE80;
+      --accent-dim: #10301F;
+      --warn:       #E7B54B;
+      --warn-dim:   #33270D;
+      --crit:       #F08A78;
+      --crit-dim:   #3A1A15;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #05140E;
+    --surface:    #0B1F17;
+    --surface-2:  #122C21;
+    --ink:        #EAF3ED;
+    --ink-soft:   #A9C0B4;
+    --ink-faint:  #7A968A;
+    --rule:       #1E3A2D;
+    --accent:     #4ADE80;
+    --accent-dim: #10301F;
+    --warn:       #E7B54B;
+    --warn-dim:   #33270D;
+    --crit:       #F08A78;
+    --crit-dim:   #3A1A15;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  /* ---- Masthead ---- */
+
+  .masthead {
+    padding: 56px 0 28px;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(34px, 6.2vw, 50px);
+    line-height: 1.04;
+    letter-spacing: -0.024em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+  }
+
+  .standfirst {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 60ch;
+  }
+
+  /* ---- At a glance ---- */
+
+  .glance {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 0 0 8px;
+  }
+
+  .glance div {
+    background: var(--surface);
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .glance dt {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .glance dd {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.3;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  @media (max-width: 560px) {
+    .glance { grid-template-columns: 1fr; }
+  }
+
+  /* ---- Sections ---- */
+
+  section { margin-top: 52px; }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 22px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  /* ---- Issue entries ---- */
+
+  .issues { display: flex; flex-direction: column; gap: 26px; }
+
+  .issue {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--sev, var(--accent));
+    padding: 22px 24px 24px;
+  }
+
+  .issue.crit { --sev: var(--crit); }
+  .issue.warn { --sev: var(--warn); }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 13px;
+  }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 2px;
+  }
+
+  .chip-crit  { background: var(--crit-dim);   color: var(--crit); }
+  .chip-warn  { background: var(--warn-dim);   color: var(--warn); }
+  .chip-fixed { background: var(--accent-dim); color: var(--accent); }
+
+  .issue h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 21px;
+    line-height: 1.25;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+    margin: 0 0 14px;
+  }
+
+  .issue p { margin: 0 0 12px; }
+  .issue p:last-child { margin-bottom: 0; }
+
+  .lede {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .fixed-note {
+    border-top: 1px solid var(--rule);
+    margin-top: 16px;
+    padding-top: 14px;
+  }
+
+  b, strong { font-weight: 600; }
+
+  .fig {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    font-variant-numeric: tabular-nums;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  /* ---- Next steps ---- */
+
+  .steps {
+    list-style: none;
+    counter-reset: step;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .steps li {
+    counter-increment: step;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 16px 20px 16px 56px;
+    position: relative;
+  }
+
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 20px;
+    top: 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  .steps strong { display: block; font-family: var(--display); font-size: 16px; }
+  .steps span { color: var(--ink-soft); font-size: 15.5px; }
+
+  .owner {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    float: right;
+    margin-left: 12px;
+  }
+
+  /* ---- Open recommendations ---- */
+
+  .rec {
+    border: 1px dashed var(--rule);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+    background: transparent;
+  }
+
+  .rec h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 17px;
+    margin: 0 0 8px;
+  }
+
+  .rec p { margin: 0; color: var(--ink-soft); font-size: 16px; }
+
+  /* ---- Footer ---- */
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--ink-faint);
+  }
+
+  footer span { color: var(--ink-soft); }
+
+  a { color: var(--accent); }
+  a:focus-visible, .steps li:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">
+      <span>Engineering status</span>
+      <span>7 September 2026</span>
+      <span>EcoFusion Platform</span>
+    </p>
+    <h1>Four defects found and fixed</h1>
+    <p class="standfirst">
+      A review of the platform's deployment path and revenue reporting turned up four
+      problems — two that would have broken the live site, and two that were quietly
+      reporting revenue figures that were not real. All four are fixed and awaiting review.
+    </p>
+  </header>
+
+  <section aria-label="At a glance">
+    <dl class="glance">
+      <div>
+        <dt>Status</dt>
+        <dd>4 fixed, in review</dd>
+      </div>
+      <div>
+        <dt>Delivered as</dt>
+        <dd>1 pull request</dd>
+      </div>
+      <div>
+        <dt>Needs action</dt>
+        <dd>3 items, listed below</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>What was wrong</h2>
+    <div class="issues">
+
+      <article class="issue crit">
+        <div class="chips">
+          <span class="chip chip-crit">Would break the live site</span>
+          <span class="chip chip-fixed">Fixed</span>
+        </div>
+        <h3>Database changes never reached the live system</h3>
+        <p>
+          <span class="lede">What was happening</span>
+          When the team added new features — sales, harvests, alerts, cameras — the matching
+          changes to the database were not included in the automated release process. The
+          instructions that create those tables existed on one developer's machine but were
+          never added to the shared project.
+        </p>
+        <p>
+          <span class="lede">Why it mattered</span>
+          Twenty-five parts of the application already depend on those tables. Anyone setting
+          up a fresh copy of the system — a new environment, a new developer, a disaster
+          recovery — would have got an application that builds successfully and then fails the
+          moment someone opens Sales or Alerts. The current live database happens to be correct
+          only because someone updated it by hand.
+        </p>
+        <p class="fixed-note">
+          <span class="lede">What we did</span>
+          Added the missing database instructions to the project and wired the release process
+          to apply them automatically on every deployment, using the safe method that will not
+          overwrite existing data. Also removed a duplicate, conflicting configuration file that
+          was being silently ignored.
+        </p>
+      </article>
+
+      <article class="issue crit">
+        <div class="chips">
+          <span class="chip chip-crit">Broken feature</span>
+          <span class="chip chip-fixed">Fixed</span>
+        </div>
+        <h3>&ldquo;Sign in with Google&rdquo; could never have worked</h3>
+        <p>
+          <span class="lede">What was happening</span>
+          Four configuration values the application needs at runtime were never registered with
+          the hosting provider, including the two credentials required for Google sign-in.
+          Clicking the Google button produced an error page from Google itself.
+        </p>
+        <p>
+          <span class="lede">Why it mattered</span>
+          Beyond the login button, one of the missing values is the key used to encrypt the
+          customer-system API credentials we store. Without it, the integrations settings page
+          crashes rather than saving. A second missing value is used to verify that incoming
+          messages from the CRM are genuine.
+        </p>
+        <p class="fixed-note">
+          <span class="lede">What we did</span>
+          Registered all four values in the deployment configuration and set up the Google
+          credentials for local development, confirming the sign-in flow end to end. The actual
+          secret values still need entering in the hosting dashboard — see step 2 below.
+        </p>
+      </article>
+
+      <article class="issue warn">
+        <div class="chips">
+          <span class="chip chip-warn">Wrong numbers shown</span>
+          <span class="chip chip-fixed">Fixed</span>
+        </div>
+        <h3>Every business unit reported the same invented revenue</h3>
+        <p>
+          <span class="lede">What was happening</span>
+          The Business Units screen displayed <span class="fig">$12,450</span> of month-to-date
+          revenue on all seven cards. That figure was typed directly into the page during the
+          build and never connected to the sales data. It never changed — not between units,
+          not between users, not between months.
+        </p>
+        <p>
+          <span class="lede">Why it mattered</span>
+          A brand-new account with no sales at all showed <span class="fig">$87,150</span> of
+          revenue across the seven units. This was found because a new user logged in and asked
+          why their empty account already had figures in it — a good instinct, and the right
+          question to ask.
+        </p>
+        <p class="fixed-note">
+          <span class="lede">What we did</span>
+          The screen now calculates each unit's real month-to-date revenue from completed sales,
+          in a single database query, and shows <span class="fig">$0</span> where there is none.
+        </p>
+      </article>
+
+      <article class="issue warn">
+        <div class="chips">
+          <span class="chip chip-warn">Accounting accuracy</span>
+          <span class="chip chip-fixed">Fixed</span>
+        </div>
+        <h3>Revenue was guessed from product names, and could vanish</h3>
+        <p>
+          <span class="lede">What was happening</span>
+          Sales were never tagged with a business unit. Instead the system guessed, by looking
+          for keywords in the product's name — a sale counted toward Aquaculture only if the
+          product was named &ldquo;fish&rdquo;, &ldquo;tilapia&rdquo;, &ldquo;catfish&rdquo;
+          or &ldquo;seafood&rdquo;.
+        </p>
+        <p>
+          <span class="lede">Why it mattered</span>
+          Two failure modes, both silent. A product named for a keyword shared by two units —
+          &ldquo;energy&rdquo; belonged to both Methane Gas and Solar — was counted in full
+          toward each, so the seven units could total more than the business actually earned.
+          And a correctly-sold product with an unrecognised name, say
+          <span class="fig">Nile Perch</span>, counted toward nothing and simply disappeared
+          from the dashboard, looking exactly like no sale at all.
+        </p>
+        <p class="fixed-note">
+          <span class="lede">What we did</span>
+          Sales staff can now choose the business unit directly when recording a sale. Where no
+          choice is made, the old keyword matching still applies but assigns each sale to one
+          unit only, and the overlapping keyword has been removed. Any revenue that matches
+          nothing is now shown on screen as unassigned, so it can be corrected rather than lost.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Not fixed — recommended next</h2>
+
+    <div class="rec">
+      <h3>An administrator password is stored in the project files</h3>
+      <p>
+        The live administrator password sits in plain text in a file that is part of the shared
+        codebase and its history. Anyone with access to the code has full administrative access
+        to the platform. This should be moved into protected configuration and the password
+        changed. Deleting it from the file alone does not remove it from the project history.
+      </p>
+    </div>
+
+    <div class="rec">
+      <h3>No limits on login attempts or account creation</h3>
+      <p>
+        Account registration is open to anyone who finds the web address, with no email
+        confirmation and no cap on attempts. Protective code for this already exists in the
+        project but is not connected to anything. Someone could create unlimited accounts or
+        guess passwords without being slowed down.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What happens next</h2>
+    <ol class="steps">
+      <li>
+        <span class="owner">Reviewer</span>
+        <strong>Review and merge the pull request</strong>
+        <span>Four changes on the branch <span class="fig">fix/deploy-schema-sync</span>, ready on GitHub.</span>
+      </li>
+      <li>
+        <span class="owner">Whoever holds the keys</span>
+        <strong>Enter the four configuration values in the hosting dashboard</strong>
+        <span>The slots are now defined; the secret values themselves still need pasting in before deployment.</span>
+      </li>
+      <li>
+        <span class="owner">Developer</span>
+        <strong>Apply the database update</strong>
+        <span>One command adds the new business-unit field. It adds a column and changes no existing data.</span>
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    Branch <span>fix/deploy-schema-sync</span> &middot; 4 commits &middot; verified against the live schema with no drift<br>
+    Repository <span>github.com/twinn129/EcoFusion</span>
+  </footer>
+
+</div>
