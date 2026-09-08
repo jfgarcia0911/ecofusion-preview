@@ -86,6 +86,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // A support account is not a trainee. It has no training record of its
+        // own, so there is nothing here for it to complete.
+        if (ctx.isStaff) {
+            return NextResponse.json(
+                { error: 'An EcoFusion account has no training record' },
+                { status: 403 }
+            );
+        }
+
         const data = await request.json();
         const { courseId, quizScore } = data;
 

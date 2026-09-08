@@ -105,6 +105,20 @@ export async function POST(request: Request) {
         const data = await request.json();
         const { courseId, assigneeId, dueDate, priority, notes } = data;
 
+        // A support account is not a trainee. It works on the platform rather
+        // than inside a business, nothing it does is a business's compliance
+        // record, and a course sitting on it is an obligation nobody is owed.
+        const assignee = await prisma.user.findUnique({
+            where: { id: assigneeId },
+            select: { role: true },
+        });
+        if (assignee?.role === 'admin') {
+            return NextResponse.json(
+                { error: 'Courses cannot be assigned to an EcoFusion account' },
+                { status: 400 }
+            );
+        }
+
         // EcoFusion assigns to the person answerable for a business, and that
         // is its owner. Training a customer's employees over their head is the
         // owner's call to make, not ours; what staff can do is put a course in
