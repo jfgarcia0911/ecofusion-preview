@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
-import { provisionOrganization } from '@/lib/tenancy';
-import { validatePassword } from '@/lib/validation/password';
+import { isPlatformAdmin } from '@/lib/staff';
 
 // GET - Every business on the platform, for EcoFusion staff.
 //
@@ -82,178 +78,14 @@ export async function GET(request: Request) {
 // starting configuration as any other. Nothing here is a lesser kind of
 // business, and staff hold no standing membership in it - reaching inside still
 // means stepping in, which is recorded.
-export async function POST(request: Request) {
-    try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
 
-        if (!(await isPlatformAdmin(session.user.id))) {
-            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-        }
-
-        const body = await request.json();
-        const name = String(body.name ?? '').trim();
-        const ownerName = String(body.ownerName ?? '').trim();
-        const ownerEmail = String(body.ownerEmail ?? '').trim().toLowerCase();
-        const location = String(body.location ?? '').trim();
-        const ownerPassword = String(body.ownerPassword ?? '');
-
-        if (!name) {
-            return NextResponse.json({ error: 'A business name is required' }, { status: 400 });
-        }
-        if (!ownerEmail || !ownerPassword) {
-            return NextResponse.json(
-                { error: "The owner's email and a starting password are both required" },
-                { status: 400 }
-            );
-        }
-
-        // Held to the same standard as a password someone chooses for
-        // themselves. A business set up by staff is not a place for a weaker one.
-        const strength = validatePassword(ownerPassword);
-        if (!strength.isValid) {
-            return NextResponse.json(
-                { error: strength.errors[0], errors: strength.errors },
-                { status: 400 }
-            );
-        }
-
-        const existing = await prisma.user.findUnique({
-            where: { email: ownerEmail },
-            select: { id: true },
-        });
-        if (existing) {
-            return NextResponse.json(
-                {
-                    error:
-                        'That email already has an account. It already owns a business, ' +
-                        'so adding it here would leave the person with two.',
-                },
-                { status: 409 }
-            );
-        }
-
-        const owner = await prisma.user.create({
-            data: {
-                name: ownerName || ownerEmail,
-                email: ownerEmail,
-                password: await bcrypt.hash(ownerPassword, 12),
-            },
-        });
-
-        const organizationId = await provisionOrganization({
-            ownerUserId: owner.id,
-            name,
-            location: location || null,
-        });
-
-        // Written to the same trail as any other staff act on a business, so
-        // the record of who created it sits beside the record of who entered it.
-        await logStaffAccess(session.user.id, organizationId, 'write', {
-            method: 'POST',
-            path: '/api/admin/organizations',
-        });
-
-        const organization = await prisma.organization.findUniqueOrThrow({
-            where: { id: organizationId },
-            select: {
-                id: true,
-                name: true,
-                slug: true,
-                location: true,
-                plan: true,
-                subscriptionStatus: true,
-                trialEndsAt: true,
-                createdAt: true,
-            },
-        });
-
-        return NextResponse.json(
-            {
-                organization: {
-                    ...organization,
-                    memberCount: 1,
-                    owner: { name: owner.name, email: owner.email },
-                },
-            },
-            { status: 201 }
-        );
-    } catch (error) {
-        // A duplicate email that slipped past the check above races the unique
-        // index, and the caller gets the answer it would have got a moment
-        // earlier rather than a 500 carrying Prisma's internals.
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            return NextResponse.json(
-                { error: 'That email already has an account' },
-                { status: 409 }
-            );
-        }
-        console.error('Failed to create business:', error);
-        return NextResponse.json({ error: 'Failed to create the business' }, { status: 500 });
-    }
-}
-
-// PATCH - Correct a business's name or where it is.
-//
-// Staff only, and deliberately limited to the two fields that exist to
-// identify a business in a list. Nothing here touches a subscription, a
-// membership, or anything the business itself owns: changing those means
-// stepping inside, which is recorded.
-export async function PATCH(request: Request) {
-    try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!(await isPlatformAdmin(session.user.id))) {
-            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-        }
-
-        const body = await request.json();
-        const organizationId = String(body.organizationId ?? '').trim();
-        if (!organizationId) {
-            return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
-        }
-
-        const name = body.name === undefined ? undefined : String(body.name).trim();
-        if (name !== undefined && !name) {
-            return NextResponse.json({ error: 'A business name is required' }, { status: 400 });
-        }
-
-        // An empty location clears it, which is a real thing to want: a
-        // business that moved and has not said where yet.
-        const location =
-            body.location === undefined ? undefined : String(body.location).trim() || null;
-
-        if (name === undefined && location === undefined) {
-            return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
-        }
-
-        const existing = await prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: { id: true },
-        });
-        if (!existing) {
-            return NextResponse.json({ error: 'No such business' }, { status: 404 });
-        }
-
-        const organization = await prisma.organization.update({
-            where: { id: organizationId },
-            data: { ...(name !== undefined && { name }), ...(location !== undefined && { location }) },
-            select: { id: true, name: true, slug: true, location: true },
-        });
-
-        await logStaffAccess(session.user.id, organizationId, 'write', {
-            method: 'PATCH',
-            path: '/api/admin/organizations',
-        });
-
-        return NextResponse.json({ organization });
-    } catch (error) {
-        console.error('Failed to update business:', error);
-        return NextResponse.json({ error: 'Failed to update the business' }, { status: 500 });
-    }
-}
+/*
+ * There is no POST or PATCH here on purpose.
+ *
+ * A business belongs to the person who runs it. EcoFusion can see every one of
+ * them, step into one to help, and decide which courses it carries - but it
+ * does not bring businesses into being, and it does not rename somebody else's.
+ * A customer signs up and names their own; an owner adds their next from
+ * settings. Staff reading this file looking for the create endpoint have not
+ * missed it.
+ */

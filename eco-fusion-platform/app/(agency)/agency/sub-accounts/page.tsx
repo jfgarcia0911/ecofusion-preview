@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LogIn, Users, Building2, GraduationCap, Camera, Plus, Pencil } from "lucide-react";
+import { Search, LogIn, Users, Building2, GraduationCap, Camera } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadClassesModal from "@/components/admin/LoadClassesModal";
 import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
-import CreateSubAccountModal from "@/components/admin/CreateSubAccountModal";
-import EditSubAccountModal from "@/components/admin/EditSubAccountModal";
 
 export interface SubAccount {
     id: string;
@@ -46,8 +44,6 @@ export default function SubAccountsPage() {
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
     const [entering, setEntering] = useState<string | null>(null);
-    const [creating, setCreating] = useState(false);
-    const [editing, setEditing] = useState<SubAccount | null>(null);
     // The business whose class list is open. Loading classes needs no support
     // session: it decides what a business may reach, not what is inside it.
     const [classesFor, setClassesFor] = useState<{ id: string; name: string } | null>(null);
@@ -117,19 +113,11 @@ export default function SubAccountsPage() {
                         Sub Accounts
                     </h1>
                     <p className="text-white/50 mt-1 max-w-2xl text-sm">
-                        Every business on the platform. Create one for a customer, or step into
-                        an existing one to diagnose or fix a problem and then leave it. Entering
-                        and leaving are both written to the access trail.
+                        Every business on the platform. Step into one to diagnose or fix a
+                        problem and then leave it, or choose which courses it carries.
+                        Entering and leaving are both written to its access record.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setCreating(true)}
-                    className="shrink-0 text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors"
-                >
-                    <Plus size={16} />
-                    Create Sub Account
-                </button>
             </div>
 
             <div className="relative mb-4">
@@ -186,15 +174,6 @@ export default function SubAccountsPage() {
                                 {business.memberCount}
                             </span>
 
-                            <button
-                                type="button"
-                                onClick={() => setEditing(business)}
-                                title="Edit the name or location"
-                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
-                            >
-                                <Pencil size={13} />
-                                Edit
-                            </button>
 
                             <button
                                 type="button"
@@ -229,22 +208,6 @@ export default function SubAccountsPage() {
                 </div>
             )}
 
-            <CreateSubAccountModal
-                open={creating}
-                onClose={() => setCreating(false)}
-                onCreated={(business) => setBusinesses((current) => [business, ...current])}
-            />
-            <EditSubAccountModal
-                business={editing}
-                onClose={() => setEditing(null)}
-                onSaved={(saved) =>
-                    setBusinesses((current) =>
-                        current.map((b) =>
-                            b.id === saved.id ? { ...b, name: saved.name, location: saved.location } : b
-                        )
-                    )
-                }
-            />
             <LoadClassesModal business={classesFor} onClose={() => setClassesFor(null)} />
             <CaptureSnapshotModal business={captureFrom} onClose={() => setCaptureFrom(null)} />
         </div>
