@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, UserPlus, ShieldCheck } from "lucide-react";
+import { UserPlus, ShieldCheck } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { ASSIGNABLE_BUSINESS_ROLES } from "@/lib/roles";
