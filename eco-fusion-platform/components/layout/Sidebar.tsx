@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Shield } from "lucide-react";
+import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal, Building2 } from "lucide-react";
 import clsx from "clsx";
 
 interface User {
@@ -77,6 +77,26 @@ export default function Sidebar({ user }: { user?: User }) {
                 </h1>
                 <p className="text-xs text-white/50 tracking-wider mt-1">INTEGRATED PLATFORM</p>
             </div>
+
+            {/*
+             * The way out to the agency view, and the only staff thing in this
+             * sidebar. It sits above the navigation rather than below it because
+             * what EcoFusion does across every customer is not one more thing a
+             * customer does, and because somebody looking for it should not have
+             * to scroll past a business's own screens to find it.
+             */}
+            {isStaff && (
+                <div className="px-4">
+                    <Link
+                        href="/agency/sub-accounts"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-all duration-200"
+                    >
+                        <Building2 size={18} className="text-amber-300" />
+                        <span className="font-medium text-sm">Sub Accounts</span>
+                    </Link>
+                </div>
+            )}
+
             <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
                 {navItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);
@@ -99,22 +119,6 @@ export default function Sidebar({ user }: { user?: User }) {
                 })}
             </nav>
             <div className="p-4 border-t border-white/10 space-y-4">
-                {/*
-                 * The way out to the agency view, and the only staff thing in
-                 * this sidebar. What EcoFusion does across every customer lives
-                 * on the other side of this link rather than mixed in above it,
-                 * so nothing here is ever ambiguous about whose business it acts on.
-                 */}
-                {isStaff && (
-                    <Link
-                        href="/agency/sub-accounts"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20 transition-all duration-200"
-                    >
-                        <Shield size={18} className="text-amber-300" />
-                        <span className="font-medium text-sm">Agency view</span>
-                    </Link>
-                )}
-
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20">
                     {user?.image ? (
                         <img src={user.image} alt={user.name ?? "User"} className="w-8 h-8 rounded-full" />
