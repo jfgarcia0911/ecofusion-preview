@@ -2480,9 +2480,10 @@ async function seedTrainingCourses() {
 
     for (const courseData of TRAINING_COURSES) {
         try {
-            // Check if course already exists
-            const existingCourse = await prisma.trainingCourse.findUnique({
-                where: { code: courseData.code }
+            // EcoFusion's own courses carry no organizationId. They reach a
+            // farm by being loaded into it, never by existing.
+            const existingCourse = await prisma.trainingCourse.findFirst({
+                where: { code: courseData.code, organizationId: null }
             });
 
             if (existingCourse) {
@@ -2490,7 +2491,7 @@ async function seedTrainingCourses() {
 
                 // Update the course
                 await prisma.trainingCourse.update({
-                    where: { code: courseData.code },
+                    where: { id: existingCourse.id },
                     data: {
                         title: courseData.title,
                         description: courseData.description,

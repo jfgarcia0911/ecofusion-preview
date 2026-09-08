@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { ownedByOrganization, visibleToOrganization } from '@/lib/training';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch single course with lessons
@@ -16,8 +17,10 @@ export async function GET(
 
         const { courseId } = await params;
 
-        const course = await prisma.trainingCourse.findUnique({
-            where: { id: courseId },
+        // Scoped to what this farm holds, so an id belonging to another farm's
+        // course reads as absent rather than as forbidden.
+        const course = await prisma.trainingCourse.findFirst({
+            where: { id: courseId, ...visibleToOrganization(ctx.organizationId) },
             include: {
                 lessons: {
                     orderBy: { sortOrder: 'asc' }
@@ -75,18 +78,26 @@ export async function PATCH(
         } = data;
 
         // Verify course exists
-        const existingCourse = await prisma.trainingCourse.findUnique({
-            where: { id: courseId },
+        const existingCourse = await prisma.trainingCourse.findFirst({
+            where: { id: courseId, ...visibleToOrganization(ctx.organizationId) },
         });
 
         if (!existingCourse) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
         }
 
+        // A granted course stays EcoFusion's. Editing it here would rewrite it
+        // for every other farm holding it, which is exactly what used to happen.
+        if (!ownedByOrganization(existingCourse, ctx.organizationId)) {
+            return NextResponse.json({
+                error: 'This course belongs to EcoFusion and cannot be edited here.'
+            }, { status: 403 });
+        }
+
         // Check for duplicate code if code is being changed
         if (code && code !== existingCourse.code) {
-            const duplicateCourse = await prisma.trainingCourse.findUnique({
-                where: { code },
+            const duplicateCourse = await prisma.trainingCourse.findFirst({
+                where: { code, organizationId: ctx.organizationId },
             });
             if (duplicateCourse) {
                 return NextResponse.json({
@@ -149,8 +160,8 @@ export async function DELETE(
         const { courseId } = await params;
 
         // Verify course exists
-        const existingCourse = await prisma.trainingCourse.findUnique({
-            where: { id: courseId },
+        const existingCourse = await prisma.trainingCourse.findFirst({
+            where: { id: courseId, ...visibleToOrganization(ctx.organizationId) },
             include: {
                 _count: {
                     select: {
@@ -163,6 +174,14 @@ export async function DELETE(
 
         if (!existingCourse) {
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+        }
+
+        // Deleting a granted course would take it from every farm at once.
+        // A farm that no longer wants one asks for it to be unloaded instead.
+        if (!ownedByOrganization(existingCourse, ctx.organizationId)) {
+            return NextResponse.json({
+                error: 'This course belongs to EcoFusion and cannot be deleted here.'
+            }, { status: 403 });
         }
 
         // Prevent deletion if course has completions

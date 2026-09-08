@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ShieldAlert, LogIn, Users, Building2 } from "lucide-react";
+import { Search, ShieldAlert, LogIn, Users, Building2, GraduationCap } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadClassesModal from "@/components/admin/LoadClassesModal";
 
 interface Farm {
     id: string;
@@ -39,6 +40,9 @@ export default function SupportFarmsPage() {
     const [loading, setLoading] = useState(true);
     const [denied, setDenied] = useState(false);
     const [entering, setEntering] = useState<string | null>(null);
+    // The farm whose class list is open. Loading classes needs no support
+    // session: it decides what a farm may reach, not what is inside it.
+    const [classesFor, setClassesFor] = useState<{ id: string; name: string } | null>(null);
     const router = useRouter();
     const toast = useToast();
     const confirmAction = useConfirm();
@@ -170,6 +174,15 @@ export default function SupportFarmsPage() {
 
                             <button
                                 type="button"
+                                onClick={() => setClassesFor({ id: farm.id, name: farm.name })}
+                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+                            >
+                                <GraduationCap size={13} />
+                                Classes
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={() => enter(farm)}
                                 disabled={entering === farm.id}
                                 className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-50 transition-colors"
@@ -181,6 +194,8 @@ export default function SupportFarmsPage() {
                     ))}
                 </div>
             )}
+
+            <LoadClassesModal farm={classesFor} onClose={() => setClassesFor(null)} />
         </div>
     );
 }

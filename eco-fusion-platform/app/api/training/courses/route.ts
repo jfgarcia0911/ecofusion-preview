@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { visibleToOrganization } from '@/lib/training';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all training courses (admin only)
@@ -16,8 +17,10 @@ export async function GET() {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
+        // What this farm wrote, plus what EcoFusion loaded into it. Never the
+        // whole platform catalogue, which is what every farm used to receive.
         const courses = await prisma.trainingCourse.findMany({
-            where: { isActive: true },
+            where: { isActive: true, ...visibleToOrganization(ctx.organizationId) },
             include: {
                 lessons: {
                     select: { id: true, title: true, type: true, duration: true, sortOrder: true },
@@ -72,9 +75,10 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        // Check for duplicate code
-        const existingCourse = await prisma.trainingCourse.findUnique({
-            where: { code },
+        // Codes are unique to their owner, so this farm naming a course
+        // SAFETY-101 says nothing about anyone else's SAFETY-101.
+        const existingCourse = await prisma.trainingCourse.findFirst({
+            where: { code, organizationId: ctx.organizationId },
         });
 
         if (existingCourse) {
@@ -85,11 +89,15 @@ export async function POST(request: Request) {
 
         // Get the next sort order
         const maxSortOrder = await prisma.trainingCourse.aggregate({
+            where: { organizationId: ctx.organizationId },
             _max: { sortOrder: true },
         });
 
+        // A course written here belongs to this farm. EcoFusion's own are
+        // authored from the staff console, and arrive by being loaded in.
         const course = await prisma.trainingCourse.create({
             data: {
+                organizationId: ctx.organizationId,
                 code,
                 title,
                 description,

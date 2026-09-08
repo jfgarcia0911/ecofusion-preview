@@ -48,6 +48,7 @@ model User {
   memberships         Membership[]
   employeeRecord      Employee?             @relation("EmployeeAccount")
   staffAccess         StaffAccessLog[]      @relation("StaffAccess")
+  grantedCourses      CourseGrant[]         @relation("GrantedCourses")
 }
 
 model Account {
@@ -240,9 +241,16 @@ model UserLmsProgress {
   @@unique([userId, courseId, lessonId])
 }
 
+/// A course, written either by EcoFusion or by a farm for its own people.
+///
+/// `organizationId` says which: null is EcoFusion's, and reaches a farm only
+/// once it has been loaded into it. A farm's own course belongs to that farm
+/// and is visible nowhere else. Nobody edits a course they do not own, which
+/// is what keeps one farm's manager out of the curriculum every other farm is
+/// working through.
 model TrainingCourse {
   id          String             @id @default(cuid())
-  code        String             @unique
+  code        String
   title       String
   description String
   category    String
@@ -252,11 +260,40 @@ model TrainingCourse {
   passScore   Int                @default(80)
   isActive    Boolean            @default(true)
   sortOrder   Int                @default(0)
+  organizationId String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   assignments CourseAssignment[]
   completions CourseCompletion[]
   lessons     TrainingLesson[]
+  grants      CourseGrant[]
+  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+}
+
+/// One of EcoFusion's courses, made available to one farm.
+///
+/// Loading is a grant, not a copy. There is only ever one course, so a
+/// correction reaches every farm holding it at once, and no farm can edit what
+/// it was given. A farm sees what it has been granted plus what it wrote
+/// itself, and nothing else.
+model CourseGrant {
+  id             String   @id @default(cuid())
+  courseId       String
+  organizationId String
+  /// The staff account that loaded it. Kept when that account is deleted,
+  /// because the grant outlives whoever made it.
+  grantedById    String?
+  createdAt      DateTime @default(now())
+
+  course       TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  grantedBy    User?          @relation("GrantedCourses", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([courseId, organizationId])
+  @@index([organizationId])
 }
 
 model TrainingLesson {
@@ -653,6 +690,8 @@ model Organization {
   cameras             Camera[]
   phaseSettings       PhaseSettings[]
   staffAccess         StaffAccessLog[]
+  trainingCourses     TrainingCourse[]
+  courseGrants        CourseGrant[]
 }
 
 /// Every time EcoFusion staff work inside a customer's farm.
