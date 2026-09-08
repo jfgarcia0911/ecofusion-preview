@@ -250,25 +250,25 @@ model UserLmsProgress {
 /// is what keeps one farm's manager out of the curriculum every other farm is
 /// working through.
 model TrainingCourse {
-  id          String             @id @default(cuid())
-  code        String
-  title       String
-  description String
-  category    String
-  duration    Int
-  isRequired  Boolean            @default(false)
-  renewalDays Int?
-  passScore   Int                @default(80)
-  isActive    Boolean            @default(true)
-  sortOrder   Int                @default(0)
+  id             String             @id @default(cuid())
+  code           String
+  title          String
+  description    String
+  category       String
+  duration       Int
+  isRequired     Boolean            @default(false)
+  renewalDays    Int?
+  passScore      Int                @default(80)
+  isActive       Boolean            @default(true)
+  sortOrder      Int                @default(0)
   organizationId String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  assignments CourseAssignment[]
-  completions CourseCompletion[]
-  lessons     TrainingLesson[]
-  grants      CourseGrant[]
-  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  assignments    CourseAssignment[]
+  completions    CourseCompletion[]
+  lessons        TrainingLesson[]
+  grants         CourseGrant[]
+  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -679,6 +679,17 @@ model Organization {
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
 
+  /// The business whose subscription pays for this one.
+  ///
+  /// An owner may run several businesses from one login. The first is the
+  /// billing account and the rest point at it, so one subscription covers them
+  /// all and adding a site is not a way to collect another free trial. Null
+  /// means the business bills for itself, which every business created by
+  /// signup or by staff does.
+  billingParentId  String?
+  billingParent    Organization?  @relation("BillingChildren", fields: [billingParentId], references: [id], onDelete: SetNull)
+  billedBusinesses Organization[] @relation("BillingChildren")
+
   memberships         Membership[]
   businessUnits       BusinessUnit[]
   zones               Zone[]
@@ -698,7 +709,9 @@ model Organization {
   staffAccess         StaffAccessLog[]
   trainingCourses     TrainingCourse[]
   courseGrants        CourseGrant[]
-  snapshotsTakenFrom  Snapshot[]            @relation("SnapshotSource")
+  snapshotsTakenFrom  Snapshot[]           @relation("SnapshotSource")
+
+  @@index([billingParentId])
 }
 
 /// A configured farm, captured so others can be started from it.

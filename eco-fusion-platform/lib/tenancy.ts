@@ -7,6 +7,8 @@
  * That is what kept a farm's own manager from seeing the farm's data.
  */
 
+import { randomUUID } from 'node:crypto';
+import { cookies } from 'next/headers';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -18,6 +20,16 @@ import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/sna
 
 /** Days a new farm may use the platform before it has to subscribe. */
 export const TRIAL_DAYS = 15;
+
+/**
+ * Which of their own businesses a member is currently looking at.
+ *
+ * Separate from the staff cookie: that one is EcoFusion visiting a customer and
+ * is written down, this one is somebody moving between businesses that are
+ * already theirs. The value is never trusted on its own - every read checks it
+ * against a real membership, so a forged cookie reaches nothing.
+ */
+export const ACTIVE_ORG_COOKIE = 'ecofusion-active-org';
 
 export interface OrgAccess {
   /** Whether the organization may use the app right now. */
@@ -90,6 +102,40 @@ export function evaluateAccess(org: {
   };
 }
 
+/** The subscription fields access is decided from. */
+interface BillingFacts {
+  subscriptionStatus: string;
+  trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
+}
+
+/**
+ * The business whose subscription decides whether `organizationId` may be used.
+ *
+ * Usually itself. When an owner has added a business it points at the one that
+ * pays, and that one answers for both, so a second site is covered by the
+ * subscription already being paid rather than starting a trial of its own.
+ *
+ * Only one hop is followed. A billing account is by definition the end of the
+ * chain, so a longer one would be a bug, and walking it would turn a cycle into
+ * a hang.
+ */
+export async function billingFactsFor(organizationId: string): Promise<BillingFacts | null> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      subscriptionStatus: true,
+      trialEndsAt: true,
+      currentPeriodEnd: true,
+      billingParent: {
+        select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+      },
+    },
+  });
+  if (!org) return null;
+  return org.billingParent ?? org;
+}
+
 /** Roles allowed to administer an organization rather than just work in it. */
 export function canAdminister(ctx: OrgContext): boolean {
   return ctx.role === 'owner' || ctx.role === 'admin' || ctx.role === 'manager';
@@ -124,18 +170,47 @@ export async function getOrgContext(): Promise<OrgContext | null> {
   const staffContext = await resolveStaffContext(session.user.id);
   if (staffContext) return staffContext;
 
-  const membership = await prisma.membership.findFirst({
-    where: session.user.organizationId
-      ? { userId: session.user.id, organizationId: session.user.organizationId }
-      : { userId: session.user.id },
-    orderBy: { createdAt: 'asc' },
-    select: {
-      organizationId: true,
-      role: true,
-      organization: {
-        select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+  // What the person last switched to, then what the token remembers, then the
+  // one they have had longest. Each candidate is looked up as a membership, so
+  // a cookie naming a business they do not belong to simply finds nothing and
+  // the next candidate is tried.
+  const jar = await cookies();
+  const candidates = [
+    jar.get(ACTIVE_ORG_COOKIE)?.value,
+    session.user.organizationId,
+  ].filter((id): id is string => Boolean(id));
+
+  const select = {
+    organizationId: true,
+    role: true,
+    organization: {
+      select: {
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        currentPeriodEnd: true,
+        billingParent: {
+          select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+        },
       },
     },
+  } as const;
+
+  let membership = null as Awaited<
+    ReturnType<typeof prisma.membership.findFirst<{ select: typeof select }>>
+  >;
+
+  for (const organizationId of candidates) {
+    membership = await prisma.membership.findUnique({
+      where: { userId_organizationId: { userId: session.user.id, organizationId } },
+      select,
+    });
+    if (membership) break;
+  }
+
+  membership ??= await prisma.membership.findFirst({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: 'asc' },
+    select,
   });
   if (!membership) return null;
 
@@ -143,7 +218,9 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     userId: session.user.id,
     organizationId: membership.organizationId,
     role: membership.role,
-    access: evaluateAccess(membership.organization),
+    // A business added by its owner is paid for by the one that owns the
+    // subscription, so that is the one asked.
+    access: evaluateAccess(membership.organization.billingParent ?? membership.organization),
     isStaff: false,
   };
 }
@@ -208,6 +285,11 @@ export async function isSameOrganization(ctx: OrgContext, userId: string): Promi
 }
 
 /** A business name that is safe to put in a URL, and unlike any other. */
+/** An id for a business whose id is not derived from anything. */
+function createId(): string {
+  return `org_${randomUUID().replace(/-/g, '')}`;
+}
+
 function slugify(name: string, seed: string): string {
   const base = name
     .toLowerCase()
@@ -236,9 +318,19 @@ export async function provisionOrganization(options: {
   location?: string | null;
   /** Fixed id, for the personal business whose id is derived from the user. */
   organizationId?: string;
+  /**
+   * The business whose subscription pays for this one. Set when an owner adds
+   * a second business; left null for one that bills for itself, which is what
+   * signup and the agency screen both create.
+   */
+  billingParentId?: string | null;
 }): Promise<string> {
   const { ownerUserId, name } = options;
-  const organizationId = options.organizationId ?? `org_${ownerUserId}`;
+  // Only the personal business derives its id from its owner, and it asks for
+  // that explicitly so a retry collides instead of making a second one. Every
+  // other business gets a fresh id, because an owner may hold several and they
+  // cannot all be named after the same person.
+  const organizationId = options.organizationId ?? createId();
 
   // Read before the transaction, so the business's opening configuration is
   // settled by the time anything is written.
@@ -252,6 +344,7 @@ export async function provisionOrganization(options: {
         name,
         slug: slugify(name, organizationId),
         location: options.location ?? null,
+        billingParentId: options.billingParentId ?? null,
         subscriptionStatus: 'trialing',
         trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
       },

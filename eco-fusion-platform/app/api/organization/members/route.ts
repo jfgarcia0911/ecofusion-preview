@@ -64,7 +64,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, password, role, employeeId } = await request.json();
+    const { name, email, password, role, employeeId, organizationIds } = await request.json();
+
+    // One login may cover several of the caller's businesses - a manager who
+    // runs two sites should not need two accounts. Absent means "this one",
+    // which is what every existing caller sends.
+    const requestedOrgIds: string[] = Array.isArray(organizationIds) && organizationIds.length
+      ? [...new Set(organizationIds.map(String))]
+      : [ctx.organizationId];
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -102,6 +109,30 @@ export async function POST(request: Request) {
       );
     }
 
+    // The caller must be able to manage each business named, checked one by
+    // one: holding one business does not grant a say in another.
+    const permitted = await prisma.membership.findMany({
+      where: {
+        userId: ctx.userId,
+        organizationId: { in: requestedOrgIds },
+        role: { in: ['owner', 'admin'] },
+      },
+      select: { organizationId: true },
+    });
+    const permittedIds = new Set(permitted.map((m) => m.organizationId));
+
+    // Staff act with an admin's powers inside the business they entered, and
+    // hold no membership of their own, so that one is theirs to add to.
+    if (ctx.isStaff) permittedIds.add(ctx.organizationId);
+
+    const refused = requestedOrgIds.filter((id) => !permittedIds.has(id));
+    if (refused.length > 0) {
+      return NextResponse.json(
+        { error: 'You can only add people to a business you own or administer' },
+        { status: 403 }
+      );
+    }
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // An employee may only be linked if they belong to this farm.
@@ -127,8 +158,12 @@ export async function POST(request: Request) {
           onboardingComplete: true,
         },
       });
-      await tx.membership.create({
-        data: { userId: user.id, organizationId: ctx.organizationId, role: requestedRole },
+      await tx.membership.createMany({
+        data: requestedOrgIds.map((organizationId) => ({
+          userId: user.id,
+          organizationId,
+          role: requestedRole,
+        })),
       });
       if (employeeId) {
         await tx.employee.update({ where: { id: employeeId }, data: { accountId: user.id } });
@@ -137,7 +172,13 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(
-      { id: created.id, name: created.name, email: created.email, role: requestedRole },
+      {
+        id: created.id,
+        name: created.name,
+        email: created.email,
+        role: requestedRole,
+        organizationIds: requestedOrgIds,
+      },
       { status: 201 }
     );
   } catch (error) {
