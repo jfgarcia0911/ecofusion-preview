@@ -17,3 +17,7 @@ Thumbs.db
 
 # Node modules (handled by platform .gitignore)
 node_modules/
+
+# Next.js build output. The nested .gitignore only covers
+# eco-fusion-platform/.next, so a stray build at the root slipped past it.
+/.next/
