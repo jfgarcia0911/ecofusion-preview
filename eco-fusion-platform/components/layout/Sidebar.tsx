@@ -55,7 +55,12 @@ const userNavItems = [
  */
 const commonNavItems = [
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
-    { name: "Settings", href: "/settings", icon: Settings, tourId: "nav-settings" },
+    // Lands on Sub Accounts rather than the index of settings. Opening
+    // settings is nearly always about a particular business, and the first
+    // question is which one; the sidebar already lists everything the index
+    // would have offered, so a page of the same links in card form was a stop
+    // on the way rather than a destination.
+    { name: "Settings", href: "/settings/sub-accounts", icon: Settings, tourId: "nav-settings" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 
