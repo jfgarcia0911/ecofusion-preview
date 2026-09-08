@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, KeyRound, LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, GraduationCap, Package, ShoppingCart, Settings, Bot, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot } from "lucide-react";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 
@@ -34,21 +34,6 @@ const baseNavItems = [
 const adminNavItems = [
     { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
     { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
-    { name: "Integrations", href: "/settings/integrations", icon: Settings, tourId: "nav-integrations" },
-];
-
-/**
- * The owner's alone.
- *
- * Who holds a login, what training the business is answerable for, and what it
- * pays are decisions for the person who owns the business, not for anyone they
- * gave an account to. Staff who have stepped into a business act with an
- * administrator's powers and not an owner's, so these stay hidden for them too.
- */
-const ownerNavItems = [
-    { name: "Team Access", href: "/business/team", icon: KeyRound, tourId: "nav-team" },
-    { name: "Training Mgmt", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
-    { name: "Billing", href: "/billing", icon: CreditCard, tourId: "nav-billing" },
 ];
 
 // User-only navigation items
@@ -57,9 +42,18 @@ const userNavItems = [
 ];
 
 // Common items for all users
+/**
+ * Common items, and the one door behind which the rest now sit.
+ *
+ * Billing, team access, training management, integrations and the access
+ * record were five entries in an already long sidebar, next to the screens
+ * somebody opens every day. They are visited rarely and mostly by one person,
+ * so /settings lists the ones the reader may actually open and the sidebar
+ * carries a single line instead of five.
+ */
 const commonNavItems = [
-    { name: "Preferences", href: "/settings/preferences", icon: SlidersHorizontal, tourId: "nav-preferences" },
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
+    { name: "Settings", href: "/settings", icon: Settings, tourId: "nav-settings" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
 
@@ -82,7 +76,6 @@ export default function Sidebar({
     // legacy global role: an owner is an administrator of their own business.
     const role = user?.orgRole ?? user?.role;
     const isAdmin = role === 'owner' || role === 'admin' || role === 'manager';
-    const isOwner = role === 'owner';
 
     // Staff is a fact about the account itself, so it is read from the global
     // role rather than from `role` above, which resolves to the business.
@@ -92,7 +85,6 @@ export default function Sidebar({
     const navItems = [
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
-        ...(isOwner ? ownerNavItems : []),
         ...commonNavItems,
     ];
 
