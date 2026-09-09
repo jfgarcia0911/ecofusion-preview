@@ -26,11 +26,11 @@ interface Staff {
  * nothing on this page touches a business's own members - a customer's staff
  * are managed by that customer, under Employees.
  *
- * A staff account is the platform owner's assistant. It arrives reaching
- * nothing, and reaches a business only because the owner hands that business
- * over, one at a time. Somebody taken on to look after three customers cannot
- * open the other forty, which is the whole reason this screen exists rather
- * than everyone with a platform login seeing everything.
+ * A staff account is the platform owner's assistant. It arrives opening
+ * nothing, and opens a sub account only because the owner handed that one
+ * over. Somebody taken on to look after three customers cannot open the other
+ * forty, which is the whole reason this screen exists rather than everyone
+ * with a platform login seeing everything.
  */
 export default function AgencyTeamPage() {
     const [staff, setStaff] = useState<Staff[]>([]);
@@ -114,13 +114,13 @@ export default function AgencyTeamPage() {
             });
             const data = await res.json();
             if (!res.ok) {
-                toast.error(data.error ?? "Could not save what they reach.");
+                toast.error(data.error ?? "Could not save their sub accounts.");
                 return;
             }
             toast.success(
                 picked.length === 0
-                    ? `${granting.name || granting.email} now reaches nothing`
-                    : `${granting.name || granting.email} reaches ${picked.length} ${picked.length === 1 ? "business" : "businesses"}`
+                    ? `${granting.name || granting.email} now opens nothing`
+                    : `${granting.name || granting.email} opens ${picked.length} sub account${picked.length === 1 ? "" : "s"}`
             );
             setGranting(null);
             load();
@@ -133,7 +133,7 @@ export default function AgencyTeamPage() {
         const ok = await confirmAction({
             title: `Remove ${person.name || person.email}?`,
             message:
-                "Their account and everything they reach go. What they did inside a business stays in that business's access record.",
+                "Their account and every sub account it opens go. What they did inside a business stays in that business's access record.",
             confirmLabel: "Remove",
             tone: "danger",
         });
@@ -173,8 +173,8 @@ export default function AgencyTeamPage() {
                         Team Access
                     </h1>
                     <p className="text-white/50 mt-1 text-sm max-w-2xl">
-                        EcoFusion&apos;s own people. An account here reaches nothing until you
-                        hand it a business, and reaches only what you hand it. Customers
+                        EcoFusion&apos;s own people. An account here opens nothing until you
+                        hand it a sub account, and opens only the ones you hand it. Customers
                         manage their own staff under Employees.
                     </p>
                 </div>
@@ -247,7 +247,7 @@ export default function AgencyTeamPage() {
                             Cancel
                         </button>
                         <span className="text-xs text-white/30 ml-auto">
-                            They start reaching nothing. Hand them a business afterwards.
+                            They start with none. Hand them a sub account afterwards.
                         </span>
                     </div>
                 </form>
@@ -261,7 +261,7 @@ export default function AgencyTeamPage() {
                     <p className="text-white font-medium">No staff yet</p>
                     <p className="text-sm text-white/40 mt-1.5 max-w-sm">
                         You are the only EcoFusion account. Add somebody to help, then choose
-                        which businesses they can open.
+                        which sub accounts they can open.
                     </p>
                 </div>
             ) : (
@@ -269,7 +269,7 @@ export default function AgencyTeamPage() {
                     <table className="w-full border-collapse text-left text-sm">
                         <thead>
                             <tr className="bg-white/[0.04]">
-                                {["Name", "Email", "Reaches", "Added", ""].map((h, i) => (
+                                {["Name", "Email", "Sub Accounts", "Added", ""].map((h, i) => (
                                     <th
                                         key={h || i}
                                         scope="col"
@@ -289,7 +289,7 @@ export default function AgencyTeamPage() {
                                     <td className="px-4 py-3.5 text-white/55">{person.email}</td>
                                     <td className="px-4 py-3.5">
                                         {person.businesses.length === 0 ? (
-                                            <span className="text-xs text-white/30">Nothing yet</span>
+                                            <span className="text-xs text-white/30">None yet</span>
                                         ) : (
                                             <span className="flex flex-wrap gap-1">
                                                 {person.businesses.map((b) => (
@@ -314,7 +314,7 @@ export default function AgencyTeamPage() {
                                                 className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
                                             >
                                                 <Building2 size={13} />
-                                                Businesses
+                                                Sub accounts
                                             </button>
                                             <button
                                                 type="button"
@@ -336,7 +336,7 @@ export default function AgencyTeamPage() {
             <Modal
                 isOpen={granting !== null}
                 onClose={() => setGranting(null)}
-                title={`Businesses for ${granting?.name || granting?.email || ""}`}
+                title={`Sub accounts for ${granting?.name || granting?.email || ""}`}
             >
                 <form onSubmit={saveGrant} className="space-y-4">
                     <p className="text-sm text-white/55">
