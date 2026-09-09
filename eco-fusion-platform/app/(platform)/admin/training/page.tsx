@@ -64,6 +64,7 @@ export default function AdminTrainingPage() {
     const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [assignmentsLoading, setAssignmentsLoading] = useState(false);
     const [courseSearch, setCourseSearch] = useState('');
     const [courseCategory, setCourseCategory] = useState('All');
     const [assignDueDate, setAssignDueDate] = useState('');
@@ -101,12 +102,29 @@ export default function AdminTrainingPage() {
         setLoading(false);
     };
 
-    const fetchUserAssignments = async (userId: string) => {
+    /**
+     * Loads one person's training.
+     *
+     * The list is emptied before the request rather than after it. Left in
+     * place it kept showing the previous person's courses under the new
+     * person's name, which is worse than showing nothing: it is not a delay,
+     * it is an answer, and it is wrong.
+     *
+     * `quiet` skips that for refreshes after assigning or removing, where the
+     * list on screen is already this person's and only needs correcting.
+     */
+    const fetchUserAssignments = async (userId: string, quiet = false) => {
+        if (!quiet) {
+            setUserAssignments([]);
+            setAssignmentsLoading(true);
+        }
         try {
             const res = await fetch(`/api/training/assignments?userId=${userId}`);
             if (res.ok) setUserAssignments(await res.json());
         } catch (error) {
             console.error('Failed to fetch assignments:', error);
+        } finally {
+            setAssignmentsLoading(false);
         }
     };
 
@@ -124,7 +142,7 @@ export default function AdminTrainingPage() {
             });
 
             if (res.ok) {
-                if (selectedUser) fetchUserAssignments(selectedUser);
+                if (selectedUser) fetchUserAssignments(selectedUser, true);
                 fetchData();
                 setIsAssignModalOpen(false);
             } else {
@@ -193,7 +211,7 @@ export default function AdminTrainingPage() {
             });
 
             if (res.ok && selectedUser) {
-                fetchUserAssignments(selectedUser);
+                fetchUserAssignments(selectedUser, true);
                 fetchData();
             }
         } catch (error) {
@@ -404,7 +422,34 @@ export default function AdminTrainingPage() {
                                 </div>
                             </div>
 
-                            {userAssignments.length > 0 ? (
+                            {/*
+                              * Shaped like the cards that are coming, so the
+                              * panel does not resize under the reader when
+                              * they land.
+                              */}
+                            {assignmentsLoading ? (
+                                <div className="space-y-3" aria-busy="true" aria-label="Loading their training">
+                                    {[0, 1, 2].map(card => (
+                                        <div
+                                            key={card}
+                                            className="bg-white/5 border border-white/5 rounded-xl p-4 animate-pulse"
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex-1 space-y-2.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="h-4 w-20 rounded bg-white/10" />
+                                                        <div className="h-4 w-16 rounded bg-white/5" />
+                                                    </div>
+                                                    <div className="h-4 w-2/3 rounded bg-white/10" />
+                                                    <div className="h-3 w-1/3 rounded bg-white/5" />
+                                                    <div className="h-2 w-full rounded-full bg-white/5 mt-3" />
+                                                </div>
+                                                <div className="h-8 w-8 rounded-lg bg-white/5 shrink-0" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : userAssignments.length > 0 ? (
                                 <div className="space-y-3">
                                     {userAssignments.map(assignment => (
                                         <div

@@ -28,40 +28,43 @@ export async function GET(request: Request) {
             );
         }
 
-        const assignments = await prisma.courseAssignment.findMany({
-            where: { assigneeId: targetUserId },
-            include: {
-                course: {
-                    include: {
-                        lessons: {
-                            select: { id: true, title: true, type: true, duration: true, sortOrder: true },
-                            orderBy: { sortOrder: 'asc' }
+        // All three at once rather than one after another.
+        //
+        // The two completion queries used to narrow themselves by ids taken
+        // from the assignments, which made them wait for it. That narrowing
+        // was never doing any work: both are already filtered to this person,
+        // so they can only return rows about courses and lessons that are
+        // theirs, and the merge below picks out the relevant ones regardless.
+        // Waiting for it cost two round trips to a database on the other side
+        // of the world, every time somebody clicked a name.
+        const [assignments, completions, lessonCompletions] = await Promise.all([
+            prisma.courseAssignment.findMany({
+                where: { assigneeId: targetUserId },
+                include: {
+                    course: {
+                        include: {
+                            lessons: {
+                                select: { id: true, title: true, type: true, duration: true, sortOrder: true },
+                                orderBy: { sortOrder: 'asc' }
+                            }
                         }
+                    },
+                    assignedBy: {
+                        select: { id: true, name: true }
                     }
                 },
-                assignedBy: {
-                    select: { id: true, name: true }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-
-        // Get completion status for each assignment
-        const completions = await prisma.courseCompletion.findMany({
-            where: {
-                userId: targetUserId,
-                courseId: { in: assignments.map(a => a.courseId) }
-            }
-        });
-
-        // Get lesson completions for progress tracking
-        const lessonIds = assignments.flatMap(a => a.course.lessons.map(l => l.id));
-        const lessonCompletions = await prisma.lessonCompletion.findMany({
-            where: {
-                userId: targetUserId,
-                lessonId: { in: lessonIds }
-            }
-        });
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.courseCompletion.findMany({
+                where: { userId: targetUserId }
+            }),
+            // Only the id is read below, and there can be a great many of
+            // these once somebody is working through the curriculum.
+            prisma.lessonCompletion.findMany({
+                where: { userId: targetUserId },
+                select: { lessonId: true }
+            }),
+        ]);
 
         // Merge completion data
         const enrichedAssignments = assignments.map(assignment => {
