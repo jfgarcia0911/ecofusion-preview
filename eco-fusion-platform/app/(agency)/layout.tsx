@@ -24,21 +24,30 @@ export default async function AgencyLayout({ children }: { children: React.React
     const session = await auth();
     if (!session?.user?.id) redirect("/login");
 
+    // The staff check and the open session lookup have nothing to say to each
+    // other, so they are asked for together rather than one after the other.
+    // Both cross the Pacific; doing so twice in sequence is what the shell was
+    // waiting on before it could render at all.
+    //
+    // The check still gates everything below. Starting a query before knowing
+    // whether the caller may be here is not a leak: its result is thrown away
+    // on the redirect, and the id it reads came from the caller's own cookie.
+    const openSessionId = await currentStaffOrganizationId();
+    const [staff, openSession] = await Promise.all([
+        isPlatformAdmin(session.user.id),
+        openSessionId
+            ? prisma.organization.findUnique({
+                  where: { id: openSessionId },
+                  select: { name: true },
+              })
+            : Promise.resolve(null),
+    ]);
+
     // Read from the database, not the token, so withdrawing staff access shuts
     // this view at once instead of whenever a session happens to refresh.
-    if (!(await isPlatformAdmin(session.user.id))) {
+    if (!staff) {
         redirect("/dashboard/executive");
     }
-
-    // A support session left open is worth saying out loud from up here, since
-    // the agency view is precisely where somebody would forget about one.
-    const openSessionId = await currentStaffOrganizationId();
-    const openSession = openSessionId
-        ? await prisma.organization.findUnique({
-              where: { id: openSessionId },
-              select: { name: true },
-          })
-        : null;
 
     return (
         <ToastProvider>

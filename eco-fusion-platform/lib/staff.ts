@@ -7,6 +7,7 @@
  * while it lasts, and it is written down.
  */
 
+import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole, isPlatformOwnerRole } from '@/lib/roles';
@@ -21,14 +22,18 @@ export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
  * refreshed when something asks it to, and revoking staff access should not
  * wait on that. The cost lands only on requests that are already claiming
  * staff access, since nothing else calls this.
+ *
+ * Cached for the life of one request. A layout and the route below it both ask
+ * this, and asking a database in another hemisphere the same question twice in
+ * a row is a round trip spent on an answer already held.
  */
-export async function isPlatformAdmin(userId: string): Promise<boolean> {
+export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> => {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { role: true },
     });
     return isPlatformRole(user?.role);
-}
+});
 
 /**
  * Whether an account is EcoFusion itself, rather than somebody working for it.

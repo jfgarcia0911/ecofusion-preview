@@ -34,27 +34,32 @@ export default async function DashboardLayout({
         redirect("/agency");
     }
 
-    // Named rather than left as an id, so the sidebar and the banner can both
-    // say whose business this is. Read for everyone, not only for staff: the
-    // switcher shows the name at all times, which is how somebody notices they
-    // are not where they thought they were.
-    const business = ctx
-        ? await prisma.organization.findUnique({
-              where: { id: ctx.organizationId },
-              select: { name: true, location: true },
-          })
-        : null;
-    const staffBusiness = ctx?.isStaff ? business : null;
+    // These three do not depend on each other, so they go together. Awaited one
+    // after another they were three round trips to a database on the other side
+    // of the world, in front of every screen in the app; asked for at once they
+    // cost one. Nothing below reads a result before this line.
+    //
+    // `business` is named rather than left as an id so the sidebar and the
+    // banner can both say whose business this is, and it is read for everyone
+    // rather than only for staff: the switcher shows the name at all times,
+    // which is how somebody notices they are not where they thought they were.
+    const [business, user] = await Promise.all([
+        ctx
+            ? prisma.organization.findUnique({
+                  where: { id: ctx.organizationId },
+                  select: { name: true, location: true },
+              })
+            : Promise.resolve(null),
+        session?.user?.id
+            ? prisma.user.findUnique({
+                  where: { id: session.user.id },
+                  select: { onboardingComplete: true },
+              })
+            : Promise.resolve(null),
+    ]);
 
-    // Check if user needs onboarding
-    let showOnboarding = false;
-    if (session?.user?.id) {
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { onboardingComplete: true },
-        });
-        showOnboarding = !user?.onboardingComplete;
-    }
+    const staffBusiness = ctx?.isStaff ? business : null;
+    const showOnboarding = Boolean(session?.user?.id) && !user?.onboardingComplete;
 
 
     // An owner gets the panel even with a single business, because that panel
