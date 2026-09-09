@@ -18,7 +18,7 @@ export default async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api')) {
     const identifier = getRateLimitIdentifier(request, pathname);
     const config = getRateLimitConfig(pathname);
-    const rateLimitResult = checkRateLimit(identifier, config);
+    const rateLimitResult = await checkRateLimit(identifier, config);
 
     if (!rateLimitResult.success) {
       return new NextResponse(
@@ -53,7 +53,16 @@ export default async function middleware(request: NextRequest) {
     return response;
   }
 
-  // For non-API routes, apply authentication middleware
+  // For non-API routes, apply authentication middleware.
+  //
+  // The cast stays. next-auth exposes `auth` for use as a wrapper,
+  // auth((req) => ...), and declares no overload for being handed a request
+  // directly - which is what this file needs, because rate limiting has to
+  // run first and return before auth is consulted. Rewriting it into the
+  // wrapper form is a change to how every request is authenticated and does
+  // not belong in a security pass; NextAuthRequest was tried and the call
+  // does not typecheck against any declared overload.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return auth(request as any);
 }
 

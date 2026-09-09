@@ -43,6 +43,8 @@
     "@next/env": "^16.1.0",
     "@prisma/client": "^6.19.2",
     "@swc/helpers": "^0.5.17",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.4",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

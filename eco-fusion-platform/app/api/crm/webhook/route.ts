@@ -9,9 +9,21 @@ import crypto from 'crypto';
 function verifyWebhookSignature(signature: string | null, body: string): boolean {
   const webhookSecret = process.env.GOHIGHLEVEL_WEBHOOK_SECRET;
 
-  // If no secret is configured, log warning and allow (for development)
+  // Unconfigured is fatal in production and permitted only locally.
+  //
+  // This used to return true either way, so a deployment with the variable
+  // unset accepted anything posted to the URL as though GoHighLevel had signed
+  // it. Development keeps the old behaviour, because a tunnel with no secret is
+  // how the endpoint gets tested at all - and says so, loudly, each time.
   if (!webhookSecret) {
-    console.warn('GOHIGHLEVEL_WEBHOOK_SECRET not configured - webhook verification disabled');
+    if (process.env.NODE_ENV === 'production') {
+      console.error(
+        'GOHIGHLEVEL_WEBHOOK_SECRET is not set. Webhooks are being rejected ' +
+        'rather than trusted unsigned. Set it to accept them.'
+      );
+      return false;
+    }
+    console.warn('GOHIGHLEVEL_WEBHOOK_SECRET not set - accepting unsigned webhooks (development only)');
     return true;
   }
 
