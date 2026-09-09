@@ -106,11 +106,18 @@ export default function Sidebar({
     // What someone may do is decided by their role in this business, not by the
     // legacy global role: an owner is an administrator of their own business.
     const role = user?.orgRole ?? user?.role;
-    const isAdmin = role === 'owner' || role === 'supervisor' || role === 'manager';
-
     // Staff is a fact about the account itself, so it is read from the global
     // role rather than from `role` above, which resolves to the business.
     const isStaff = isPlatformRole(user?.role);
+
+    // Staff hold a supervisor's powers inside a business they have entered, but
+    // their standing comes from the platform rather than from a membership, so
+    // orgRole is empty for them and the role test below never matched. Without
+    // this they lost Employees and Training Management the moment they stepped
+    // into a business to help with either.
+    const isAdmin =
+        isStaff || role === 'owner' || role === 'supervisor' || role === 'manager';
+
 
     // Build nav items based on role
     const navItems = [

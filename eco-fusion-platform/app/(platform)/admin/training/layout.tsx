@@ -2,12 +2,15 @@ import { redirect } from "next/navigation";
 import { getOrgContext } from "@/lib/tenancy";
 
 /**
- * Training management belongs to the owner.
+ * Training management belongs to the owner, and to EcoFusion helping them.
  *
  * What a business is answerable for having taught its staff is the owner's to
- * decide, so the screen that assigns courses and exports the compliance record
- * is theirs alone. The sidebar hides the link; this turns away anyone who
- * types the address instead.
+ * decide, so nobody they gave an account to reaches this screen. The sidebar
+ * hides the link from them; this turns away anyone who types the address.
+ *
+ * EcoFusion staff reach it too. Helping a customer with their training is why
+ * support was called, and they entered the business to do it - a screen they
+ * cannot open is a support call that ends in "log in as yourself and try".
  *
  * The academy itself is untouched. Every employee still reaches their own
  * assigned courses at /academy - what is gated here is deciding who must take
@@ -20,7 +23,7 @@ export default async function TrainingManagementLayout({
 }) {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
-    if (ctx.role !== "owner" || ctx.isStaff) redirect("/dashboard/executive");
+    if (ctx.role !== "owner" && !ctx.isStaff) redirect("/dashboard/executive");
 
     return <>{children}</>;
 }
