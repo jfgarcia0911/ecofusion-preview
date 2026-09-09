@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, Search, Undo2, Pin, PinOff } from "lucide-react";
+import { ChevronsUpDown, Search, Undo2, Pin, PinOff , LogOut } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
 interface SubAccount {
@@ -69,6 +69,7 @@ export default function SubAccountSwitcher({
     const [accounts, setAccounts] = useState<SubAccount[]>([]);
     const [loading, setLoading] = useState(false);
     const [entering, setEntering] = useState<string | null>(null);
+    const [leaving, setLeaving] = useState(false);
     const [recent, setRecent] = useState<string[]>([]);
     const [pinned, setPinned] = useState<string[]>([]);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -177,6 +178,21 @@ export default function SubAccountSwitcher({
         }
     }
 
+    // Closing the support session. The banner that used to carry this sat
+    // across every page; the exit belongs beside the name of the business it
+    // leaves, which the switcher is already showing.
+    async function leave() {
+        setLeaving(true);
+        try {
+            await fetch("/api/admin/session", { method: "DELETE" });
+            setOpen(false);
+            router.push("/agency/sub-accounts");
+            router.refresh();
+        } finally {
+            setLeaving(false);
+        }
+    }
+
     const label = business?.name ?? "No business";
     const initial = label[0]?.toUpperCase() ?? "?";
 
@@ -241,14 +257,27 @@ export default function SubAccountSwitcher({
                     </div>
 
                     {isStaff && (
-                        <Link
-                            href="/agency/sub-accounts"
-                            onClick={() => setOpen(false)}
-                            className="flex items-center gap-2 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
-                        >
-                            <Undo2 size={15} />
-                            Switch to Agency View
-                        </Link>
+                        <>
+                            <Link
+                                href="/agency/sub-accounts"
+                                onClick={() => setOpen(false)}
+                                className="flex items-center gap-2 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
+                            >
+                                <Undo2 size={15} />
+                                Switch to Agency View
+                            </Link>
+                            {business && (
+                                <button
+                                    type="button"
+                                    onClick={leave}
+                                    disabled={leaving}
+                                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-white/60 hover:bg-white/5 hover:text-white disabled:opacity-50 transition-colors border-t border-white/10"
+                                >
+                                    <LogOut size={15} />
+                                    {leaving ? "Leaving..." : `Leave ${business.name}`}
+                                </button>
+                            )}
+                        </>
                     )}
 
 

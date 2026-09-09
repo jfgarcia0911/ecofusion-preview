@@ -7,7 +7,6 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
 import TrialBanner from "@/components/layout/TrialBanner";
-import StaffBanner from "@/components/layout/StaffBanner";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
@@ -58,7 +57,6 @@ export default async function DashboardLayout({
             : Promise.resolve(null),
     ]);
 
-    const staffBusiness = ctx?.isStaff ? business : null;
     const showOnboarding = Boolean(session?.user?.id) && !user?.onboardingComplete;
 
 
@@ -70,7 +68,6 @@ export default async function DashboardLayout({
     // business: it still names their own membership somewhere else.
     const isOwner = ctx?.role === "owner" && !ctx.isStaff;
 
-    const canCreateBusiness = !ctx?.isStaff && ctx?.role === "owner";
 
     return (
         <ToastProvider>
@@ -82,11 +79,6 @@ export default async function DashboardLayout({
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
-                        {staffBusiness && (
-                            <div className="mb-6">
-                                <StaffBanner businessName={staffBusiness.name} />
-                            </div>
-                        )}
                         {ctx && !ctx.isStaff && (
                             <div className="mb-6">
                                 <TrialBanner access={ctx.access} />
