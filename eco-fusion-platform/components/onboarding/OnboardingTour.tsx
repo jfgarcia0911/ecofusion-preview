@@ -103,11 +103,11 @@ const tourSteps: Step[] = [
         placement: 'right',
     },
     {
-        target: '[data-tour="nav-tasks"]',
+        target: '[data-tour="nav-assistant"]',
         content: (
             <div>
-                <h3 className="font-bold mb-2">Task Manager</h3>
-                <p>Create, assign, and track tasks. Set priorities, due dates, and keep your team organized.</p>
+                <h3 className="font-bold mb-2">AI Assistant</h3>
+                <p>Ask about the farm in plain words. It knows your zones, stock and readings, so &quot;why is tank three lagging&quot; is a fair question.</p>
             </div>
         ),
         placement: 'right',
@@ -118,6 +118,46 @@ const tourSteps: Step[] = [
             <div>
                 <h3 className="font-bold mb-2">Employees</h3>
                 <p>Everybody who works here: what they do, how to reach them, and whether they have a login. Giving somebody access starts on this screen.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-scheduling"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Scheduling</h3>
+                <p>Shifts and the work that comes round again. Assign it once and it appears for whoever is on, week after week.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-training"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Training Management</h3>
+                <p>Decide what your people are trained on. Assign courses, see who has finished which, and export the record when somebody asks for it.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-schedules"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">My Schedule</h3>
+                <p>The shifts and recurring work assigned to you, and nobody else&apos;s. What you are on for this week.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-tasks"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Task Manager</h3>
+                <p>Create, assign, and track tasks. Set priorities, due dates, and keep your team organized.</p>
             </div>
         ),
         placement: 'right',

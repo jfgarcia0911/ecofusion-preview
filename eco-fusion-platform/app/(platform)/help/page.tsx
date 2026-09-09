@@ -81,6 +81,8 @@ The first time you sign in, a short walkthrough opens and points at each part of
 
 ## What the tour covers
 
+It walks the sidebar from top to bottom, in the order you see it:
+
 1. **The sidebar** - everything you can reach, in one column
 2. **Executive** - the whole operation on one screen
 3. **Operations** - your zones, and what the sensors are reading
@@ -89,12 +91,16 @@ The first time you sign in, a short walkthrough opens and points at each part of
 6. **Sales** - what you sold and to whom, with stock coming out as it goes
 7. **Academy** - your assigned courses and certifications
 8. **Intelligence** - what the data suggests you look at
-9. **Employees** - your people, and who has a login
-10. **Settings** - your account, and how this business is configured
-11. **Help Center** - this
-12. **The header** - search, notifications and your account menu
+9. **AI Assistant** - ask about the farm in plain words
+10. **Employees** - your people, and who has a login
+11. **Scheduling** - shifts and the work that comes round again
+12. **Training Management** - assign courses and keep the record
+13. **Tasks** - what needs doing
+14. **Settings** - your account, and how this business is configured
+15. **Help Center** - this
+16. **The header** - search, notifications and your account menu
 
-Steps for screens you cannot open are left out rather than shown and skipped, so the tour is only as long as the sidebar you actually have. Somebody who works at the farm sees fewer steps than the person who runs it.
+Steps for screens you cannot open are left out rather than shown and skipped, so the tour is only as long as the sidebar you actually have. If you work at the farm rather than run it, Employees, Scheduling and Training Management are replaced by a single step on **My Schedule**.
 
 ## Skipping and running it again
 
