@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
     BookOpen, Users, Plus, Search, CheckCircle, Clock,
     AlertCircle, Shield, Download, ChevronDown, X,
-    Award, Calendar, FileText
+    Award, Calendar, FileText, Loader2
 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
@@ -65,6 +65,8 @@ export default function AdminTrainingPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+    const [assigningId, setAssigningId] = useState<string | null>(null);
+    const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
     const [courseSearch, setCourseSearch] = useState('');
     const [courseCategory, setCourseCategory] = useState('All');
     const [assignDueDate, setAssignDueDate] = useState('');
@@ -128,7 +130,16 @@ export default function AdminTrainingPage() {
         }
     };
 
+    /**
+     * Assigns one course, and stays where it is.
+     *
+     * The row spins while the request is out, then turns to Assigned in place.
+     * The panel used to close on success, which meant giving somebody three
+     * courses was three trips back through a list of ninety-nine to find where
+     * you had got to.
+     */
     const handleAssignCourse = async (courseId: string, userId: string) => {
+        setAssigningId(courseId);
         try {
             const res = await fetch('/api/training/assignments', {
                 method: 'POST',
@@ -142,15 +153,21 @@ export default function AdminTrainingPage() {
             });
 
             if (res.ok) {
-                if (selectedUser) fetchUserAssignments(selectedUser, true);
+                // Awaited, so the row is only released once the list behind it
+                // agrees. Clearing sooner shows a plus on a course that has
+                // just been assigned, and inviting somebody to do it twice is
+                // how they end up reading an error they caused by being quick.
+                if (selectedUser) await fetchUserAssignments(selectedUser, true);
                 fetchData();
-                setIsAssignModalOpen(false);
             } else {
                 const error = await res.json();
                 toast.error('Failed to assign course', { description: error.error });
             }
         } catch (error) {
             console.error('Failed to assign course:', error);
+            toast.error('Could not reach the server');
+        } finally {
+            setAssigningId(null);
         }
     };
 
@@ -160,29 +177,47 @@ export default function AdminTrainingPage() {
             return;
         }
 
+        // Every pairing, then a few at a time. One after another meant five
+        // courses across four people was twenty waits in a queue, each of them
+        // a crossing to a database on the other side of the world, with
+        // nothing on screen to say how far along it was. Six at once keeps it
+        // quick without opening twenty connections at a stroke.
+        const pairs = selectedUserIds.flatMap(userId =>
+            selectedCourseIds.map(courseId => ({ userId, courseId }))
+        );
+
         let successCount = 0;
         let errorCount = 0;
+        setBulkProgress({ done: 0, total: pairs.length });
 
-        for (const userId of selectedUserIds) {
-            for (const courseId of selectedCourseIds) {
-                try {
-                    const res = await fetch('/api/training/assignments', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            courseId,
-                            assigneeId: userId,
-                            dueDate: assignDueDate || null,
-                            priority: assignPriority
-                        })
-                    });
-                    if (res.ok) successCount++;
-                    else errorCount++;
-                } catch {
-                    errorCount++;
-                }
+        const assignOne = async ({ userId, courseId }: { userId: string; courseId: string }) => {
+            try {
+                const res = await fetch('/api/training/assignments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        courseId,
+                        assigneeId: userId,
+                        dueDate: assignDueDate || null,
+                        priority: assignPriority
+                    })
+                });
+                if (res.ok) successCount++;
+                else errorCount++;
+            } catch {
+                errorCount++;
+            } finally {
+                setBulkProgress(current =>
+                    current ? { ...current, done: current.done + 1 } : current
+                );
             }
+        };
+
+        const BATCH = 6;
+        for (let i = 0; i < pairs.length; i += BATCH) {
+            await Promise.all(pairs.slice(i, i + BATCH).map(assignOne));
         }
+        setBulkProgress(null);
 
         if (errorCount > 0) {
             toast.warning(`Assigned ${successCount} of ${successCount + errorCount} courses`, {
@@ -702,6 +737,7 @@ export default function AdminTrainingPage() {
                                 mode="pick"
                                 onPick={(courseId) => handleAssignCourse(courseId, selectedUser)}
                                 disabledIds={new Set(userAssignments.map(a => a.courseId))}
+                                busyId={assigningId}
                             />
                         </div>
 
@@ -832,10 +868,28 @@ export default function AdminTrainingPage() {
                                 </button>
                                 <button
                                     onClick={handleBulkAssign}
-                                    disabled={selectedCourseIds.length === 0 || selectedUserIds.length === 0}
-                                    className="bg-accent text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={
+                                        bulkProgress !== null ||
+                                        selectedCourseIds.length === 0 ||
+                                        selectedUserIds.length === 0
+                                    }
+                                    className="bg-accent text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
-                                    Assign Selected
+                                    {/*
+                                      * Counted rather than spun. This can be
+                                      * forty requests, and a spinner that says
+                                      * only "something is happening" for that
+                                      * long is indistinguishable from one that
+                                      * has stopped.
+                                      */}
+                                    {bulkProgress ? (
+                                        <>
+                                            <Loader2 size={14} className="motion-safe:animate-spin" />
+                                            Assigning {bulkProgress.done} of {bulkProgress.total}
+                                        </>
+                                    ) : (
+                                        <>Assign Selected</>
+                                    )}
                                 </button>
                             </div>
                         </div>

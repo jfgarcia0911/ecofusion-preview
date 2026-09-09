@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronRight, Search, Clock, Plus, CheckCircle } from "lucide-react";
+import { Check, ChevronRight, Search, Clock, Plus, CheckCircle, Loader2 } from "lucide-react";
 
 export interface PickableCourse {
     id: string;
@@ -84,6 +84,7 @@ export default function CoursePicker({
     onPick,
     disabledIds,
     disabledLabel = "Assigned",
+    busyId,
     maxHeight = "max-h-80",
 }: {
     courses: PickableCourse[];
@@ -94,6 +95,13 @@ export default function CoursePicker({
     onPick?: (courseId: string) => void;
     disabledIds?: Set<string>;
     disabledLabel?: string;
+    /**
+     * The row currently being acted on, which spins instead of offering a
+     * plus. The answer lands on the row that was clicked, so that is where the
+     * wait belongs: a spinner anywhere else leaves the reader unsure which of
+     * ninety-nine rows they actually hit.
+     */
+    busyId?: string | null;
     maxHeight?: string;
 }) {
     const [term, setTerm] = useState("");
@@ -193,11 +201,12 @@ export default function CoursePicker({
                                         {list.map((course) => {
                                             const isChosen = chosen.has(course.id);
                                             const isDone = already.has(course.id);
+                                            const isBusy = busyId === course.id;
                                             return (
                                                 <button
                                                     key={course.id}
                                                     type="button"
-                                                    disabled={isDone}
+                                                    disabled={isDone || isBusy}
                                                     onClick={() =>
                                                         mode === "select"
                                                             ? onToggle?.(course.id)
@@ -249,7 +258,13 @@ export default function CoursePicker({
                                                     )}
 
                                                     {mode === "pick" &&
-                                                        (isDone ? (
+                                                        (isBusy ? (
+                                                            <Loader2
+                                                                size={15}
+                                                                aria-label="Assigning"
+                                                                className="shrink-0 text-accent motion-safe:animate-spin"
+                                                            />
+                                                        ) : isDone ? (
                                                             <span className="text-[11px] font-bold text-green-500 uppercase shrink-0 flex items-center gap-1">
                                                                 <CheckCircle size={12} />
                                                                 {disabledLabel}
