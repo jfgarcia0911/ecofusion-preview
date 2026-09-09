@@ -153,12 +153,37 @@ export default function AdminTrainingPage() {
             });
 
             if (res.ok) {
-                // Awaited, so the row is only released once the list behind it
-                // agrees. Clearing sooner shows a plus on a course that has
-                // just been assigned, and inviting somebody to do it twice is
-                // how they end up reading an error they caused by being quick.
-                if (selectedUser) await fetchUserAssignments(selectedUser, true);
-                fetchData();
+                // The answer is already known, so nothing is fetched again.
+                // The assignment that came back is added to the list on
+                // screen, which is what turns the row to Assigned, and the
+                // catalogue's tally is stepped up by one. Reloading the whole
+                // section to learn a thing this page just did would blank the
+                // panel the reader is working in, and cost two more crossings
+                // to the far side of the world to be told what it already had.
+                const created = await res.json();
+                const course = courses.find(c => c.id === courseId);
+
+                setUserAssignments(current => [
+                    {
+                        ...created,
+                        course: course ?? created.course,
+                        completion: undefined,
+                        progress: {
+                            totalLessons: course?.lessons.length ?? 0,
+                            completedLessons: 0,
+                            percentComplete: 0,
+                        },
+                    },
+                    ...current,
+                ]);
+
+                setCourses(current =>
+                    current.map(c =>
+                        c.id === courseId
+                            ? { ...c, _count: { ...c._count, assignments: c._count.assignments + 1 } }
+                            : c
+                    )
+                );
             } else {
                 const error = await res.json();
                 toast.error('Failed to assign course', { description: error.error });
@@ -229,7 +254,15 @@ export default function AdminTrainingPage() {
         setIsBulkAssignOpen(false);
         setSelectedCourseIds([]);
         setSelectedUserIds([]);
+
+        // A bulk run touches many people and many courses at once, so here the
+        // page really has lost track and a refresh is the honest answer. The
+        // open panel is refreshed quietly, and only when its person was one of
+        // the people assigned to.
         fetchData();
+        if (selectedUser && selectedUserIds.includes(selectedUser)) {
+            fetchUserAssignments(selectedUser, true);
+        }
     };
 
     const handleRemoveAssignment = async (assignmentId: string) => {
@@ -245,9 +278,28 @@ export default function AdminTrainingPage() {
                 method: 'DELETE'
             });
 
-            if (res.ok && selectedUser) {
-                fetchUserAssignments(selectedUser, true);
-                fetchData();
+            if (res.ok) {
+                // Taken off the list on screen rather than fetched again, for
+                // the same reason as adding one: this page already knows what
+                // it just did.
+                const removed = userAssignments.find(a => a.id === assignmentId);
+                setUserAssignments(current => current.filter(a => a.id !== assignmentId));
+
+                if (removed) {
+                    setCourses(current =>
+                        current.map(c =>
+                            c.id === removed.courseId
+                                ? {
+                                      ...c,
+                                      _count: {
+                                          ...c._count,
+                                          assignments: Math.max(0, c._count.assignments - 1),
+                                      },
+                                  }
+                                : c
+                        )
+                    );
+                }
             }
         } catch (error) {
             console.error('Failed to remove assignment:', error);
