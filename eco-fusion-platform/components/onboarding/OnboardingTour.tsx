@@ -63,6 +63,26 @@ const tourSteps: Step[] = [
         placement: 'right',
     },
     {
+        target: '[data-tour="nav-inventory"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Inventory</h3>
+                <p>Your fish stock, crops, harvests and the parameters you grow to. What is alive on the farm and how it is doing.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-sales"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Sales</h3>
+                <p>Record what you sell and to whom. Stock comes out of inventory as it goes, so the two never disagree.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
         target: '[data-tour="nav-academy"]',
         content: (
             <div>
@@ -88,6 +108,26 @@ const tourSteps: Step[] = [
             <div>
                 <h3 className="font-bold mb-2">Task Manager</h3>
                 <p>Create, assign, and track tasks. Set priorities, due dates, and keep your team organized.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-employees"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Employees</h3>
+                <p>Everybody who works here: what they do, how to reach them, and whether they have a login. Giving somebody access starts on this screen.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-settings"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Settings</h3>
+                <p>Everything that configures rather than runs: your units and password, the business&apos;s integrations and training, and what your subscription covers.</p>
             </div>
         ),
         placement: 'right',
@@ -128,7 +168,7 @@ const tourSteps: Step[] = [
             <div className="text-center">
                 <h2 className="text-xl font-bold mb-2">You&apos;re All Set!</h2>
                 <p className="mb-2">Start by exploring the Executive Dashboard to see your operation overview.</p>
-                <p className="text-sm text-white/70">You can restart this tour anytime from your profile settings.</p>
+                <p className="text-sm text-white/70">You can run this tour again whenever you like, from Settings &rarr; Preferences.</p>
             </div>
         ),
         placement: 'center',
@@ -137,14 +177,27 @@ const tourSteps: Step[] = [
 
 export default function OnboardingTour({ showTour, onComplete }: OnboardingTourProps) {
     const [run, setRun] = useState(false);
+    // Not every step applies to every reader: Employees is on the sidebar for
+    // somebody who runs the business and not for somebody who works in it. A
+    // step pointing at an element that is not there stalls the tour, so the
+    // steps are chosen from what the page actually has once it has mounted.
+    const [steps, setSteps] = useState<Step[]>([]);
     const router = useRouter();
 
     useEffect(() => {
-        if (showTour) {
-            // Small delay to ensure DOM elements are mounted
-            const timer = setTimeout(() => setRun(true), 500);
-            return () => clearTimeout(timer);
-        }
+        if (!showTour) return;
+        const timer = setTimeout(() => {
+            setSteps(
+                tourSteps.filter(
+                    (step) =>
+                        typeof step.target !== 'string' ||
+                        step.target === 'body' ||
+                        document.querySelector(step.target) !== null
+                )
+            );
+            setRun(true);
+        }, 500);
+        return () => clearTimeout(timer);
     }, [showTour]);
 
     const handleCallback = async (data: CallBackProps) => {
@@ -174,7 +227,7 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
 
     return (
         <Joyride
-            steps={tourSteps}
+            steps={steps}
             run={run}
             continuous
             showSkipButton

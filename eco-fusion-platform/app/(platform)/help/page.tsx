@@ -77,65 +77,83 @@ EcoFusion helps you manage and optimize your integrated farming operation throug
                 id: 'first-login',
                 title: 'Your First Login',
                 content: `
-When you first log in to EcoFusion, you'll be greeted with an interactive tour that walks you through all the main features.
+The first time you sign in, a short walkthrough opens and points at each part of the sidebar in turn.
 
-## The Onboarding Tour
+## What the tour covers
 
-The tour highlights each section of the platform:
-1. **Navigation Sidebar** - Your main menu for all features
-2. **Executive Dashboard** - High-level overview
-3. **Operations Center** - Real-time monitoring
-4. **Business Units** - Your 7 integrated silos
-5. **Academy** - Training and certification
-6. **Intelligence Hub** - AI insights
-7. **Employee Management** - Team tools
-8. **Task Manager** - Workflow organization
+1. **The sidebar** - everything you can reach, in one column
+2. **Executive** - the whole operation on one screen
+3. **Operations** - your zones, and what the sensors are reading
+4. **Business Units** - the seven silos this farm runs
+5. **Inventory** - fish, crops, harvests, and the parameters you grow to
+6. **Sales** - what you sold and to whom, with stock coming out as it goes
+7. **Academy** - your assigned courses and certifications
+8. **Intelligence** - what the data suggests you look at
+9. **Employees** - your people, and who has a login
+10. **Settings** - your account, and how this business is configured
+11. **Help Center** - this
+12. **The header** - search, notifications and your account menu
 
-## Skipping or Restarting the Tour
+Steps for screens you cannot open are left out rather than shown and skipped, so the tour is only as long as the sidebar you actually have. Somebody who works at the farm sees fewer steps than the person who runs it.
 
-- Click "Skip Tour" at any time to exit
-- The tour only shows once for new accounts
-- Contact support to reset your tour if needed
+## Skipping and running it again
 
-## Next Steps
+- **Skip tour** closes it at any point
+- It opens by itself only once, when an account is new
+- **Settings -> Preferences -> Run the tour** opens it again, as often as you like
 
-After the tour, we recommend:
-1. Explore the Executive Dashboard
-2. Set up your zones in Operations
-3. Add your team members
-4. Start a training course in the Academy
+## What to do next
+
+1. Look over the Executive dashboard to see where things stand
+2. Set your zones up under Operations
+3. Add your people under Employees, and give a login to anybody who needs one
+4. Start an assigned course in the Academy
                 `,
             },
             {
                 id: 'navigation',
                 title: 'Navigating the Platform',
                 content: `
-EcoFusion uses a consistent layout across all pages for easy navigation.
+Every page uses the same layout: the sidebar on the left, the header across the top, and the screen you asked for in the middle.
 
-## Sidebar Navigation
+## The sidebar
 
-The left sidebar contains links to all major sections:
-- **Executive** - Overview dashboard
-- **Operations** - Zone monitoring
-- **Business Units** - 7 integrated silos
-- **Academy (LMS)** - Training courses
-- **Intelligence** - AI insights
-- **Employees** - Team management
-- **Tasks** - Task tracking
-- **Help Center** - You are here!
+Everybody sees these:
 
-## Header Bar
+- **Executive** - the overview
+- **Operations** - zones and sensor readings
+- **Business Units** - the seven silos
+- **Inventory** - fish, crops, harvests, growing parameters
+- **Sales** - orders, customers, history
+- **Academy (LMS)** - your courses
+- **Intelligence** - insights drawn from your data
+- **AI Assistant** - ask questions about the farm
+- **Tasks** - what needs doing
+- **Settings** - your account and this business
+- **Help Center** - this
 
-The top header provides:
-- **Search** - Find anything across the platform
-- **Notifications** - System alerts and updates
-- **Profile Menu** - Account settings and logout
+If you run the business, three more appear:
 
-## Keyboard Shortcuts
+- **Employees** - your people, and who has a login
+- **Scheduling** - shifts and recurring work
+- **Training Management** - assign courses and track completions
 
-- \`Ctrl/Cmd + K\` - Open search
-- \`Ctrl/Cmd + /\` - Open help
-- \`Esc\` - Close modals and menus
+Anybody else gets **My Schedule** instead, showing their own shifts.
+
+## The header
+
+- **Search** - look across the platform
+- **Notifications** - alerts and things that need attention
+- **Your account** - the menu at the top right, for preferences and signing out
+
+## Settings
+
+Settings gathers everything that configures rather than runs, split by how far each one reaches. **Your account** covers what follows you wherever you sign in - your units and your password. The section named after your business covers what stops there - integrations, training, and the record of who has been in.
+
+## Moving around
+
+- **Esc** closes an open dialog or menu
+- The sidebar is always there; you never need the back button to change section
                 `,
             },
         ],

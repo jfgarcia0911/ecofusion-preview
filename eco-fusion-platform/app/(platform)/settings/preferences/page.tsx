@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Thermometer, Scale, Check } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
 import ChangePassword from "./change-password";
+import ReplayTour from "./replay-tour";
 import { temperatureToDisplay, weightToDisplay, round } from "@/lib/units";
 
 interface OptionProps {
@@ -129,6 +130,8 @@ export default function PreferencesPage() {
                     </p>
                 )}
             </div>
+
+            <ReplayTour />
 
             <ChangePassword />
 
