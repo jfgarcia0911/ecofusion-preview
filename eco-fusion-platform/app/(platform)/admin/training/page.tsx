@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
+import CoursePicker from '@/components/training/CoursePicker';
 
 interface Course {
     id: string;
@@ -63,6 +64,8 @@ export default function AdminTrainingPage() {
     const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [courseSearch, setCourseSearch] = useState('');
+    const [courseCategory, setCourseCategory] = useState('All');
     const [assignDueDate, setAssignDueDate] = useState('');
     const [assignPriority, setAssignPriority] = useState('normal');
     const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
@@ -209,6 +212,25 @@ export default function AdminTrainingPage() {
 
     const requiredCourses = courses.filter(c => c.isRequired);
     const optionalCourses = courses.filter(c => !c.isRequired);
+
+    // Levels in the order they are climbed, then whatever else exists, so the
+    // chips read as a curriculum rather than as an alphabet.
+    const CURRICULUM = ['Foundational', 'Intermediate', 'Advanced', 'Expert', 'Master'];
+    const present = [...new Set(courses.map(c => c.category))];
+    const catalogueCategories = [
+        'All',
+        ...CURRICULUM.filter(level => present.includes(level)),
+        ...present.filter(c => !CURRICULUM.includes(c)).sort(),
+    ];
+
+    const catalogueTerm = courseSearch.trim().toLowerCase();
+    const catalogue = courses.filter(course =>
+        (courseCategory === 'All' || course.category === courseCategory) &&
+        (catalogueTerm === '' ||
+            course.title.toLowerCase().includes(catalogueTerm) ||
+            course.code.toLowerCase().includes(catalogueTerm) ||
+            course.description.toLowerCase().includes(catalogueTerm))
+    );
 
     const getCategoryColor = (category: string) => {
         switch (category) {
@@ -499,10 +521,55 @@ export default function AdminTrainingPage() {
 
             {/* Course Catalog Section */}
             <div className="space-y-4">
-                <h2 className="text-xl font-bold text-white">Course Catalog</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-bold text-white">
+                        Course Catalog
+                        <span className="ml-2 text-sm font-normal text-white/40">
+                            {catalogue.length === courses.length
+                                ? `${courses.length}`
+                                : `${catalogue.length} of ${courses.length}`}
+                        </span>
+                    </h2>
+                    <div className="relative w-full sm:w-72">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                        <input
+                            value={courseSearch}
+                            onChange={(e) => setCourseSearch(e.target.value)}
+                            placeholder="Search the catalogue"
+                            className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 text-sm"
+                        />
+                    </div>
+                </div>
+
+                {/*
+                  * Level first, in the order the curriculum is climbed, then
+                  * anything else. Ninety-nine cards in one grid is a wall; the
+                  * filter is how somebody gets to the eight they want.
+                  */}
+                <div className="flex gap-2 flex-wrap">
+                    {catalogueCategories.map(category => (
+                        <button
+                            key={category}
+                            onClick={() => setCourseCategory(category)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                courseCategory === category
+                                    ? 'bg-accent text-primary'
+                                    : 'bg-white/5 text-white/70 hover:bg-white/10'
+                            }`}
+                        >
+                            {category === 'All' ? 'All' : category.charAt(0).toUpperCase() + category.slice(1)}
+                        </button>
+                    ))}
+                </div>
+
+                {catalogue.length === 0 && (
+                    <p className="text-white/40 text-sm py-10 text-center">
+                        No courses match that.
+                    </p>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {courses.map(course => (
+                    {catalogue.map(course => (
                         <div key={course.id} className="bg-white/5 border border-white/5 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${getCategoryColor(course.category)}`}>
@@ -578,44 +645,19 @@ export default function AdminTrainingPage() {
                             </div>
                         </div>
 
-                        <div className="max-h-80 overflow-y-auto p-4 space-y-2">
-                            {courses.map(course => {
-                                const isAssigned = userAssignments.some(a => a.courseId === course.id);
-                                return (
-                                    <button
-                                        key={course.id}
-                                        disabled={isAssigned}
-                                        onClick={() => handleAssignCourse(course.id, selectedUser)}
-                                        className={`w-full text-left p-4 rounded-xl border flex justify-between items-center transition-all ${
-                                            isAssigned
-                                                ? 'bg-white/5 border-white/5 opacity-50 cursor-not-allowed'
-                                                : 'bg-white/5 border-white/10 hover:border-accent hover:bg-accent/10'
-                                        }`}
-                                    >
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getCategoryColor(course.category)}`}>
-                                                    {course.category}
-                                                </span>
-                                                {course.isRequired && (
-                                                    <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold">
-                                                        Required
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="font-bold text-white text-sm">{course.title}</p>
-                                            <p className="text-xs text-white/50">{course.code} • {Math.round(course.duration / 60)} hours</p>
-                                        </div>
-                                        {isAssigned ? (
-                                            <div className="flex items-center gap-1 text-xs font-bold text-green-500 uppercase">
-                                                <CheckCircle size={14} /> Assigned
-                                            </div>
-                                        ) : (
-                                            <Plus size={16} className="text-white/50" />
-                                        )}
-                                    </button>
-                                );
-                            })}
+                        {/*
+                          * Grouped by level and searchable. This was every
+                          * course in one column, which was workable at the
+                          * fifteen compliance courses it was built for and is
+                          * not at the ninety-nine the curriculum brought.
+                          */}
+                        <div className="p-4">
+                            <CoursePicker
+                                courses={courses}
+                                mode="pick"
+                                onPick={(courseId) => handleAssignCourse(courseId, selectedUser)}
+                                disabledIds={new Set(userAssignments.map(a => a.courseId))}
+                            />
                         </div>
 
                         <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end">
@@ -650,31 +692,26 @@ export default function AdminTrainingPage() {
                             {/* Courses Selection */}
                             <div>
                                 <h4 className="text-sm font-bold text-white mb-2">Select Courses</h4>
-                                <div className="bg-black/20 border border-white/10 rounded-lg max-h-60 overflow-y-auto">
-                                    {courses.map(course => (
-                                        <label
-                                            key={course.id}
-                                            className="flex items-center gap-2 p-2 hover:bg-white/5 cursor-pointer"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedCourseIds.includes(course.id)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setSelectedCourseIds([...selectedCourseIds, course.id]);
-                                                    } else {
-                                                        setSelectedCourseIds(selectedCourseIds.filter(id => id !== course.id));
-                                                    }
-                                                }}
-                                                className="accent-accent"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm text-white truncate">{course.title}</p>
-                                                <p className="text-xs text-white/50">{course.code}</p>
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
+                                <CoursePicker
+                                    courses={courses}
+                                    mode="select"
+                                    maxHeight="max-h-60"
+                                    selected={new Set(selectedCourseIds)}
+                                    onToggle={(courseId) =>
+                                        setSelectedCourseIds(current =>
+                                            current.includes(courseId)
+                                                ? current.filter(id => id !== courseId)
+                                                : [...current, courseId]
+                                        )
+                                    }
+                                    onSelectGroup={(courseIds, on) =>
+                                        setSelectedCourseIds(current =>
+                                            on
+                                                ? [...new Set([...current, ...courseIds])]
+                                                : current.filter(id => !courseIds.includes(id))
+                                        )
+                                    }
+                                />
                                 <p className="text-xs text-white/50 mt-1">{selectedCourseIds.length} selected</p>
                             </div>
 
