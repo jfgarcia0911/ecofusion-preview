@@ -1,11 +1,6 @@
-import { SkeletonPage, SkeletonHeading, SkeletonCards } from "@/components/ui/Skeleton";
+import { AcademySkeleton } from "@/components/skeletons/PageSkeletons";
 
-/** The catalogue and the course player both open as a grid of panels. */
+/** Shaped like the page that is coming, so nothing rearranges when it lands. */
 export default function AcademyLoading() {
-    return (
-        <SkeletonPage>
-            <SkeletonHeading />
-            <SkeletonCards cards={8} />
-        </SkeletonPage>
-    );
+    return <AcademySkeleton />;
 }

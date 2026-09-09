@@ -1,6 +1,6 @@
-import { SettingsIndexSkeleton } from "@/components/skeletons/PageSkeletons";
+import { SalesSkeleton } from "@/components/skeletons/PageSkeletons";
 
 /** Shaped like the page that is coming, so nothing rearranges when it lands. */
 export default function Loading() {
-    return <SettingsIndexSkeleton />;
+    return <SalesSkeleton />;
 }
