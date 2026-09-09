@@ -7,6 +7,7 @@ import { useZones } from "@/lib/contexts/ZoneContext";
 import { Plus, RefreshCw, AlertCircle, PlusCircle } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
 import { temperatureToDisplay, temperatureLabel, round } from "@/lib/units";
+import { OperationsSkeleton } from "@/components/skeletons/DashboardSkeletons";
 
 /**
  * Sensor values are stored as floats, so arithmetic can leave binary drift
@@ -53,31 +54,11 @@ export default function OperationsDashboard() {
         refreshZones();
     };
 
+    // The same component the route's loading file renders, so the placeholder
+    // the server showed and the one this page shows while it fetches are one
+    // continuous thing rather than two that swap.
     if (loading) {
-        return (
-            <div className="space-y-8 pb-10">
-                <div className="flex justify-between items-end">
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-                            Operations Center
-                        </h1>
-                        <p className="text-white/50 mt-1">Real-time facility monitoring and control</p>
-                    </div>
-                </div>
-                <div className="space-y-6">
-                    {[1, 2].map(i => (
-                        <div key={i} className="glass-card p-6 animate-pulse">
-                            <div className="h-6 bg-white/10 rounded w-1/3 mb-4" />
-                            <div className="grid grid-cols-6 gap-4">
-                                {[1, 2, 3, 4, 5, 6].map(j => (
-                                    <div key={j} className="h-20 bg-white/5 rounded" />
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
+        return <OperationsSkeleton />;
     }
 
     if (error) {
