@@ -187,16 +187,79 @@ export function SalesSkeleton() {
     );
 }
 
-/** Academy: progress, then a grid of courses. */
+/**
+ * Academy: four narrow tallies, then courses grouped by how far along they are.
+ *
+ * The heading here carries the accent gradient rather than the white one every
+ * other page uses, and its own standfirst, because that is what the page does.
+ * A skeleton that corrects the page it stands in for is a skeleton that
+ * flickers when the page arrives.
+ *
+ * The tallies are the page's own `glass-card px-4 py-3` strips, not the taller
+ * `p-6` panels used elsewhere, and the course grids are two and three abreast
+ * as the page has them rather than four.
+ */
 export function AcademySkeleton() {
     return (
         <div className="space-y-8" aria-busy="true" aria-label="Loading the academy">
-            <Heading
-                title="Training Academy"
-                standfirst="Your assigned training courses will appear here"
-            />
-            <StatRow />
-            <Cards count={8} cols="lg:grid-cols-4" />
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
+                        Training Academy
+                    </h1>
+                    <p className="text-white/50 mt-1">
+                        Complete your required safety and compliance training
+                    </p>
+                </div>
+                <div className="h-9 w-44 rounded-lg bg-white/10 shrink-0 animate-pulse" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, tally) => (
+                    <div
+                        key={tally}
+                        className="glass-card px-4 py-3 flex items-center gap-3 animate-pulse"
+                    >
+                        <div className="w-9 h-9 rounded-full bg-white/10 shrink-0" />
+                        <div className="space-y-1.5">
+                            <div className="h-2.5 w-16 rounded bg-white/10" />
+                            <div className="h-5 w-8 rounded bg-white/10" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div>
+                <div className="h-6 w-44 rounded bg-white/10 mb-4 animate-pulse" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Array.from({ length: 2 }).map((_, course) => (
+                        <div key={course} className="glass-panel p-6 rounded-xl animate-pulse">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-white/10 shrink-0" />
+                                <div className="flex-1 space-y-2.5">
+                                    <div className="h-4 w-24 rounded bg-white/10" />
+                                    <div className="h-4 w-3/4 rounded bg-white/10" />
+                                    <div className="h-2 w-full rounded-full bg-white/5" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div>
+                <div className="h-5 w-32 rounded bg-white/10 mb-4 animate-pulse" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 6 }).map((_, course) => (
+                        <div key={course} className="glass-panel p-6 rounded-xl animate-pulse space-y-3">
+                            <div className="w-10 h-10 rounded-xl bg-white/10" />
+                            <div className="h-4 w-20 rounded bg-white/10" />
+                            <div className="h-4 w-full rounded bg-white/10" />
+                            <div className="h-3 w-1/2 rounded bg-white/5" />
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }

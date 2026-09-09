@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { AcademySkeleton } from '@/components/skeletons/PageSkeletons';
 import {
     BookOpen, Trophy, Clock, Medal, PlayCircle, Star,
     CheckCircle, AlertCircle, Shield, Download, Award
@@ -134,12 +135,12 @@ export default function AcademyDashboard() {
         }
     };
 
+    // The same component the route's loading file renders. This used to be a
+    // spinner in a small box, so opening the academy went from a full page of
+    // placeholder to a lone spinner and then to the content: two rearrangements
+    // where there should be none.
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-            </div>
-        );
+        return <AcademySkeleton />;
     }
 
     // Show message if no courses assigned
