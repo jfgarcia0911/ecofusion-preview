@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import RevenueByUnit from "@/components/sales/RevenueByUnit";
 import Link from "next/link";
 import { ShoppingCart, Plus, TrendingUp, DollarSign, Users, Package, Download, ChevronRight } from "lucide-react";
 
@@ -11,6 +12,8 @@ interface SaleItem {
   unit: string;
   unitPrice: number;
   total: number;
+  /** The business unit this line was sold under, when one was chosen. */
+  phaseId: string | null;
 }
 
 interface Sale {
@@ -38,6 +41,9 @@ interface SalesStats {
 
 export default function SalesDashboard() {
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
+  // The list below shows ten; the breakdown is over everything, or a silo would
+  // look small only because its last sale was eleven ago.
+  const [allSales, setAllSales] = useState<Sale[]>([]);
   const [stats, setStats] = useState<SalesStats>({
     totalSales: 0,
     totalRevenue: 0,
@@ -46,6 +52,16 @@ export default function SalesDashboard() {
     todayRevenue: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Every line of every sale. The breakdown is over lines, not sales: one sale
+  // can carry fish and lettuce, and those belong to different silos.
+  const saleLines = allSales.flatMap((sale) =>
+    sale.items.map((item) => ({
+      productName: item.productName,
+      total: item.total,
+      phaseId: item.phaseId,
+    }))
+  );
 
   useEffect(() => {
     fetchSales();
@@ -57,6 +73,7 @@ export default function SalesDashboard() {
       const data = await res.json();
       const sales = Array.isArray(data) ? data : [];
       setRecentSales(sales.slice(0, 10));
+        setAllSales(sales.filter((s: Sale) => s.status === "completed"));
 
       // Calculate stats
       const today = new Date().toISOString().split("T")[0];
@@ -223,6 +240,10 @@ export default function SalesDashboard() {
           </div>
         </Link>
       </div>
+
+        {/* Which silo the money came from, above the list of individual
+            sales: the shape of the business before its latest transactions. */}
+        <RevenueByUnit lines={saleLines} className="mb-6" />
 
       {/* Recent Sales */}
       <div className="glass-card p-6">

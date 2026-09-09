@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { resolvePhaseId } from "@/lib/phase-revenue";
 import Link from "next/link";
 import { ArrowLeft, Download, ShoppingCart, Calendar, Filter, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -12,6 +13,14 @@ interface SaleItem {
   unit: string;
   unitPrice: number;
   total: number;
+  /** The business unit this line was sold under, when one was chosen. */
+  phaseId: string | null;
+}
+
+interface BusinessUnit {
+  key: string;
+  title: string;
+  keywords: string[];
 }
 
 interface Sale {
@@ -37,6 +46,8 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [units, setUnits] = useState<BusinessUnit[]>([]);
+  const [filterUnit, setFilterUnit] = useState<string>("all");
   const [dateRange, setDateRange] = useState({
     startDate: "",
     endDate: "",
@@ -45,6 +56,15 @@ export default function SalesHistoryPage() {
   useEffect(() => {
     fetchSales();
   }, [filterStatus, dateRange]);
+
+  // The silos this business runs, for the filter. Read once: they do not change
+  // while somebody reads their sales.
+  useEffect(() => {
+    fetch("/api/business-units")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setUnits)
+      .catch(() => setUnits([]));
+  }, []);
 
   async function fetchSales() {
     try {
@@ -114,7 +134,20 @@ export default function SalesHistoryPage() {
     }
   };
 
-  const totalRevenue = sales
+  // A sale belongs to a silo if any of its lines does: one sale can carry fish
+  // and lettuce, and asking for fish should still find it.
+  const shown =
+    filterUnit === "all"
+      ? sales
+      : sales.filter((sale) =>
+          sale.items.some(
+            (item) =>
+              resolvePhaseId(item, units.map((u) => ({ key: u.key, keywords: u.keywords ?? [] }))) ===
+              filterUnit
+          )
+        );
+
+  const totalRevenue = shown
     .filter((s) => s.status === "completed")
     .reduce((sum, s) => sum + s.total, 0);
 
@@ -132,7 +165,7 @@ export default function SalesHistoryPage() {
               Sales History
             </h1>
             <p className="text-white/50 mt-1">
-              {sales.length} sales • ${totalRevenue.toFixed(2)} total revenue
+              {shown.length} sales • ${totalRevenue.toFixed(2)} total revenue
             </p>
           </div>
         </div>
@@ -167,6 +200,24 @@ export default function SalesHistoryPage() {
               </button>
             ))}
           </div>
+
+            {units.length > 0 && (
+              <select
+                value={filterUnit}
+                onChange={(e) => setFilterUnit(e.target.value)}
+                aria-label="Filter by business unit"
+                className="px-3 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 text-white/80"
+              >
+                <option value="all" className="bg-[#0b1a14]">
+                  All business units
+                </option>
+                {units.map((u) => (
+                  <option key={u.key} value={u.key} className="bg-[#0b1a14]">
+                    {u.title}
+                  </option>
+                ))}
+              </select>
+            )}
           <div className="flex items-center gap-2 ml-auto">
             <Calendar className="w-4 h-4 text-white/50" />
             <input
@@ -196,7 +247,7 @@ export default function SalesHistoryPage() {
             </div>
           ))}
         </div>
-      ) : sales.length === 0 ? (
+      ) : shown.length === 0 ? (
         <div className="glass-card p-12 text-center">
           <ShoppingCart className="w-16 h-16 text-white/20 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-white mb-2">No Sales Found</h3>
@@ -213,7 +264,7 @@ export default function SalesHistoryPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {sales.map((sale) => (
+          {shown.map((sale) => (
             <div key={sale.id} className="glass-card overflow-hidden">
               <div
                 className="p-6 cursor-pointer"
