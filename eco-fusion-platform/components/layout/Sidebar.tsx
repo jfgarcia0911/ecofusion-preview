@@ -1,7 +1,7 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2 } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
 import SettingsNav from "@/components/layout/SettingsNav";
@@ -64,7 +64,10 @@ const userNavItems = [
  */
 // Only EcoFusion sees these, and only while inside a customer's business.
 const staffNavItems = [
-    { name: "Agency", href: "/agency", icon: Building2, tourId: undefined },
+    // Straight to the list rather than to /agency, which only redirects here.
+    // That redirect is a whole server round trip spent rendering nothing, and
+    // it happened before the view could even begin to load.
+    { name: "Agency", href: "/agency/sub-accounts", icon: Building2, tourId: undefined },
 ];
 
 const commonNavItems = [
@@ -77,6 +80,26 @@ const commonNavItems = [
     { name: "Settings", href: "/settings", icon: Settings, tourId: "nav-settings" },
     { name: "Help Center", href: "/help", icon: HelpCircle, tourId: "nav-help" },
 ];
+
+/**
+ * A spinner on the link that was clicked, for as long as it takes.
+ *
+ * Navigating to a server-rendered page shows nothing until the server answers:
+ * the browser stays on the old page, so a slow route is indistinguishable from
+ * a dead one. This has to sit inside the Link, which is where useLinkStatus
+ * reads the navigation it belongs to.
+ */
+function NavPending() {
+    const { pending } = useLinkStatus();
+    if (!pending) return null;
+    return (
+        <Loader2
+            size={15}
+            aria-hidden
+            className="ml-auto shrink-0 text-accent motion-safe:animate-spin"
+        />
+    );
+}
 
 export default function Sidebar({
     user,
@@ -163,6 +186,7 @@ export default function Sidebar({
                         >
                             <item.icon size={20} className={isActive ? "text-accent" : "text-white/50 group-hover:text-white"} />
                             <span className="font-medium">{item.name}</span>
+                            <NavPending />
                         </Link>
                     );
                 })}
