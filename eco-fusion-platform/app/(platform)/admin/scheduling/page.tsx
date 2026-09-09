@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { SchedulingSkeleton } from '@/components/skeletons/PageSkeletons';
 import {
     Calendar,
     Clock,
@@ -194,12 +195,10 @@ export default function AdminSchedulingPage() {
         return schedules.filter(s => s.dayOfWeek === day);
     };
 
+    // The same component the route's loading file renders, so the week does
+    // not collapse to a spinner between the two.
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <Loader2 className="animate-spin text-accent" size={48} />
-            </div>
-        );
+        return <SchedulingSkeleton />;
     }
 
     return (

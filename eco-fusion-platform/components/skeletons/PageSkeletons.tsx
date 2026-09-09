@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Brain, Sparkles, Calendar, Bot, type LucideIcon } from "lucide-react";
+import { Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, type LucideIcon } from "lucide-react";
 
 /**
  * One waiting state per destination in the sidebar, shaped like the page it
@@ -427,32 +427,120 @@ export function EmployeesSkeleton() {
     );
 }
 
-/** Scheduling: a week of shifts. */
+/**
+ * Scheduling Management: a week laid out as seven columns, not a list.
+ *
+ * The day names are the week, which does not need fetching, so they are
+ * printed. Each column holds its minimum height from the start, so the grid
+ * does not grow downwards as shifts arrive into it.
+ */
+const WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 export function SchedulingSkeleton() {
     return (
-        <div className="max-w-7xl mx-auto space-y-6" aria-busy="true" aria-label="Loading scheduling">
-            <Heading
-                title="Scheduling Management"
-                standfirst="Create and manage schedules for your team"
-                action={<ActionButton width="w-32" />}
-                icon={Calendar}
-            />
-            <Rows count={7} />
+        <div
+            className="max-w-7xl mx-auto space-y-6"
+            aria-busy="true"
+            aria-label="Loading scheduling"
+        >
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-3">
+                        <Calendar className="text-accent" />
+                        Scheduling Management
+                    </h1>
+                    <p className="text-white/50 mt-1">Create and manage schedules for your team</p>
+                </div>
+                <div className="flex gap-3">
+                    <div className="h-10 w-36 rounded-xl bg-white/10 animate-pulse" />
+                </div>
+            </div>
+
+            <div className="flex gap-2 border-b border-white/10 pb-2">
+                {Array.from({ length: 3 }).map((_, tab) => (
+                    <div key={tab} className="h-9 w-28 rounded-lg bg-white/5 animate-pulse" />
+                ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+                {WEEK.map((day) => (
+                    <div
+                        key={day}
+                        className="bg-black/20 border border-white/10 rounded-xl overflow-hidden"
+                    >
+                        <div className="flex items-center justify-between px-2 py-2 border-b border-white/10">
+                            <span className="font-semibold text-sm text-white/70">
+                                {day.slice(0, 3)}
+                            </span>
+                        </div>
+                        <div className="p-2 space-y-2 min-h-[200px]">
+                            {Array.from({ length: 2 }).map((_, shift) => (
+                                <div
+                                    key={shift}
+                                    className="h-12 rounded-lg bg-white/5 animate-pulse"
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
 
-/** My Schedule: the same shifts, seen by one person. */
+/**
+ * My Schedule: today's shifts beside today's tasks.
+ *
+ * The heading is plain bold rather than the gradient most pages use, and it
+ * carries a Calendar, both of which are drawn as they are. The line beneath it
+ * is today's date, computed in the browser, so it is the one part of the
+ * heading held as a bar: rendering a date on the server that the reader's own
+ * clock may disagree with is a worse flicker than a grey line.
+ *
+ * The two panels are `bg-black/20` cards rather than glass ones, with their
+ * real titles and icons, because those are markup and not waiting for anything.
+ */
 export function MyScheduleSkeleton() {
     return (
-        <div className="max-w-6xl mx-auto space-y-6" aria-busy="true" aria-label="Loading your schedule">
-            <Heading title="My Schedule" />
+        <div
+            className="max-w-6xl mx-auto space-y-6"
+            aria-busy="true"
+            aria-label="Loading your schedule"
+        >
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-3">
+                        <Calendar className="text-accent" />
+                        My Schedule
+                    </h1>
+                    <div className="h-4 w-56 rounded bg-white/5 mt-2 animate-pulse" />
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {[0, 1, 2, 3].map((card) => (
-                    <div key={card} className="glass-card p-6 animate-pulse space-y-3">
-                        <div className="h-4 w-32 rounded bg-white/10" />
-                        <div className="h-3 w-48 rounded bg-white/5" />
-                        <div className="h-3 w-24 rounded bg-white/5" />
+                {[
+                    { label: "Today's Shifts", Icon: Clock },
+                    { label: "Tasks Due Today", Icon: AlertCircle },
+                ].map(({ label, Icon }) => (
+                    <div
+                        key={label}
+                        className="bg-black/20 border border-white/10 rounded-2xl p-6"
+                    >
+                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                            <Icon className="text-accent" size={20} />
+                            {label}
+                        </h2>
+                        <div className="space-y-3">
+                            {Array.from({ length: 3 }).map((_, row) => (
+                                <div
+                                    key={row}
+                                    className="rounded-xl bg-white/5 p-4 animate-pulse space-y-2"
+                                >
+                                    <div className="h-4 w-40 max-w-full rounded bg-white/10" />
+                                    <div className="h-3 w-28 rounded bg-white/5" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 ))}
             </div>

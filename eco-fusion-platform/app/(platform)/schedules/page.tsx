@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { MyScheduleSkeleton } from '@/components/skeletons/PageSkeletons';
 import {
     Calendar,
     Clock,
@@ -161,12 +162,11 @@ export default function UserSchedulesPage() {
         return taskDate.toDateString() === today.toDateString();
     };
 
+    // The same component the route's loading file renders. This was a spinner
+    // in the middle of an empty screen, so opening the page went from a full
+    // placeholder to a bare dot and then to the content.
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <Loader2 className="animate-spin text-accent" size={48} />
-            </div>
-        );
+        return <MyScheduleSkeleton />;
     }
 
     return (
