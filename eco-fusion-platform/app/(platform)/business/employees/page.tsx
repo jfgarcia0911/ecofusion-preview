@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { User, Mail, Plus, UserPlus, X, KeyRound, CheckCircle2 } from "lucide-react";
+import { User, Mail, Plus, UserPlus, X, KeyRound } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 
 interface Employee {
@@ -11,6 +11,57 @@ interface Employee {
     phone: string | null;
     status: string;
     account: { id: string; email: string } | null;
+    /** Last sign-in to this business, or null. See describePresence. */
+    lastSignInAt: string | null;
+}
+
+/**
+ * How recently somebody has actually been here.
+ *
+ * This replaced a status field, and the two answer different questions. The
+ * status said whether a person was employed and was maintained by nobody, so
+ * it said "Active" about everyone for ever. This says when they were last in
+ * the app, which is observed rather than declared and cannot go stale.
+ *
+ * It is not a statement about employment. Somebody who feeds fish all day and
+ * never opens a dashboard is doing their job; the honest reading of a long gap
+ * is "this login is not being used", not "this person has gone".
+ *
+ * Null means two different things, and they are named differently: an employee
+ * with no account cannot sign in at all, while an account that has never been
+ * used is a login somebody was given and never picked up.
+ */
+function describePresence(employee: Employee): {
+    label: string;
+    dot: string;
+    tone: string;
+    icon?: "key";
+} {
+    if (!employee.account) {
+        return { label: "No login", dot: "", tone: "text-white/40", icon: "key" };
+    }
+    if (!employee.lastSignInAt) {
+        return { label: "Login never used", dot: "bg-yellow-500", tone: "text-yellow-200/80" };
+    }
+
+    const days = Math.floor(
+        (Date.now() - new Date(employee.lastSignInAt).getTime()) / 86_400_000
+    );
+
+    if (days <= 0) return { label: "Here today", dot: "bg-green-500", tone: "text-green-300" };
+    if (days === 1) return { label: "Here yesterday", dot: "bg-green-500", tone: "text-green-300" };
+    if (days < 30) {
+        return { label: `Last here ${days} days ago`, dot: "bg-green-500", tone: "text-white/60" };
+    }
+    if (days < 365) {
+        const months = Math.round(days / 30);
+        return {
+            label: `Last here ${months} month${months === 1 ? "" : "s"} ago`,
+            dot: "bg-yellow-500",
+            tone: "text-yellow-200/80",
+        };
+    }
+    return { label: "Not here for over a year", dot: "bg-yellow-500", tone: "text-yellow-200/80" };
 }
 
 export default function EmployeesPage() {
@@ -168,27 +219,43 @@ export default function EmployeesPage() {
                                     <User size={16} className="text-white/30" />
                                     ID: {emp.id.slice(0, 8)}
                                 </div>
+                                {/*
+                                  * One line where there were two, and it is
+                                  * observed rather than declared. The status
+                                  * field it replaces could only ever say
+                                  * "Active": nothing in the app was able to
+                                  * change it, so every person in every
+                                  * directory read Active for ever, including
+                                  * the ones who had left.
+                                  */}
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${emp.status === 'Active' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                                    {emp.status}
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {emp.account ? (
-                                        <>
-                                            <CheckCircle2 size={16} className="text-accent" />
-                                            <span className="text-accent">Can sign in</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <KeyRound size={16} className="text-white/30" />
-                                            <span className="text-white/40">No login yet</span>
-                                        </>
-                                    )}
+                                    {(() => {
+                                        const presence = describePresence(emp);
+                                        return (
+                                            <>
+                                                {presence.icon === "key" ? (
+                                                    <KeyRound size={16} className="text-white/30" />
+                                                ) : (
+                                                    <div
+                                                        className={`w-2 h-2 rounded-full ${presence.dot}`}
+                                                    />
+                                                )}
+                                                <span className={presence.tone}>{presence.label}</span>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
+                            {/*
+                              * There was a View Profile button here with no
+                              * handler on it. It had never done anything, and
+                              * a control that looks like it works is worse
+                              * than the absence of one: the reader clicks,
+                              * nothing happens, and they are left wondering
+                              * what else in here is pretending.
+                              */}
                             <div className="mt-6 flex gap-3 w-full">
-                                <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer">View Profile</button>
                                 {emp.account ? (
                                     <span className="flex-1 py-2 rounded-lg border border-white/5 text-sm text-white/30 text-center">
                                         Has access

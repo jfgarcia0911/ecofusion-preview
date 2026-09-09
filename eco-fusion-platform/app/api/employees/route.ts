@@ -19,7 +19,42 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(employees);
+    // When each of them was last here, from the sign-ins the business already
+    // records. One grouped query for the whole directory rather than one per
+    // person, and only for the people who have a login to sign in with.
+    const accountIds = employees
+      .map((employee) => employee.accountId)
+      .filter((id): id is string => id !== null);
+
+    const lastSignIns = accountIds.length
+      ? await prisma.activityLog.groupBy({
+          by: ['userId'],
+          where: {
+            organizationId: ctx.organizationId,
+            action: 'signin',
+            userId: { in: accountIds },
+          },
+          _max: { createdAt: true },
+        })
+      : [];
+
+    const seenAt = new Map(
+      lastSignIns.map((row) => [row.userId, row._max.createdAt] as const)
+    );
+
+    return NextResponse.json(
+      employees.map((employee) => ({
+        ...employee,
+        /**
+         * When this person last signed in to this business, or null.
+         *
+         * Null means two different things and the interface has to tell them
+         * apart: somebody with no account cannot sign in, while somebody with
+         * one who never has is a login nobody has picked up.
+         */
+        lastSignInAt: employee.accountId ? seenAt.get(employee.accountId) ?? null : null,
+      }))
+    );
   } catch (error) {
     console.error('Failed to fetch employees:', error);
     return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
