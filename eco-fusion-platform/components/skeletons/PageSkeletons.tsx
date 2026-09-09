@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, GraduationCap, ShoppingCart, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, Users, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -898,13 +898,74 @@ export function BillingSkeleton() {
     );
 }
 
-/** Training Management: what has been assigned, and to whom. */
+/**
+ * Training Management: four tallies, then the list of people beside the
+ * training of whoever is chosen.
+ *
+ * The right hand column stands empty on purpose. Nobody is selected when the
+ * page opens, and what the page shows then is a prompt to choose somebody, so
+ * holding open a person's training there would promise something that is not
+ * about to arrive.
+ */
 export function TrainingSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading training management">
-            <Heading title="Training Management" standfirst="Assign courses and track completions" />
-            <StatRow />
-            <Rows count={6} />
+        <div className="space-y-8" aria-busy="true" aria-label="Loading training management">
+            <div className="flex justify-between items-end">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                        Training Management
+                    </h1>
+                    <p className="text-white/50 mt-1">Assign and track employee safety training</p>
+                </div>
+                <div className="h-10 w-52 rounded-lg bg-white/10 shrink-0 animate-pulse" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, tally) => (
+                    <div key={tally} className="glass-card p-4 rounded-xl animate-pulse">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-white/10 shrink-0" />
+                            <div className="space-y-1.5">
+                                <div className="h-6 w-10 rounded bg-white/10" />
+                                <div className="h-2.5 w-20 rounded bg-white/5" />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1">
+                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Users size={18} className="text-white/50" />
+                            <h2 className="font-bold text-white">Employees</h2>
+                        </div>
+                        <div className="h-9 w-full rounded-lg bg-white/5 mb-4 animate-pulse" />
+                        <div className="space-y-2">
+                            {Array.from({ length: 6 }).map((_, person) => (
+                                <div
+                                    key={person}
+                                    className="flex items-center gap-3 p-3 rounded-xl bg-white/5 animate-pulse"
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-white/10 shrink-0" />
+                                    <div className="flex-1 space-y-1.5">
+                                        <div className="h-3.5 w-28 rounded bg-white/10" />
+                                        <div className="h-2.5 w-36 max-w-full rounded bg-white/5" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-2 flex items-center justify-center min-h-[300px]">
+                    <div className="text-center">
+                        <Users size={40} className="mx-auto text-white/10 mb-3" />
+                        <div className="h-3.5 w-56 rounded bg-white/5 mx-auto animate-pulse" />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

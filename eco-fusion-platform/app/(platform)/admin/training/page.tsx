@@ -9,6 +9,7 @@ import {
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import CoursePicker from '@/components/training/CoursePicker';
+import { TrainingSkeleton } from '@/components/skeletons/PageSkeletons';
 
 interface Course {
     id: string;
@@ -356,12 +357,11 @@ export default function AdminTrainingPage() {
         }
     };
 
+    // The same component the route's loading file renders. This was a spinner
+    // in a small box, so opening the page went from a full placeholder to a
+    // lone dot and then to the content.
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-            </div>
-        );
+        return <TrainingSkeleton />;
     }
 
     return (
