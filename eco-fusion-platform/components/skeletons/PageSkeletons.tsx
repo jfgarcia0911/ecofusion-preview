@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import { Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, type LucideIcon } from "lucide-react";
+import {
+    Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
+    HelpCircle, Search, type LucideIcon,
+} from "lucide-react";
 
 /**
  * One waiting state per destination in the sidebar, shaped like the page it
@@ -106,15 +109,39 @@ function StatRow({ count = 4 }: { count?: number }) {
 
 /* ---------------------------------------------------------------- business */
 
-/** Business Units: one panel per silo, two abreast. */
+/**
+ * Business Units: a card per silo, up to four abreast at the widest.
+ *
+ * The amber notice about unassigned revenue is conditional on the figures, so
+ * no space is held open for it. Reserving room for something that usually is
+ * not there is its own kind of jump.
+ */
 export function PhasesSkeleton() {
     return (
         <div className="space-y-8" aria-busy="true" aria-label="Loading business units">
-            <Heading
-                title="Business Units (Silos)"
-                standfirst="Select a phase to manage revenue, tasks, and operations."
-            />
-            <Cards count={6} cols="lg:grid-cols-2" />
+            <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                    Business Units (Silos)
+                </h1>
+                <p className="text-white/50 mt-1">
+                    Select a phase to manage revenue, tasks, and operations.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {Array.from({ length: 7 }).map((_, unit) => (
+                    <div key={unit} className="glass-card rounded-2xl p-6 animate-pulse flex flex-col">
+                        <div className="w-12 h-12 rounded-xl bg-white/10 mb-4" />
+                        <div className="h-5 w-32 rounded bg-white/10 mb-2" />
+                        <div className="h-3 w-full rounded bg-white/5 mb-1.5" />
+                        <div className="h-3 w-2/3 rounded bg-white/5 mb-6" />
+                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+                            <div className="h-4 w-20 rounded bg-white/10" />
+                            <div className="h-4 w-12 rounded bg-white/5" />
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -185,13 +212,67 @@ export function InventorySkeleton() {
     );
 }
 
-/** Sales: figures across the top, then the ledger. */
+/**
+ * Sales: five narrow tallies, then the recent ledger.
+ *
+ * Five across at the widest, in the page's own p-4 cards rather than the
+ * taller panels other screens use. Both buttons are drawn at their real
+ * widths, and the ledger rows are the page's own placeholder, copied exactly.
+ */
 export function SalesSkeleton() {
     return (
         <div className="p-6 space-y-6" aria-busy="true" aria-label="Loading sales">
-            <Heading title="Sales" standfirst="Manage sales and track revenue" action={<ActionButton width="w-28" />} />
-            <StatRow count={3} />
-            <Rows count={6} />
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                        Sales
+                    </h1>
+                    <p className="text-white/50 mt-1">Manage sales and track revenue</p>
+                </div>
+                <div className="flex gap-3">
+                    <div className="px-4 py-2 bg-white/5 rounded-lg flex items-center gap-2 text-white/40 text-sm font-medium">
+                        <Download className="w-4 h-4" />
+                        Export
+                    </div>
+                    <div className="px-4 py-2 bg-accent/40 rounded-lg flex items-center gap-2 text-primary/60 text-sm font-bold animate-pulse">
+                        <Plus className="w-4 h-4" />
+                        New Sale
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {Array.from({ length: 5 }).map((_, tally) => (
+                    <div key={tally} className="glass-card p-4 animate-pulse">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-white/10 shrink-0" />
+                            <div className="space-y-1.5">
+                                <div className="h-3 w-20 rounded bg-white/5" />
+                                <div className="h-5 w-16 rounded bg-white/10" />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-white">Recent Sales</h2>
+                    <div className="h-4 w-16 rounded bg-white/5 animate-pulse" />
+                </div>
+                <div className="space-y-4">
+                    {Array.from({ length: 5 }).map((_, row) => (
+                        <div key={row} className="animate-pulse flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white/10 rounded-lg" />
+                            <div className="flex-1">
+                                <div className="h-4 bg-white/10 rounded w-1/3 mb-2" />
+                                <div className="h-3 bg-white/10 rounded w-1/4" />
+                            </div>
+                            <div className="h-6 bg-white/10 rounded w-20" />
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }
@@ -413,16 +494,38 @@ export function AssistantSkeleton() {
     );
 }
 
-/** Employees: a directory, which is rows of people. */
+/**
+ * Employees: a directory of faces, three abreast.
+ *
+ * Cards with the portrait centred above the name, which is what a directory
+ * is. This was standing in as a list of horizontal rows, which is a different
+ * page entirely. The card placeholder is the page's own, copied exactly.
+ */
 export function EmployeesSkeleton() {
     return (
         <div className="space-y-6" aria-busy="true" aria-label="Loading the employee directory">
-            <Heading
-                title="Employee Directory"
-                standfirst="Manage staff and permissions"
-                action={<ActionButton width="w-32" />}
-            />
-            <Rows count={6} />
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                        Employee Directory
+                    </h1>
+                    <p className="text-white/50 mt-1">Manage staff and permissions</p>
+                </div>
+                <div className="px-4 py-2 bg-accent/40 rounded-lg flex items-center gap-2 text-primary/60 font-bold animate-pulse">
+                    <UserPlus size={18} />
+                    Add Employee
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, person) => (
+                    <div key={person} className="glass-card p-6 animate-pulse">
+                        <div className="w-20 h-20 rounded-full bg-white/10 mx-auto mb-4" />
+                        <div className="h-6 bg-white/10 rounded w-3/4 mx-auto mb-2" />
+                        <div className="h-4 bg-white/5 rounded w-1/2 mx-auto" />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -548,25 +651,31 @@ export function MyScheduleSkeleton() {
     );
 }
 
-/** Tasks: two columns of things to do. */
+/** Tasks: two full height columns, which is what the task boards are. */
 export function TasksSkeleton() {
     return (
-        <div className="h-[calc(100vh-8rem)] space-y-6" aria-busy="true" aria-label="Loading tasks">
-            <Heading
-                title="Task Management"
-                standfirst="Track daily operations and employee duties"
-                action={<ActionButton width="w-28" />}
-            />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="h-[calc(100vh-8rem)]" aria-busy="true" aria-label="Loading tasks">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                        Task Management
+                    </h1>
+                    <p className="text-white/50 mt-1">Track daily operations and employee duties</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                 {[0, 1].map((column) => (
-                    <div key={column} className="glass-card p-6 animate-pulse space-y-4">
-                        <div className="h-5 w-36 rounded bg-white/10" />
-                        {[0, 1, 2, 3].map((task) => (
-                            <div key={task} className="flex items-center gap-3">
-                                <div className="w-4 h-4 rounded bg-white/10 shrink-0" />
-                                <div className="h-3 flex-1 rounded bg-white/5" />
-                            </div>
-                        ))}
+                    <div key={column} className="glass-card rounded-2xl p-6 h-full animate-pulse">
+                        <div className="h-5 w-40 rounded bg-white/10 mb-5" />
+                        <div className="space-y-3">
+                            {Array.from({ length: 5 }).map((_, task) => (
+                                <div key={task} className="flex items-center gap-3">
+                                    <div className="w-4 h-4 rounded bg-white/10 shrink-0" />
+                                    <div className="h-3 flex-1 rounded bg-white/5" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -574,26 +683,45 @@ export function TasksSkeleton() {
     );
 }
 
-/** Help: a list of articles beside the one being read. */
+/**
+ * Help: a badge and a version line, a search field, then category tiles.
+ *
+ * The badge, its icon and the title are markup, so they are drawn. The version
+ * line is not: it comes from the build, and a wrong one flashing before the
+ * right one is worse than a grey bar.
+ */
 export function HelpSkeleton() {
     return (
-        <div className="max-w-7xl mx-auto space-y-6" aria-busy="true" aria-label="Loading the help centre">
-            <Heading title="Help Center" standfirst="Select an article to read" />
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="space-y-2 animate-pulse">
-                    {[0, 1, 2, 3, 4, 5].map((item) => (
-                        <div key={item} className="h-10 rounded-xl bg-white/[0.04]" />
-                    ))}
+        <div className="max-w-7xl mx-auto" aria-busy="true" aria-label="Loading the help centre">
+            <div className="mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-xl bg-accent/20">
+                        <HelpCircle className="text-accent" size={28} />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold">Help Center</h1>
+                        <div className="h-3.5 w-64 rounded bg-white/5 mt-1.5 animate-pulse" />
+                    </div>
                 </div>
-                <div className="lg:col-span-3 glass-card p-6 animate-pulse space-y-3">
-                    <div className="h-6 w-1/2 rounded bg-white/10 mb-4" />
-                    {[0, 1, 2, 3, 4, 5, 6].map((line) => (
-                        <div
-                            key={line}
-                            className={`h-3 rounded bg-white/5 ${line % 3 === 2 ? "w-2/3" : "w-full"}`}
-                        />
-                    ))}
-                </div>
+                <div className="h-4 w-96 max-w-full rounded bg-white/5 mt-2 animate-pulse" />
+            </div>
+
+            <div className="relative mb-8">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" size={20} />
+                <div className="h-12 w-full rounded-xl bg-white/5 animate-pulse" />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                {Array.from({ length: 4 }).map((_, category) => (
+                    <div
+                        key={category}
+                        className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 animate-pulse space-y-3"
+                    >
+                        <div className="w-10 h-10 rounded-xl bg-white/10" />
+                        <div className="h-4 w-24 rounded bg-white/10" />
+                        <div className="h-3 w-16 rounded bg-white/5" />
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -601,23 +729,54 @@ export function HelpSkeleton() {
 
 /* ------------------------------------------------------------------ agency */
 
-/** Sub Accounts, and the other agency lists, which are all rows of businesses. */
+/**
+ * The agency lists, which are all a heading, a search field and rows.
+ *
+ * Their headings are text-2xl and white with an icon beside them, not the
+ * text-3xl gradient the business screens use. Standing in for one with the
+ * other changed the size of the title as the page arrived.
+ */
 export function AgencyListSkeleton({
     title,
     standfirst,
+    icon: Icon,
     rows = 5,
+    search = true,
 }: {
     title: string;
     standfirst: string;
+    icon: LucideIcon;
     rows?: number;
+    search?: boolean;
 }) {
     return (
-        <div aria-busy="true" aria-label={`Loading ${title.toLowerCase()}`}>
+        <div aria-busy="true" aria-label={"Loading " + title.toLowerCase()}>
             <div className="mb-6">
-                <Heading title={title} standfirst={standfirst} />
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <Icon size={22} className="text-accent" />
+                    {title}
+                </h1>
+                <p className="text-white/50 mt-1 max-w-2xl text-sm">{standfirst}</p>
             </div>
-            <div className="h-11 w-full rounded-xl bg-white/5 mb-4 animate-pulse" />
-            <Rows count={rows} />
+
+            {search && <div className="h-11 w-full rounded-xl bg-white/5 mb-4 animate-pulse" />}
+
+            <div className="space-y-2">
+                {Array.from({ length: rows }).map((_, row) => (
+                    <div
+                        key={row}
+                        className="flex items-center gap-4 px-4 py-3.5 rounded-xl border border-white/10 bg-white/[0.03] animate-pulse"
+                    >
+                        <div className="w-9 h-9 rounded-lg bg-white/10 shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                            <div className="h-3.5 w-44 max-w-full rounded bg-white/10" />
+                            <div className="h-3 w-60 max-w-full rounded bg-white/5" />
+                        </div>
+                        <div className="h-7 w-20 rounded-lg bg-white/5 shrink-0 hidden sm:block" />
+                        <div className="h-7 w-16 rounded-lg bg-white/5 shrink-0" />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
