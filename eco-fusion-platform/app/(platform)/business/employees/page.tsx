@@ -14,7 +14,25 @@ interface Employee {
     account: { id: string; email: string } | null;
     /** Last sign-in to this business, or null. See describePresence. */
     lastSignInAt: string | null;
+    /** Role held on this business by their login, when they have one. */
+    orgRole: string | null;
+    /**
+     * Whether this reader may set a new password for them.
+     *
+     * Decided by the route, using the same rules the reset enforces, so the
+     * control appears exactly where it would work. Judging it here would be a
+     * second copy of the policy, and the copy is the one that drifts.
+     */
+    canResetPassword: boolean;
+    /** Whether this reader may change their access level. Decided by the route. */
+    canChangeRole: boolean;
 }
+
+const ACCESS_LEVELS = [
+    { value: "member", label: "Member", hint: "Day-to-day access" },
+    { value: "manager", label: "Manager", hint: "Also schedules and training" },
+    { value: "admin", label: "Admin", hint: "Also adds and removes people" },
+];
 
 /**
  * How recently somebody has actually been here.
@@ -80,6 +98,12 @@ export default function EmployeesPage() {
     const [grant, setGrant] = useState({ password: "", role: "member" });
     const [grantError, setGrantError] = useState<string | null>(null);
     const [grantDone, setGrantDone] = useState(false);
+    const [resettingFor, setResettingFor] = useState<Employee | null>(null);
+    const [resetPassword, setResetPassword] = useState("");
+    const [resetError, setResetError] = useState<string | null>(null);
+    const [resetDone, setResetDone] = useState(false);
+    const [level, setLevel] = useState("member");
+    const [levelSaved, setLevelSaved] = useState(false);
 
     const fetchEmployees = useCallback(async () => {
         try {
@@ -132,6 +156,80 @@ export default function EmployeesPage() {
             fetchEmployees();
         } catch {
             setGrantError("Could not reach the server. Try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openReset = (employee: Employee) => {
+        setResettingFor(employee);
+        setResetPassword("");
+        setResetError(null);
+        setResetDone(false);
+        setLevel(employee.orgRole ?? "member");
+        setLevelSaved(false);
+    };
+
+    /**
+     * Moves somebody between access levels.
+     *
+     * Ownership is not on offer here. Handing a business over is a deliberate
+     * act with consequences for billing, and burying it in a dropdown beside a
+     * password field is not where that decision should be made.
+     */
+    const handleChangeLevel = async () => {
+        if (!resettingFor?.account) return;
+        setSaving(true);
+        setResetError(null);
+        try {
+            const res = await fetch("/api/users", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: resettingFor.account.id, role: level }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setResetError(data.error || "Could not change that access level.");
+                return;
+            }
+            setLevelSaved(true);
+            fetchEmployees();
+        } catch {
+            setResetError("Could not reach the server. Try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    /**
+     * Sets a new password without asking for the old one.
+     *
+     * Somebody who has forgotten theirs cannot supply it, which is the whole
+     * situation this exists for. The route decides who may do this to whom;
+     * the button only appears where it already said yes.
+     */
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!resettingFor?.account) return;
+        setSaving(true);
+        setResetError(null);
+        try {
+            const res = await fetch("/api/organization/members", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: resettingFor.account.id,
+                    password: resetPassword,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setResetError(data.error || "Could not set that password.");
+                return;
+            }
+            setResetDone(true);
+        } catch {
+            setResetError("Could not reach the server. Try again.");
         } finally {
             setSaving(false);
         }
@@ -256,9 +354,18 @@ export default function EmployeesPage() {
                                     View profile
                                 </Link>
                                 {emp.account ? (
-                                    <span className="flex-1 py-2 rounded-lg border border-white/5 text-sm text-white/30 text-center">
-                                        Has access
-                                    </span>
+                                    emp.canResetPassword || emp.canChangeRole ? (
+                                        <button
+                                            onClick={() => openReset(emp)}
+                                            className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white transition-colors cursor-pointer"
+                                        >
+                                            Manage login
+                                        </button>
+                                    ) : (
+                                        <span className="flex-1 py-2 rounded-lg border border-white/5 text-sm text-white/30 text-center">
+                                            Has access
+                                        </span>
+                                    )
                                 ) : (
                                     <button
                                         onClick={() => openGrant(emp)}
@@ -419,6 +526,116 @@ export default function EmployeesPage() {
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            {/*
+              * One panel for the login rather than a button each. Changing
+              * somebody's access and resetting their password are the two
+              * things anyone comes here to do, and they are usually prompted
+              * by the same conversation.
+              *
+              * The two act independently: each saves on its own, so setting a
+              * password does not quietly also apply a level the reader was
+              * only looking at.
+              */}
+            <Modal
+                isOpen={resettingFor !== null}
+                onClose={() => setResettingFor(null)}
+                title={`Login for ${resettingFor?.name ?? ""}`}
+            >
+                <div className="space-y-6">
+                    <p className="text-sm text-white/50">
+                        They sign in with{" "}
+                        <span className="text-white/80">{resettingFor?.account?.email}</span>.
+                    </p>
+
+                    {resettingFor?.canChangeRole && (
+                        <div className="space-y-2">
+                            <label className="block text-sm text-white/60">Access level</label>
+                            <select
+                                value={level}
+                                onChange={(e) => {
+                                    setLevel(e.target.value);
+                                    setLevelSaved(false);
+                                }}
+                                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white"
+                            >
+                                {ACCESS_LEVELS.map((option) => (
+                                    <option
+                                        key={option.value}
+                                        value={option.value}
+                                        className="bg-neutral-900"
+                                    >
+                                        {option.label}: {option.hint}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleChangeLevel}
+                                    disabled={saving || level === (resettingFor?.orgRole ?? "member")}
+                                    className="px-4 py-2 bg-white/10 border border-white/10 text-white text-sm rounded-lg hover:bg-white/20 disabled:opacity-40 transition-colors"
+                                >
+                                    Save access level
+                                </button>
+                                {levelSaved && (
+                                    <span className="text-sm text-accent">Saved</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {resettingFor?.canResetPassword && (
+                        <form
+                            onSubmit={handleResetPassword}
+                            className="space-y-2 pt-2 border-t border-white/10"
+                        >
+                            <label className="block text-sm text-white/60 pt-4">
+                                <KeyRound size={13} className="inline mr-1.5 -mt-0.5" />
+                                New password
+                            </label>
+                            {resetDone ? (
+                                <p className="text-sm text-accent">
+                                    Password set. Give it to them directly, it is not emailed.
+                                </p>
+                            ) : (
+                                <>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={resetPassword}
+                                        onChange={(e) => setResetPassword(e.target.value)}
+                                        placeholder="At least 10 characters"
+                                        className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 font-mono text-sm"
+                                    />
+                                    <p className="text-xs text-white/30">
+                                        Needs 10+ characters with upper and lower case, a number and
+                                        a symbol. The old one is not needed: somebody who has
+                                        forgotten theirs cannot supply it.
+                                    </p>
+                                    <button
+                                        type="submit"
+                                        disabled={saving || !resetPassword.trim()}
+                                        className="px-4 py-2 bg-white/10 border border-white/10 text-white text-sm rounded-lg hover:bg-white/20 disabled:opacity-40 transition-colors mt-1"
+                                    >
+                                        {saving ? "Setting..." : "Set password"}
+                                    </button>
+                                </>
+                            )}
+                        </form>
+                    )}
+
+                    {resetError && <p className="text-sm text-red-300">{resetError}</p>}
+
+                    <button
+                        type="button"
+                        onClick={() => setResettingFor(null)}
+                        className="w-full py-2.5 px-4 bg-accent text-primary font-semibold rounded-xl hover:bg-accent/90 transition-all"
+                    >
+                        Done
+                    </button>
+                </div>
             </Modal>
         </div>
     );

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { getOrgContext, canManageMembers } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all employees for user
@@ -26,21 +26,62 @@ export async function GET() {
       .map((employee) => employee.accountId)
       .filter((id): id is string => id !== null);
 
-    const lastSignIns = accountIds.length
-      ? await prisma.activityLog.groupBy({
-          by: ['userId'],
-          where: {
-            organizationId: ctx.organizationId,
-            action: 'signin',
-            userId: { in: accountIds },
-          },
-          _max: { createdAt: true },
-        })
-      : [];
+    const [lastSignIns, memberships] = accountIds.length
+      ? await Promise.all([
+          prisma.activityLog.groupBy({
+            by: ['userId'],
+            where: {
+              organizationId: ctx.organizationId,
+              action: 'signin',
+              userId: { in: accountIds },
+            },
+            _max: { createdAt: true },
+          }),
+          prisma.membership.findMany({
+            where: { organizationId: ctx.organizationId, userId: { in: accountIds } },
+            select: { userId: true, role: true },
+          }),
+        ])
+      : [[], []];
 
     const seenAt = new Map(
       lastSignIns.map((row) => [row.userId, row._max.createdAt] as const)
     );
+    const roleOf = new Map(memberships.map((m) => [m.userId, m.role] as const));
+
+    /**
+     * Whether this reader may set a new password for that person.
+     *
+     * Decided here rather than in the browser, and by the same rules the reset
+     * itself enforces, so the button is offered exactly when it would work. A
+     * manager who could see it would be clicking on a refusal, and a client
+     * copy of the policy is a copy that drifts.
+     */
+    const mayReset = (accountId: string | null): boolean => {
+      if (!accountId || !canManageMembers(ctx)) return false;
+      if (accountId === ctx.userId) return true;
+
+      const role = roleOf.get(accountId);
+      if (role === 'owner') return false;
+      if (role === 'admin' && ctx.role !== 'owner') return false;
+      return true;
+    };
+
+    /**
+     * Whether this reader may change that person's access level.
+     *
+     * The same shape as the reset, and for the same reason, but without the
+     * exception for yourself: resetting your own password is ordinary, and
+     * quietly changing your own standing is not.
+     */
+    const mayChangeRole = (accountId: string | null): boolean => {
+      if (!accountId || !canManageMembers(ctx)) return false;
+
+      const role = roleOf.get(accountId);
+      if (role === 'owner') return false;
+      if (role === 'admin' && ctx.role !== 'owner') return false;
+      return true;
+    };
 
     return NextResponse.json(
       employees.map((employee) => ({
@@ -53,6 +94,10 @@ export async function GET() {
          * one who never has is a login nobody has picked up.
          */
         lastSignInAt: employee.accountId ? seenAt.get(employee.accountId) ?? null : null,
+        /** Role held on this business by the login, when there is one. */
+        orgRole: employee.accountId ? roleOf.get(employee.accountId) ?? null : null,
+        canResetPassword: mayReset(employee.accountId),
+        canChangeRole: mayChangeRole(employee.accountId),
       }))
     );
   } catch (error) {
