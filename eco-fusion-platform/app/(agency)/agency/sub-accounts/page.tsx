@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LogIn, Users, Building2, GraduationCap, Camera, Plus, Pencil  } from "lucide-react";
+import { Search, LogIn, Building2, GraduationCap, Camera, Plus, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadClassesModal from "@/components/admin/LoadClassesModal";
@@ -165,83 +165,130 @@ export default function SubAccountsPage() {
                     {search ? "No businesses match that." : "No sub accounts yet."}
                 </p>
             ) : (
-                <div className="space-y-2">
-                    {businesses.map((business) => (
-                        <div
-                            key={business.id}
-                            className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10"
-                        >
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white font-medium truncate">
-                                        {business.name}
-                                    </span>
-                                    <span
-                                        className={`px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap ${
-                                            STANDING[business.standing].className
-                                        }`}
+                // Columns, because every business answers the same questions and
+                // the answers are worth reading down rather than across. The
+                // wrapper alone scrolls, so a narrow window moves the table and
+                // leaves the page still.
+                <div className="overflow-x-auto rounded-xl border border-white/10 custom-scrollbar">
+                    <table className="w-full border-collapse text-left text-sm">
+                        <thead>
+                            <tr className="bg-white/[0.04]">
+                                {["Business", "Status", "Owner", "Location", "People", ""].map(
+                                    (heading, i) => (
+                                        <th
+                                            key={heading || i}
+                                            scope="col"
+                                            className={`px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-white/40 whitespace-nowrap ${
+                                                heading === "People" ? "text-right" : ""
+                                            }`}
+                                        >
+                                            {heading}
+                                        </th>
+                                    )
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {businesses.map((business) => {
+                                const standing = STANDING[business.standing];
+                                return (
+                                    <tr
+                                        key={business.id}
+                                        className="border-t border-white/5 hover:bg-white/[0.02]"
                                     >
-                                        {STANDING[business.standing].label}
-                                        {business.standing === "trial" &&
-                                            business.trialDaysLeft !== null &&
-                                            ` · ${business.trialDaysLeft}d`}
-                                    </span>
-                                </div>
-                                <div className="text-xs text-white/40 mt-0.5 truncate">
-                                    {business.location ?? "No location on record"}
-                                    <span className="text-white/20"> &middot; </span>
-                                    {business.owner
-                                        ? `${business.owner.name ?? business.owner.email} (${business.owner.email})`
-                                        : "No owner on record"}
-                                </div>
-                            </div>
+                                        <td className="px-4 py-3.5">
+                                            <span className="flex items-center gap-2.5 min-w-0">
+                                                <Building2 size={15} className="text-white/35 shrink-0" />
+                                                <span className="text-white font-medium truncate">
+                                                    {business.name}
+                                                </span>
+                                            </span>
+                                        </td>
 
-                            <span className="text-xs text-white/40 flex items-center gap-1.5 shrink-0">
-                                <Users size={13} />
-                                {business.memberCount}
-                            </span>
+                                        <td className="px-4 py-3.5">
+                                            <span
+                                                className={`px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap ${standing.className}`}
+                                            >
+                                                {standing.label}
+                                                {business.standing === "trial" &&
+                                                    business.trialDaysLeft !== null &&
+                                                    ` · ${business.trialDaysLeft}d`}
+                                            </span>
+                                        </td>
 
-                            <button
-                                type="button"
-                                onClick={() => setEditing(business)}
-                                title="Rename this business"
-                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
-                            >
-                                <Pencil size={13} />
-                                Edit
-                            </button>
+                                        <td className="px-4 py-3.5 text-white/55">
+                                            {business.owner ? (
+                                                <span className="block min-w-0">
+                                                    <span className="block truncate">
+                                                        {business.owner.name ?? business.owner.email}
+                                                    </span>
+                                                    {business.owner.name && (
+                                                        <span className="block text-xs text-white/35 truncate">
+                                                            {business.owner.email}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            ) : (
+                                                <span className="text-white/25">No owner</span>
+                                            )}
+                                        </td>
 
-                            <button
-                                type="button"
-                                onClick={() => setClassesFor({ id: business.id, name: business.name })}
-                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
-                            >
-                                <GraduationCap size={13} />
-                                Classes
-                            </button>
+                                        <td className="px-4 py-3.5 text-white/55">
+                                            {business.location || <span className="text-white/25">-</span>}
+                                        </td>
 
+                                        <td className="px-4 py-3.5 text-white/55 text-right tabular-nums">
+                                            {business.memberCount}
+                                        </td>
 
-                            <button
-                                type="button"
-                                onClick={() => setCaptureFrom({ id: business.id, name: business.name })}
-                                title="Capture this setup as a template"
-                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
-                            >
-                                <Camera size={13} />
-                                Capture
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => enter(business)}
-                                disabled={entering === business.id}
-                                className="text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-50 transition-colors"
-                            >
-                                <LogIn size={13} />
-                                {entering === business.id ? "Entering..." : "Enter"}
-                            </button>
-                        </div>
-                    ))}
+                                        <td className="px-4 py-3.5">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditing(business)}
+                                                    title="Rename this business"
+                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+                                                >
+                                                    <Pencil size={13} />
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setClassesFor({ id: business.id, name: business.name })
+                                                    }
+                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+                                                >
+                                                    <GraduationCap size={13} />
+                                                    Classes
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setCaptureFrom({ id: business.id, name: business.name })
+                                                    }
+                                                    title="Capture this setup as a template"
+                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+                                                >
+                                                    <Camera size={13} />
+                                                    Capture
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => enter(business)}
+                                                    disabled={entering === business.id}
+                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-50 transition-colors whitespace-nowrap"
+                                                >
+                                                    <LogIn size={13} />
+                                                    {entering === business.id ? "Entering..." : "Enter"}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
