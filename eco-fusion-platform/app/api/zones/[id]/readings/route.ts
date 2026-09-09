@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+import { readJson, sensorValue, listLimit } from '@/lib/validation/request';
+
+/**
+ * A reading. Every value optional and independently checked, because a probe
+ * sends what it measures: one that reads pH and temperature and not ammonia
+ * should post those two rather than inventing the rest.
+ */
+const readingSchema = z.object({
+  temperature: sensorValue,
+  ph: sensorValue,
+  dissolvedO2: sensorValue,
+  ammonia: sensorValue,
+  humidity: sensorValue,
+});
 
 // GET - Fetch sensor readings for a zone
 export async function GET(
@@ -13,7 +28,9 @@ export async function GET(
 
     const { id: zoneId } = await params;
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
+    // Out of range or not a number falls back to 50 rather than refusing:
+    // a bad limit is the caller's typo, not a reason to withhold the list.
+    const limit = listLimit.parse(searchParams.get('limit'));
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
@@ -46,8 +63,9 @@ export async function POST(
     if (refusal) return refusal;
 
     const { id: zoneId } = await params;
-    const data = await request.json();
-    const { temperature, ph, dissolvedO2, ammonia, humidity } = data;
+    const parsed = await readJson(request, readingSchema);
+    if (!parsed.ok) return parsed.response;
+    const { temperature, ph, dissolvedO2, ammonia, humidity } = parsed.data;
 
     // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
@@ -62,11 +80,11 @@ export async function POST(
     const reading = await prisma.sensorReading.create({
       data: {
         zoneId,
-        temperature: temperature !== undefined ? parseFloat(temperature) : null,
-        ph: ph !== undefined ? parseFloat(ph) : null,
-        dissolvedO2: dissolvedO2 !== undefined ? parseFloat(dissolvedO2) : null,
-        ammonia: ammonia !== undefined ? parseFloat(ammonia) : null,
-        humidity: humidity !== undefined ? parseFloat(humidity) : null,
+        temperature: temperature ?? null,
+        ph: ph ?? null,
+        dissolvedO2: dissolvedO2 ?? null,
+        ammonia: ammonia ?? null,
+        humidity: humidity ?? null,
       },
     });
 

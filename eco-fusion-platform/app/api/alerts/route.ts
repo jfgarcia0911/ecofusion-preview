@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { listLimit } from '@/lib/validation/request';
 
 // GET - Fetch alerts with optional filters
 export async function GET(request: Request) {
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
     const severity = searchParams.get('severity');
     const zoneId = searchParams.get('zoneId');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = listLimit.parse(searchParams.get('limit'));
 
     const where: Record<string, unknown> = { organizationId: ctx.organizationId };
 

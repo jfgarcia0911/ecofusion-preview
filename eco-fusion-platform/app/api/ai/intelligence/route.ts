@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { sensorValue } from '@/lib/validation/request';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -136,16 +137,16 @@ async function executeCommands(commands: Array<{ type: string; params: Record<st
             zoneId_parameter: { zoneId: zone.id, parameter: paramName },
           },
           update: {
-            minValue: cmd.params.min ? parseFloat(cmd.params.min) : null,
-            maxValue: cmd.params.max ? parseFloat(cmd.params.max) : null,
+            minValue: sensorValue.catch(null).parse(cmd.params.min) ?? null,
+            maxValue: sensorValue.catch(null).parse(cmd.params.max) ?? null,
             alertLevel: cmd.params.level || 'warning',
             enabled: true,
           },
           create: {
             zoneId: zone.id,
             parameter: paramName,
-            minValue: cmd.params.min ? parseFloat(cmd.params.min) : null,
-            maxValue: cmd.params.max ? parseFloat(cmd.params.max) : null,
+            minValue: sensorValue.catch(null).parse(cmd.params.min) ?? null,
+            maxValue: sensorValue.catch(null).parse(cmd.params.max) ?? null,
             alertLevel: cmd.params.level || 'warning',
             enabled: true,
           },
