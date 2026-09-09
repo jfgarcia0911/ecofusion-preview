@@ -110,17 +110,68 @@ export function PhasesSkeleton() {
     );
 }
 
-/** Inventory: figures, then the stock behind them. */
+/**
+ * Inventory: six figures, then two panels of links that never change.
+ *
+ * The two panels are static markup on the page, so they are drawn here at
+ * their real size with their real titles. Only the figures are unknown, and
+ * only the figures wait. The outer p-6 is the page's own, on top of the one
+ * the layout already applies; without it here the whole page would step
+ * inwards by twenty-four pixels the moment the content arrived.
+ *
+ * The card placeholders are the page's own, copied exactly. This component and
+ * the page's loading branch have to be indistinguishable or the handover
+ * between them is a flicker.
+ */
 export function InventorySkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading inventory">
-            <Heading
-                title="Inventory Management"
-                standfirst="Track fish, plants, harvests, and sales inventory"
-                action={<ActionButton />}
-            />
-            <StatRow />
-            <Rows count={5} />
+        <div className="p-6 space-y-6" aria-busy="true" aria-label="Loading inventory">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                        Inventory Management
+                    </h1>
+                    <p className="text-white/50 mt-1">
+                        Track fish, plants, harvests, and sales inventory
+                    </p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 6 }).map((_, card) => (
+                    <div key={card} className="glass-card p-6 animate-pulse">
+                        <div className="h-4 bg-white/10 rounded w-1/2 mb-4" />
+                        <div className="h-8 bg-white/10 rounded w-1/3" />
+                    </div>
+                ))}
+            </div>
+
+            <div className="glass-card p-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Array.from({ length: 4 }).map((_, action) => (
+                        <div key={action} className="h-12 rounded-lg bg-white/5 animate-pulse" />
+                    ))}
+                </div>
+            </div>
+
+            <div className="glass-card p-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Inventory Sections</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 5 }).map((_, section) => (
+                        <div
+                            key={section}
+                            className="p-4 rounded-lg bg-white/5 flex items-center gap-3 animate-pulse"
+                        >
+                            <div className="w-6 h-6 rounded bg-white/10 shrink-0" />
+                            <div className="flex-1 space-y-1.5">
+                                <div className="h-3.5 w-32 rounded bg-white/10" />
+                                <div className="h-3 w-44 max-w-full rounded bg-white/5" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }
@@ -128,7 +179,7 @@ export function InventorySkeleton() {
 /** Sales: figures across the top, then the ledger. */
 export function SalesSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading sales">
+        <div className="p-6 space-y-6" aria-busy="true" aria-label="Loading sales">
             <Heading title="Sales" standfirst="Manage sales and track revenue" action={<ActionButton width="w-28" />} />
             <StatRow count={3} />
             <Rows count={6} />
@@ -153,7 +204,7 @@ export function AcademySkeleton() {
 /** Intelligence: a wide conversation beside a narrower column of insight. */
 export function IntelligenceSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading intelligence">
+        <div className="space-y-6 h-[calc(100vh-8rem)]" aria-busy="true" aria-label="Loading intelligence">
             <Heading title="NutriBalance AI" standfirst="AI-driven ecosystem optimization and insights" />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 glass-card p-6 animate-pulse space-y-4">
@@ -180,7 +231,7 @@ export function IntelligenceSkeleton() {
  */
 export function AssistantSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading the assistant">
+        <div className="h-[calc(100vh-4rem)] flex flex-col p-6 gap-6" aria-busy="true" aria-label="Loading the assistant">
             <Heading title="EcoFusion AI Assistant" />
             <div className="glass-card p-6 animate-pulse space-y-5">
                 {[false, true, false, true].map((mine, turn) => (
@@ -213,7 +264,7 @@ export function EmployeesSkeleton() {
 /** Scheduling: a week of shifts. */
 export function SchedulingSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading scheduling">
+        <div className="max-w-7xl mx-auto space-y-6" aria-busy="true" aria-label="Loading scheduling">
             <Heading
                 title="Scheduling Management"
                 standfirst="Create and manage schedules for your team"
@@ -227,7 +278,7 @@ export function SchedulingSkeleton() {
 /** My Schedule: the same shifts, seen by one person. */
 export function MyScheduleSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading your schedule">
+        <div className="max-w-6xl mx-auto space-y-6" aria-busy="true" aria-label="Loading your schedule">
             <Heading title="My Schedule" />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {[0, 1, 2, 3].map((card) => (
@@ -245,7 +296,7 @@ export function MyScheduleSkeleton() {
 /** Tasks: two columns of things to do. */
 export function TasksSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading tasks">
+        <div className="h-[calc(100vh-8rem)] space-y-6" aria-busy="true" aria-label="Loading tasks">
             <Heading
                 title="Task Management"
                 standfirst="Track daily operations and employee duties"
@@ -271,7 +322,7 @@ export function TasksSkeleton() {
 /** Help: a list of articles beside the one being read. */
 export function HelpSkeleton() {
     return (
-        <div className="space-y-6" aria-busy="true" aria-label="Loading the help centre">
+        <div className="max-w-7xl mx-auto space-y-6" aria-busy="true" aria-label="Loading the help centre">
             <Heading title="Help Center" standfirst="Select an article to read" />
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <div className="space-y-2 animate-pulse">
