@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2, KeyRound, Camera, ScrollText, ArrowLeft } from "lucide-react";
 import clsx from "clsx";
+import { LinkSpinner } from "@/components/ui/Skeleton";
 
 interface User {
     name?: string | null;
@@ -58,6 +59,7 @@ export default function AgencySidebar({ user }: { user?: User }) {
                                 className={isActive ? "text-accent" : "text-white/50 group-hover:text-white"}
                             />
                             <span className="font-medium">{item.name}</span>
+                            <LinkSpinner className="ml-auto" />
                         </Link>
                     );
                 })}

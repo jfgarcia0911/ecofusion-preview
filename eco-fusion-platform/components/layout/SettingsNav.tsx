@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import clsx from "clsx";
 import { visibleSections, type SettingsSection } from "@/lib/settings-sections";
+import { LinkSpinner } from "@/components/ui/Skeleton";
 
 /**
  * The sidebar while you are inside settings.
@@ -118,6 +119,7 @@ function Group({
                                 }
                             />
                             <span className="text-sm font-medium truncate">{section.name}</span>
+                            <LinkSpinner className="ml-auto" />
                         </Link>
                     );
                 })}
