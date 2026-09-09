@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
+import { isPlatformAdmin, logStaffAccess, staffMayReach } from '@/lib/staff';
 import { SNAPSHOT_VERSION, captureSnapshot, type SnapshotPayload } from '@/lib/snapshots';
 
 /** The staff account making the request, or null. */
@@ -69,6 +69,11 @@ export async function POST(request: Request) {
     }
 
     const { organizationId, name, description, isDefault } = await request.json();
+    // Capturing copies a business's whole configuration out of it, which is
+    // reading it. Staff read only what they were handed.
+    if (organizationId && !(await staffMayReach(staffUserId, organizationId))) {
+      return NextResponse.json({ error: 'No such business' }, { status: 404 });
+    }
     if (!organizationId || !name?.trim()) {
       return NextResponse.json(
         { error: 'organizationId and a name are required' },

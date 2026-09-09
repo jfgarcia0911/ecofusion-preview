@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
+import { isPlatformOwner, logStaffAccess } from '@/lib/staff';
 import { SNAPSHOT_VERSION, applySnapshot, type SnapshotPayload } from '@/lib/snapshots';
 
 // POST - Load a snapshot into a business.
@@ -19,8 +19,11 @@ export async function POST(
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!(await isPlatformAdmin(session.user.id))) {
-      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    // Applying overwrites a business's configuration wholesale. That is the
+    // most destructive thing this app can do to a customer from outside it, so
+    // it is EcoFusion's own to do and not an assistant's.
+    if (!(await isPlatformOwner(session.user.id))) {
+      return NextResponse.json({ error: "Only EcoFusion's owner can apply a snapshot" }, { status: 403 });
     }
     const staffUserId = session.user.id;
 

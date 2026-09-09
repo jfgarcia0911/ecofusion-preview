@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess, staffReachableOrganizationIds } from '@/lib/staff';
+import { isPlatformAdmin, isPlatformOwner, logStaffAccess, staffMayReach, staffReachableOrganizationIds } from '@/lib/staff';
 import { evaluateAccess, provisionOrganization } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
 
@@ -123,8 +123,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (!(await isPlatformAdmin(session.user.id))) {
-            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+        // A new business comes with a subscription, a trial and an owner
+        // account. Taking a customer on is EcoFusion's decision, not an
+        // assistant's, and an assistant who could create one could grant it to
+        // themselves.
+        if (!(await isPlatformOwner(session.user.id))) {
+            return NextResponse.json(
+                { error: "Only EcoFusion's owner can create a business" },
+                { status: 403 }
+            );
         }
 
         const body = await request.json();
@@ -251,6 +258,12 @@ export async function PATCH(request: Request) {
         const organizationId = String(body.organizationId ?? '').trim();
         if (!organizationId) {
             return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
+        }
+
+        // Renaming somebody's business is a change to it, so it needs the same
+        // grant as opening it.
+        if (!(await staffMayReach(session.user.id, organizationId))) {
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
         // The name and nothing else.

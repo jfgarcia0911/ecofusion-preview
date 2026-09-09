@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin } from '@/lib/staff';
+import { isPlatformAdmin, staffMayReach, staffReachableOrganizationIds } from '@/lib/staff';
 
 // GET - The record of EcoFusion staff working inside customers' businesses.
 //
@@ -23,8 +23,22 @@ export async function GET(request: Request) {
         const params = new URL(request.url).searchParams;
         const organizationId = params.get('organizationId')?.trim() || undefined;
 
+        // The owner reads the whole platform's trail; staff read only the
+        // businesses they were handed. Naming one they were not is answered as
+        // though it does not exist, so the route cannot be used to discover ids.
+        const reachable = await staffReachableOrganizationIds(session.user.id);
+        if (organizationId && !(await staffMayReach(session.user.id, organizationId))) {
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
+        }
+
         const entries = await prisma.staffAccessLog.findMany({
-            where: organizationId ? { organizationId } : undefined,
+            where: organizationId
+                ? { organizationId }
+                // Unnamed means "everything I may see", which for staff is not
+                // everything. Without this the whole platform's trail came back.
+                : reachable === null
+                  ? undefined
+                  : { organizationId: { in: reachable } },
             select: {
                 id: true,
                 action: true,

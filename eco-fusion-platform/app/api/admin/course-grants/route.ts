@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
+import { isPlatformAdmin, logStaffAccess, staffMayReach } from '@/lib/staff';
 
 /** The staff account making the request, or null. */
 async function requireStaff(): Promise<string | null> {
@@ -20,6 +20,11 @@ export async function GET(request: Request) {
         const organizationId = new URL(request.url).searchParams.get('organizationId');
         if (!organizationId) {
             return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
+        }
+
+        const reader = await requireStaff();
+        if (!reader || !(await staffMayReach(reader, organizationId))) {
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
         const grants = await prisma.courseGrant.findMany({
@@ -51,6 +56,9 @@ export async function PUT(request: Request) {
         }
 
         const { organizationId, courseIds } = await request.json();
+        if (organizationId && !(await staffMayReach(staffUserId, organizationId))) {
+            return NextResponse.json({ error: 'No such business' }, { status: 404 });
+        }
         if (!organizationId || !Array.isArray(courseIds)) {
             return NextResponse.json(
                 { error: 'organizationId and courseIds are required' },
