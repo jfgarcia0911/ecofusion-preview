@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -905,6 +905,54 @@ export function TrainingSkeleton() {
             <Heading title="Training Management" standfirst="Assign courses and track completions" />
             <StatRow />
             <Rows count={6} />
+        </div>
+    );
+}
+
+/**
+ * One employee's profile: their card, then their shifts, training and sales.
+ *
+ * Section titles and their icons are drawn, since those are markup and the
+ * page always has all three. What is unknown is what is inside them.
+ */
+export function EmployeeProfileSkeleton() {
+    return (
+        <div className="max-w-4xl space-y-6" aria-busy="true" aria-label="Loading the profile">
+            <div className="h-4 w-40 rounded bg-white/5 animate-pulse" />
+
+            <div className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center gap-5 animate-pulse">
+                <div className="w-20 h-20 rounded-full bg-white/10 shrink-0" />
+                <div className="flex-1 space-y-2.5">
+                    <div className="h-6 w-48 rounded bg-white/10" />
+                    <div className="h-4 w-32 rounded bg-white/5" />
+                    <div className="h-3.5 w-64 max-w-full rounded bg-white/5" />
+                </div>
+                <div className="h-4 w-36 rounded bg-white/5 shrink-0" />
+            </div>
+
+            {[
+                { title: "Weekly shifts", Icon: Calendar, rows: 3 },
+                { title: "Training", Icon: GraduationCap, rows: 3 },
+                { title: "Sales recorded", Icon: ShoppingCart, rows: 3 },
+            ].map(({ title, Icon, rows }) => (
+                <section key={title} className="glass-card rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                            <Icon size={18} className="text-accent" />
+                            {title}
+                        </h2>
+                        <div className="h-3 w-20 rounded bg-white/5 animate-pulse" />
+                    </div>
+                    <div className="space-y-2">
+                        {Array.from({ length: rows }).map((_, row) => (
+                            <div
+                                key={row}
+                                className="h-11 rounded-xl bg-white/[0.03] border border-white/10 animate-pulse"
+                            />
+                        ))}
+                    </div>
+                </section>
+            ))}
         </div>
     );
 }

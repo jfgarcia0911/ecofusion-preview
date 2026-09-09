@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { User, Mail, Plus, UserPlus, X, KeyRound } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 
@@ -247,15 +248,13 @@ export default function EmployeesPage() {
                                 </div>
                             </div>
 
-                            {/*
-                              * There was a View Profile button here with no
-                              * handler on it. It had never done anything, and
-                              * a control that looks like it works is worse
-                              * than the absence of one: the reader clicks,
-                              * nothing happens, and they are left wondering
-                              * what else in here is pretending.
-                              */}
                             <div className="mt-6 flex gap-3 w-full">
+                                <Link
+                                    href={`/business/employees/${emp.id}`}
+                                    className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white text-center transition-colors"
+                                >
+                                    View profile
+                                </Link>
                                 {emp.account ? (
                                     <span className="flex-1 py-2 rounded-lg border border-white/5 text-sm text-white/30 text-center">
                                         Has access
