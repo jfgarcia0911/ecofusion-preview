@@ -106,7 +106,10 @@ function Group({
                             key={section.href}
                             href={section.href}
                             className={clsx(
-                                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group",
+                                // Colours only. Nothing here changes size
+                                // between states, and transitioning layout is
+                                // how a shift becomes a visible slide.
+                                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 group",
                                 isActive
                                     ? "bg-primary/50 text-accent border border-accent/20"
                                     : "text-white/70 hover:bg-white/5 hover:text-white border border-transparent"

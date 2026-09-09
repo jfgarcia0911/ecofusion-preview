@@ -48,10 +48,14 @@ export default function AgencySidebar({ user }: { user?: User }) {
                             key={item.href}
                             href={item.href}
                             className={clsx(
-                                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+                                // Border always present, transparent when
+                                // inactive. Adding one on activation grows the
+                                // box by two pixels and shifts every item below
+                                // it; transition-all then animated the shift.
+                                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors duration-200 group",
                                 isActive
-                                    ? "bg-primary/50 text-accent shadow-lg border border-accent/20"
-                                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                                    ? "bg-primary/50 text-accent shadow-lg border-accent/20"
+                                    : "text-white/70 hover:bg-white/5 hover:text-white border-transparent"
                             )}
                         >
                             <item.icon

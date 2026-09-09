@@ -159,10 +159,18 @@ export default function Sidebar({
                             href={item.href}
                             data-tour={item.tourId}
                             className={clsx(
-                                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+                                // The inactive border is transparent rather than
+                                // absent. A border that only exists when active
+                                // adds two pixels to the box the moment you
+                                // click, so the item grows and everything below
+                                // it shifts down - and transition-all animated
+                                // that shift, which is why the sidebar appeared
+                                // to move. Only colours change now; the
+                                // geometry is identical in both states.
+                                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors duration-200 group",
                                 isActive
-                                    ? "bg-primary/50 text-accent shadow-lg border border-accent/20"
-                                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                                    ? "bg-primary/50 text-accent shadow-lg border-accent/20"
+                                    : "text-white/70 hover:bg-white/5 hover:text-white border-transparent"
                             )}
                         >
                             <item.icon size={20} className={isActive ? "text-accent" : "text-white/50 group-hover:text-white"} />
