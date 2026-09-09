@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2 } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2, GraduationCap } from "lucide-react";
 import { LinkSpinner } from "@/components/ui/Skeleton";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
@@ -38,6 +38,10 @@ const baseNavItems = [
 const adminNavItems = [
     { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
     { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
+    // Moved out of settings. Assigning courses and chasing completions is work
+    // done during the week, alongside the people and the rota it concerns, not
+    // something configured once and left.
+    { name: "Training Management", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
 ];
 
 // User-only navigation items
@@ -49,8 +53,8 @@ const userNavItems = [
 /**
  * Common items, and the one door behind which the rest now sit.
  *
- * Billing, team access, training management, integrations and the access
- * record were five entries in an already long sidebar, next to the screens
+ * Billing, integrations and the access record were entries in an already
+ * long sidebar, next to the screens
  * somebody opens every day. They are visited rarely and mostly by one person,
  * so /settings lists the ones the reader may actually open and the sidebar
  * carries a single line instead of five.

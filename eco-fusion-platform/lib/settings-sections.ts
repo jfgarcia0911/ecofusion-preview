@@ -19,7 +19,6 @@
 
 import {
     CreditCard,
-    GraduationCap,
     Settings as SettingsIcon,
     ScrollText,
     SlidersHorizontal,
@@ -37,14 +36,10 @@ export interface SettingsSection {
 }
 
 /** Follows the account. Changing one of these changes it in every business. */
+// Training Management is not here. Assigning courses and chasing completions
+// is work somebody does during the week, not a setting they configure once, so
+// it sits in the sidebar beside Employees and Scheduling where that work is.
 export const ACCOUNT_SECTIONS: SettingsSection[] = [
-    {
-        href: '/admin/training',
-        name: 'Training Management',
-        description: 'Assign courses to anyone on your team, wherever they work.',
-        icon: GraduationCap,
-        ownerOnly: true,
-    },
     {
         href: '/settings/preferences',
         name: 'Preferences',
