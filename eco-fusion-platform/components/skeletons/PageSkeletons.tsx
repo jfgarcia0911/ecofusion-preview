@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Brain, Sparkles, Calendar, Bot, type LucideIcon } from "lucide-react";
 
 /**
  * One waiting state per destination in the sidebar, shaped like the page it
@@ -14,19 +15,27 @@ import type { ReactNode } from "react";
  * itself is a flicker for nothing.
  */
 
+/**
+ * `icon` is drawn rather than left as a grey square. An icon is static markup,
+ * so nothing about it is genuinely being waited for, and a title that appears
+ * without one and then grows one is a jolt at the top of the page.
+ */
 function Heading({
     title,
     standfirst,
     action,
+    icon: Icon,
 }: {
     title: string;
     standfirst?: string;
     action?: ReactNode;
+    icon?: LucideIcon;
 }) {
     return (
         <div className="flex justify-between items-end gap-4">
             <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
+                    {Icon && <Icon className="text-accent" />}
                     {title}
                 </h1>
                 {standfirst && <p className="text-white/50 mt-1">{standfirst}</p>}
@@ -264,24 +273,77 @@ export function AcademySkeleton() {
     );
 }
 
-/** Intelligence: a wide conversation beside a narrower column of insight. */
+/**
+ * Intelligence: recommendations down the wide side, the assistant down the
+ * narrow one.
+ *
+ * The heading carries its Brain icon and the accent gradient, both drawn for
+ * real. An icon is static, so waiting for it would be waiting for nothing, and
+ * a title that arrives without one and then grows one is a jolt in the corner
+ * of the eye.
+ */
 export function IntelligenceSkeleton() {
     return (
-        <div className="space-y-6 h-[calc(100vh-8rem)]" aria-busy="true" aria-label="Loading intelligence">
-            <Heading title="NutriBalance AI" standfirst="AI-driven ecosystem optimization and insights" />
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 glass-card p-6 animate-pulse space-y-4">
-                    <div className="h-5 w-40 rounded bg-white/10" />
-                    <div className="h-72 rounded bg-white/5" />
+        <div
+            className="space-y-6 h-[calc(100vh-8rem)]"
+            aria-busy="true"
+            aria-label="Loading intelligence"
+        >
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent flex items-center gap-3">
+                        <Brain className="text-accent" />
+                        NutriBalance AI
+                    </h1>
+                    <p className="text-white/50 mt-1">
+                        AI-driven ecosystem optimization and insights
+                    </p>
                 </div>
-                <div className="glass-card p-6 animate-pulse space-y-4">
-                    <div className="h-5 w-32 rounded bg-white/10" />
-                    {[0, 1, 2, 3].map((row) => (
-                        <div key={row} className="space-y-1.5">
-                            <div className="h-3 w-3/4 rounded bg-white/10" />
-                            <div className="h-2.5 w-1/2 rounded bg-white/5" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full pb-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="glass-panel p-6 rounded-2xl border border-accent/20">
+                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <Sparkles size={20} className="text-accent" />
+                            Active Recommendations
+                        </h2>
+                        <div className="space-y-4">
+                            {Array.from({ length: 3 }).map((_, item) => (
+                                <div
+                                    key={item}
+                                    className="p-4 bg-accent/5 border border-accent/20 rounded-xl animate-pulse space-y-2"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="h-4 w-56 max-w-full rounded bg-white/10" />
+                                        <div className="h-4 w-16 rounded bg-white/5 shrink-0" />
+                                    </div>
+                                    <div className="h-3 w-full rounded bg-white/5" />
+                                    <div className="h-3 w-2/3 rounded bg-white/5" />
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    </div>
+
+                    {/* The training notice is static text on the page, so it is drawn as it is. */}
+                    <div className="glass-card p-6 min-h-[250px] flex flex-col items-center justify-center border-dashed border-2 border-white/10">
+                        <Brain size={48} className="text-white/10 mb-4" />
+                        <p className="text-white/30 font-medium">Machine Learning Model Training...</p>
+                        <p className="text-white/20 text-xs mt-2">
+                            Gathering more data points for Predictive Yield Engine
+                        </p>
+                    </div>
+                </div>
+
+                <div className="glass-panel p-6 rounded-2xl flex flex-col h-full max-h-[calc(100vh-12rem)]">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <Brain size={20} className="text-accent" />
+                            Ask EcoFusion AI
+                        </h3>
+                    </div>
+                    <div className="flex-1 bg-black/20 rounded-xl p-4 mb-4 animate-pulse" />
+                    <div className="h-11 rounded-xl bg-white/5 animate-pulse" />
                 </div>
             </div>
         </div>
@@ -289,22 +351,63 @@ export function IntelligenceSkeleton() {
 }
 
 /**
- * The assistant: a conversation, so the placeholder is turns of one, alternating
- * sides, with the composer waiting at the bottom.
+ * The assistant: a full height column, its heading badge above a chat panel
+ * that takes the rest of the screen.
+ *
+ * The badge, the title and the "Powered by Google Gemini" line are all static
+ * markup, so they are drawn rather than waited for. What is genuinely unknown
+ * is whether there is a conversation yet, and the page's own answer to that is
+ * a centred prompt with suggestions, so that is the shape held open here.
  */
 export function AssistantSkeleton() {
     return (
-        <div className="h-[calc(100vh-4rem)] flex flex-col p-6 gap-6" aria-busy="true" aria-label="Loading the assistant">
-            <Heading title="EcoFusion AI Assistant" />
-            <div className="glass-card p-6 animate-pulse space-y-5">
-                {[false, true, false, true].map((mine, turn) => (
-                    <div key={turn} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                        <div
-                            className={`rounded-2xl bg-white/5 ${mine ? "w-1/2" : "w-2/3"} h-16`}
-                        />
+        <div
+            className="h-[calc(100vh-4rem)] flex flex-col p-6"
+            aria-busy="true"
+            aria-label="Loading the assistant"
+        >
+            <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                        <Bot className="w-6 h-6 text-white" />
                     </div>
-                ))}
-                <div className="h-12 rounded-xl bg-white/[0.04] mt-6" />
+                    <div>
+                        <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                            EcoFusion AI Assistant
+                        </h1>
+                        <p className="text-white/50 text-sm flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            Powered by Google Gemini
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 glass-card rounded-xl flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-hidden p-4">
+                    <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-600/20 flex items-center justify-center mb-4">
+                            <Bot className="w-10 h-10 text-purple-400" />
+                        </div>
+                        <div className="h-5 w-56 rounded bg-white/10 mb-3 animate-pulse" />
+                        <div className="h-3.5 w-80 max-w-full rounded bg-white/5 mb-6 animate-pulse" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl w-full">
+                            {Array.from({ length: 4 }).map((_, suggestion) => (
+                                <div
+                                    key={suggestion}
+                                    className="h-11 rounded-lg bg-white/5 animate-pulse"
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-white/10">
+                    <div className="flex gap-3">
+                        <div className="h-11 flex-1 rounded-lg bg-white/5 animate-pulse" />
+                        <div className="h-11 w-11 rounded-lg bg-white/10 shrink-0 animate-pulse" />
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -332,6 +435,7 @@ export function SchedulingSkeleton() {
                 title="Scheduling Management"
                 standfirst="Create and manage schedules for your team"
                 action={<ActionButton width="w-32" />}
+                icon={Calendar}
             />
             <Rows count={7} />
         </div>
