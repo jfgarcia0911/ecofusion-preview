@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 
 /**
  * The record of EcoFusion staff working inside this business.
@@ -20,10 +20,8 @@ const PAGE_SIZE = 200;
 
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     if (ctx.role !== 'owner' || ctx.isStaff) {
       return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch phase settings
@@ -8,10 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { phaseId } = await params;
 
@@ -49,10 +47,8 @@ export async function PUT(
   { params }: { params: Promise<{ phaseId: string }> }
 ) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { phaseId } = await params;
     const data = await request.json();

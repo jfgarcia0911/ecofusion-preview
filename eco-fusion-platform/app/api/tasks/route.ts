@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all tasks for the current user
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const tasks = await prisma.task.findMany({
       where: { organizationId: ctx.organizationId },
@@ -29,10 +27,8 @@ export async function GET() {
 // POST - Create a new task
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { text, priority, dueDate, phaseId, assignee } = data;
@@ -63,10 +59,8 @@ export async function POST(request: Request) {
 // PATCH - Update a task
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { id, completed, text, priority, dueDate, assignee } = data;
@@ -105,10 +99,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete a task
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

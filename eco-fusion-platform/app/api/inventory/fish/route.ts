@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all fish stock for user
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const fishStock = await prisma.fishStock.findMany({
       where: { organizationId: ctx.organizationId },
@@ -35,10 +33,8 @@ export async function GET() {
 // POST - Create new fish stock
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { zoneId, species, quantity, avgWeight, ageWeeks, expectedHarvest, notes } = data;
@@ -80,10 +76,8 @@ export async function POST(request: Request) {
 // PATCH - Update fish stock
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { id, ...updates } = data;
@@ -121,10 +115,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete fish stock
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

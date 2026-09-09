@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Export sales data as CSV
 export async function GET(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');

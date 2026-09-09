@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { canAdminister } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - One employee, and everything this business knows about their work.
@@ -14,10 +15,8 @@ export async function GET(
     { params }: { params: Promise<{ employeeId: string }> }
 ) {
     try {
-        const ctx = await getOrgContext();
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
         if (!canAdminister(ctx)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }

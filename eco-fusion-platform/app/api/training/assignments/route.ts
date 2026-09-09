@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister, isSameOrganization } from '@/lib/tenancy';
+import { canAdminister, isSameOrganization } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole } from '@/lib/roles';
 
 // GET - Fetch course assignments
 export async function GET(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
@@ -95,11 +93,8 @@ export async function GET(request: Request) {
 // POST - Create course assignment (admin only)
 export async function POST(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
@@ -203,11 +198,8 @@ export async function POST(request: Request) {
 // DELETE - Remove course assignment (admin only)
 export async function DELETE(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const isAdmin = canAdminister(ctx);
         if (!isAdmin) {

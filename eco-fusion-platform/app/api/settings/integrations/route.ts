@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canManageMembers } from '@/lib/tenancy';
+import { canManageMembers } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
@@ -29,10 +30,8 @@ function decryptApiKey(encrypted: string): string {
 // GET - Fetch integration settings
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const settings = await prisma.integrationSettings.findUnique({
       where: { organizationId: ctx.organizationId },
@@ -67,10 +66,8 @@ export async function GET() {
 // need to see whether the integration is connected.
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     if (!canManageMembers(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
@@ -122,10 +119,8 @@ export async function POST(request: Request) {
 // DELETE - Remove integration settings.
 export async function DELETE() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     if (!canManageMembers(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });

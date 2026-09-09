@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all harvests for user
 export async function GET(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // Optional filter by "fish" or "plant"
@@ -44,10 +42,8 @@ export async function GET(request: Request) {
 // POST - Record a harvest
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const {
@@ -155,10 +151,8 @@ export async function POST(request: Request) {
 // PATCH - Update harvest
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { id, ...updates } = data;
@@ -192,10 +186,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete harvest
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

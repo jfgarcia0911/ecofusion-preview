@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister, canManageMembers } from '@/lib/tenancy';
+import { canAdminister, canManageMembers } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { ALL_BUSINESS_ROLES, PLATFORM_ROLES } from '@/lib/roles';
 
@@ -9,11 +10,8 @@ const PLATFORM_ROLE_VALUES = [PLATFORM_ROLES.OWNER, PLATFORM_ROLES.STAFF];
 // GET - People in the caller's organization (admin only)
 export async function GET() {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         if (!canAdminister(ctx)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
@@ -97,11 +95,8 @@ export async function GET() {
 // PATCH - Change someone's role within the caller's organization (owner/admin only)
 export async function PATCH(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         if (!canManageMembers(ctx)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });

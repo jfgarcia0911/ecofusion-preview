@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all growth parameters for user
 export async function GET(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // Optional filter by "fish" or "plant"
@@ -33,10 +31,8 @@ export async function GET(request: Request) {
 // POST - Create new growth parameter template
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const {
@@ -91,10 +87,8 @@ export async function POST(request: Request) {
 // PATCH - Update growth parameter
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { id, ...updates } = data;
@@ -124,10 +118,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete growth parameter
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

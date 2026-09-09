@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // Helper to decrypt API key
@@ -14,10 +14,8 @@ function decryptApiKey(encrypted: string): string {
 // GET - Search/fetch CRM contacts
 export async function GET(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     // Get integration settings
     const settings = await prisma.integrationSettings.findUnique({
@@ -93,10 +91,8 @@ export async function GET(request: Request) {
 // POST - Create a new contact in CRM
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     // Get integration settings
     const settings = await prisma.integrationSettings.findUnique({

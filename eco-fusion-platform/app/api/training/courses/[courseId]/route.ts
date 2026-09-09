@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { canAdminister } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { ownedByOrganization, visibleToOrganization } from '@/lib/training';
 import { prisma } from '@/lib/prisma';
 
@@ -9,11 +10,8 @@ export async function GET(
     { params }: { params: Promise<{ courseId: string }> }
 ) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const { courseId } = await params;
 
@@ -51,11 +49,8 @@ export async function PATCH(
     { params }: { params: Promise<{ courseId: string }> }
 ) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
@@ -146,11 +141,8 @@ export async function DELETE(
     { params }: { params: Promise<{ courseId: string }> }
 ) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const isAdmin = canAdminister(ctx);
         if (!isAdmin) {

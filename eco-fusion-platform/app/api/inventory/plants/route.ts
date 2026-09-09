@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all plant crops for user
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const plantCrops = await prisma.plantCrop.findMany({
       where: { organizationId: ctx.organizationId },
@@ -35,10 +33,8 @@ export async function GET() {
 // POST - Create new plant crop
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { zoneId, cropType, variety, quantity, plantedDate, expectedHarvest, location, notes } = data;
@@ -81,10 +77,8 @@ export async function POST(request: Request) {
 // PATCH - Update plant crop
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { id, ...updates } = data;
@@ -125,10 +119,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete plant crop
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

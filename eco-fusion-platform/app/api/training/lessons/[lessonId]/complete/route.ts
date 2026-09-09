@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // POST - Mark lesson as complete
@@ -8,11 +8,8 @@ export async function POST(
     { params }: { params: Promise<{ lessonId: string }> }
 ) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         // A support account is not a trainee. It has no training record of its
         // own, so there is nothing here for it to complete.

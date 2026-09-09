@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { canAdminister } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch scheduled tasks (admin sees all, users see their own)
 export async function GET() {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const isAdmin = canAdminister(ctx);
 
@@ -36,11 +34,8 @@ export async function GET() {
 // POST - Create new scheduled task (admin only)
 export async function POST(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const isAdmin = canAdminister(ctx);
         if (!isAdmin) {
@@ -94,11 +89,8 @@ export async function POST(request: Request) {
 // PATCH - Update task status
 export async function PATCH(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const data = await request.json();
         const { taskId, status } = data;

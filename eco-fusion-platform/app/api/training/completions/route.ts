@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canAdminister, isSameOrganization } from '@/lib/tenancy';
+import { canAdminister, isSameOrganization } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch completion records
 export async function GET(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
@@ -80,11 +78,8 @@ export async function GET(request: Request) {
 // POST - Record course completion
 export async function POST(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         // A support account is not a trainee. It has no training record of its
         // own, so there is nothing here for it to complete.

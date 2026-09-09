@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { getOrgContext, canManageMembers } from '@/lib/tenancy';
+import { canManageMembers } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { validatePassword } from '@/lib/validation/password';
 import { ASSIGNABLE_BUSINESS_ROLES } from '@/lib/roles';
 
@@ -13,10 +14,8 @@ const RANK: Record<string, number> = { owner: 3, admin: 2, manager: 1, member: 0
 // GET - Everyone with access to this farm.
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     // Every business the caller owns. Team Access is an account screen now: a
     // login is not a thing one business holds, so listing only the people in
@@ -103,10 +102,8 @@ export async function GET() {
 // organization, so it is admitted or refused by this farm's subscription.
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     if (!canManageMembers(ctx)) {
       return NextResponse.json(
@@ -248,10 +245,8 @@ export async function POST(request: Request) {
 // DELETE - Remove someone's access to this farm.
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     if (!canManageMembers(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
@@ -300,10 +295,8 @@ export async function DELETE(request: Request) {
 // Scoped by membership, so it cannot reach an account on another farm.
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     if (!canManageMembers(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext, canManageMembers } from '@/lib/tenancy';
+import { canManageMembers } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all employees for user
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const employees = await prisma.employee.findMany({
       where: { organizationId: ctx.organizationId },
@@ -109,10 +108,8 @@ export async function GET() {
 // POST - Create a new employee
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const data = await request.json();
     const { name, role, email, phone, status } = data;

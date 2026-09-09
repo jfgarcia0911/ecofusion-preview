@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getOrgContext } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch user's notifications
 export async function GET() {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const notifications = await prisma.notification.findMany({
             where: { userId: ctx.userId },
@@ -27,11 +24,8 @@ export async function GET() {
 // PATCH - Mark notifications as read
 export async function PATCH(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const data = await request.json();
         const { notificationIds, markAllRead } = data;
@@ -61,11 +55,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete a notification
 export async function DELETE(request: Request) {
     try {
-        const ctx = await getOrgContext();
-
-        if (!ctx) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { ctx, refusal } = await activeOrg();
+        if (refusal) return refusal;
 
         const { searchParams } = new URL(request.url);
         const notificationId = searchParams.get('id');

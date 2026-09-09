@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getOrgContext, canAdminister } from '@/lib/tenancy';
+import { canAdminister } from '@/lib/tenancy';
+import { activeOrg } from '@/lib/api-access';
 import { ICON_NAMES, isKnownPalette, keyFromTitle, UNIT_PALETTES } from '@/lib/business-units';
 
 /**
@@ -44,10 +45,8 @@ function validate(fields: ReturnType<typeof readUnitFields>): string | null {
 // wants the live set, and only the editor wants the retired ones too.
 export async function GET(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
     const includeDisabled = new URL(request.url).searchParams.get('includeDisabled') === '1';
 
@@ -69,10 +68,8 @@ export async function GET(request: Request) {
 // POST - Add a silo.
 export async function POST(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
     if (!canAdminister(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
@@ -133,10 +130,8 @@ export async function POST(request: Request) {
 // The key is not among the editable fields, on purpose. See the note above.
 export async function PATCH(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
     if (!canAdminister(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
@@ -195,10 +190,8 @@ export async function PATCH(request: Request) {
 // Those are retired instead, which is what `enabled` is for.
 export async function DELETE(request: Request) {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
     if (!canAdminister(ctx)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
