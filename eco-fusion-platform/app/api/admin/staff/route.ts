@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformOwner } from '@/lib/staff';
+import { isPlatformAdmin, isPlatformOwner } from '@/lib/staff';
 import { validatePassword } from '@/lib/validation/password';
 import { PLATFORM_ROLES } from '@/lib/roles';
 
@@ -19,6 +19,24 @@ import { PLATFORM_ROLES } from '@/lib/roles';
  * would be an owner, and could reach every business by granting it to
  * themselves.
  */
+
+/**
+ * Any EcoFusion account, for reading.
+ *
+ * Staff see who else is on the team and what each of them opens. That is a
+ * colleague list, not a lever: knowing that somebody looks after three
+ * customers is not the same as being able to hand yourself a fourth.
+ */
+async function requirePlatform(): Promise<{ userId: string; isOwner: boolean } | NextResponse> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!(await isPlatformAdmin(session.user.id))) {
+    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  }
+  return { userId: session.user.id, isOwner: await isPlatformOwner(session.user.id) };
+}
 
 async function requireOwner(): Promise<{ userId: string } | NextResponse> {
   const session = await auth();
@@ -37,7 +55,7 @@ async function requireOwner(): Promise<{ userId: string } | NextResponse> {
 // GET - every staff account, and what each one reaches.
 export async function GET() {
   try {
-    const guard = await requireOwner();
+    const guard = await requirePlatform();
     if (guard instanceof NextResponse) return guard;
 
     const staff = await prisma.user.findMany({
@@ -55,13 +73,19 @@ export async function GET() {
       },
     });
 
-    // Offered as the things a grant can name.
-    const businesses = await prisma.organization.findMany({
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
-    });
+    // The things a grant can name, and only for the person who can grant. A
+    // staff account reading the team has no need for the full list of every
+    // business on the platform, so it is not sent one.
+    const businesses = guard.isOwner
+      ? await prisma.organization.findMany({
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true },
+        })
+      : [];
 
     return NextResponse.json({
+      /** Whether this reader may change any of it, or only look. */
+      canManage: guard.isOwner,
       staff: staff.map((s) => ({
         id: s.id,
         name: s.name,

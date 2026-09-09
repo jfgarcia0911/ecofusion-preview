@@ -37,6 +37,10 @@ export default function AgencyTeamPage() {
     const [businesses, setBusinesses] = useState<Business[]>([]);
     const [loading, setLoading] = useState(true);
     const [denied, setDenied] = useState<string | null>(null);
+    // Staff read the team; only the owner changes it. Said by the server
+    // rather than worked out here, so the page cannot offer what the route
+    // would refuse.
+    const [canManage, setCanManage] = useState(false);
 
     const [adding, setAdding] = useState(false);
     const [draft, setDraft] = useState({ name: "", email: "", password: "" });
@@ -59,6 +63,7 @@ export default function AgencyTeamPage() {
             }
             setStaff(data.staff ?? []);
             setBusinesses(data.businesses ?? []);
+            setCanManage(Boolean(data.canManage));
         } catch {
             setDenied("Could not reach the server. Try again.");
         } finally {
@@ -173,12 +178,12 @@ export default function AgencyTeamPage() {
                         Team Access
                     </h1>
                     <p className="text-white/50 mt-1 text-sm max-w-2xl">
-                        EcoFusion&apos;s own people. An account here opens nothing until you
-                        hand it a sub account, and opens only the ones you hand it. Customers
-                        manage their own staff under Employees.
+                        {canManage
+                            ? "EcoFusion's own people. An account here opens nothing until you hand it a sub account, and opens only the ones you hand it. Customers manage their own staff under Employees."
+                            : "EcoFusion's own people, and which sub accounts each of them opens. Taking somebody on, and deciding what they open, is the platform owner's."}
                     </p>
                 </div>
-                {!adding && (
+                {canManage && !adding && (
                     <button
                         type="button"
                         onClick={() => {
@@ -193,7 +198,7 @@ export default function AgencyTeamPage() {
                 )}
             </div>
 
-            {adding && (
+            {canManage && adding && (
                 <form
                     onSubmit={create}
                     className="grid gap-3 sm:grid-cols-3 p-4 mb-5 rounded-2xl border border-accent/25 bg-accent/[0.06]"
@@ -260,8 +265,9 @@ export default function AgencyTeamPage() {
                     <ShieldCheck size={32} className="text-accent/50 mb-3" />
                     <p className="text-white font-medium">No staff yet</p>
                     <p className="text-sm text-white/40 mt-1.5 max-w-sm">
-                        You are the only EcoFusion account. Add somebody to help, then choose
-                        which sub accounts they can open.
+                        {canManage
+                            ? "You are the only EcoFusion account. Add somebody to help, then choose which sub accounts they can open."
+                            : "Nobody has been taken on yet."}
                     </p>
                 </div>
             ) : (
@@ -308,6 +314,7 @@ export default function AgencyTeamPage() {
                                     </td>
                                     <td className="px-4 py-3.5 text-right">
                                         <div className="flex items-center justify-end gap-1.5">
+                                            {canManage && (
                                             <button
                                                 type="button"
                                                 onClick={() => openGrant(person)}
@@ -316,6 +323,8 @@ export default function AgencyTeamPage() {
                                                 <Building2 size={13} />
                                                 Sub accounts
                                             </button>
+                                            )}
+                                            {canManage && (
                                             <button
                                                 type="button"
                                                 onClick={() => remove(person)}
@@ -324,6 +333,7 @@ export default function AgencyTeamPage() {
                                             >
                                                 <Trash2 size={15} />
                                             </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
