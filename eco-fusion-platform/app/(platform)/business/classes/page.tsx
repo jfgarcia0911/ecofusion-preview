@@ -22,6 +22,14 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { groupByCategory, hours } from "@/lib/course-groups";
 import { formatPrice } from "@/lib/course-price";
 import { BusinessClassesSkeleton } from "@/components/skeletons/PageSkeletons";
+import EmbeddedCheckoutPanel from "@/components/training/EmbeddedCheckoutPanel";
+
+/** A Stripe checkout being shown inside the page. */
+interface OpenCheckout {
+    clientSecret: string;
+    publishableKey: string;
+    sessionId: string;
+}
 
 interface ShopCourse {
     id: string;
@@ -123,6 +131,9 @@ export default function BusinessClassesPage() {
     const [busy, setBusy] = useState<"buy" | "give" | null>(null);
     const [removing, setRemoving] = useState<string | null>(null);
     const [confirming, setConfirming] = useState(false);
+    /** Set while Stripe's checkout is on screen in place of the shop. */
+    const [checkout, setCheckout] = useState<OpenCheckout | null>(null);
+    const [leaving, setLeaving] = useState(false);
     const toast = useToast();
     const confirmAction = useConfirm();
 
@@ -135,6 +146,41 @@ export default function BusinessClassesPage() {
         if (!res.ok) throw new Error("load");
         setShop(await res.json());
     }, []);
+
+    /**
+     * Ask the server, which asks Stripe, whether a checkout was paid, and say
+     * what came back. Used on return from Stripe's own page and when the
+     * checkout inside this one reports that it finished.
+     */
+    const confirmPurchase = useCallback(
+        async (sessionId: string) => {
+            setConfirming(true);
+            try {
+                const res = await fetch("/api/training/purchases/confirm", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sessionId }),
+                });
+                const { outcome } = await res.json();
+                if (outcome === "unlocked" || outcome === "already") {
+                    toast.success("Payment received. Your new courses are ready.");
+                } else if (outcome === "unpaid") {
+                    toast.info(
+                        "Your payment has not gone through yet. The courses unlock as soon as it does."
+                    );
+                } else {
+                    toast.error(
+                        "We could not confirm that payment. If you were charged, contact EcoFusion support."
+                    );
+                }
+            } catch {
+                toast.error("Could not confirm your payment. Refresh to try again.");
+            } finally {
+                setConfirming(false);
+            }
+        },
+        [toast]
+    );
 
     useEffect(() => {
         let cancelled = false;
@@ -149,31 +195,7 @@ export default function BusinessClassesPage() {
             if (returned === "cancelled") {
                 toast.info("Checkout cancelled. Nothing was charged.");
             } else if (returned?.startsWith("cs_")) {
-                setConfirming(true);
-                try {
-                    const res = await fetch("/api/training/purchases/confirm", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ sessionId: returned }),
-                    });
-                    const { outcome } = await res.json();
-                    if (cancelled) return;
-                    if (outcome === "unlocked" || outcome === "already") {
-                        toast.success("Payment received. Your new courses are ready.");
-                    } else if (outcome === "unpaid") {
-                        toast.info(
-                            "Your payment has not gone through yet. The courses unlock as soon as it does."
-                        );
-                    } else {
-                        toast.error(
-                            "We could not confirm that payment. If you were charged, contact EcoFusion support."
-                        );
-                    }
-                } catch {
-                    if (!cancelled) toast.error("Could not confirm your payment. Refresh to try again.");
-                } finally {
-                    if (!cancelled) setConfirming(false);
-                }
+                await confirmPurchase(returned);
             }
 
             try {
@@ -185,7 +207,7 @@ export default function BusinessClassesPage() {
         return () => {
             cancelled = true;
         };
-    }, [load, toast]);
+    }, [load, toast, confirmPurchase]);
 
     const held = useMemo(() => (shop?.courses ?? []).filter((c) => c.held), [shop]);
     const forSale = useMemo(() => (shop?.courses ?? []).filter((c) => !c.held && c.isActive), [shop]);
@@ -272,6 +294,7 @@ export default function BusinessClassesPage() {
                 body: JSON.stringify({
                     courseIds: chosen.map((c) => c.id),
                     packages: chosenPackages.map((pkg) => pkg.category),
+                    embedded: true,
                 }),
             });
             const data = await res.json();
@@ -279,7 +302,15 @@ export default function BusinessClassesPage() {
                 toast.error(data.error ?? "Could not start the purchase");
                 return;
             }
+            if (data.checkout) {
+                // Stripe's form, inside this page. The basket stays as it is
+                // underneath, so going back finds it where it was left.
+                setCheckout(data.checkout);
+                window.scrollTo({ top: 0 });
+                return;
+            }
             if (data.url) {
+                // No key for the in-page form, so Stripe's own page instead.
                 // Off to Stripe. Anything free in the basket is already
                 // unlocked; the rest unlocks when the payment is confirmed.
                 window.location.assign(data.url);
@@ -291,6 +322,49 @@ export default function BusinessClassesPage() {
         } finally {
             setBusy((b) => (b === "buy" ? null : b));
         }
+    }
+
+    /**
+     * Leave the checkout. Stripe is told, so the session cannot be paid from
+     * somewhere else later; if it already was, the courses are unlocked and
+     * the page says so instead of claiming nothing was charged.
+     */
+    async function leaveCheckout(keepBasket: boolean) {
+        if (!checkout) return;
+        setLeaving(true);
+        try {
+            const res = await fetch("/api/training/purchases/cancel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: checkout.sessionId }),
+            });
+            const { outcome } = await res.json().catch(() => ({ outcome: null }));
+            if (outcome === "unlocked" || outcome === "already") {
+                toast.success("That payment had already gone through. Your courses are ready.");
+                clearBasket();
+            } else {
+                toast.info(
+                    keepBasket
+                        ? "Back in the shop. Nothing was charged."
+                        : "Purchase cancelled. Nothing was charged."
+                );
+                if (!keepBasket) clearBasket();
+            }
+        } finally {
+            setCheckout(null);
+            setLeaving(false);
+            // Anything free in the basket was unlocked when checkout opened.
+            await load().catch(() => undefined);
+        }
+    }
+
+    /** Stripe finished the payment without leaving the page. */
+    async function checkoutComplete() {
+        const sessionId = checkout?.sessionId;
+        setCheckout(null);
+        clearBasket();
+        if (sessionId) await confirmPurchase(sessionId);
+        await load().catch(() => undefined);
     }
 
     async function give() {
@@ -367,6 +441,31 @@ export default function BusinessClassesPage() {
     if (!shop) return <BusinessClassesSkeleton confirming={confirming} />;
 
     const money = (cents: number) => formatPrice(cents, shop.currency);
+
+    if (checkout) {
+        return (
+            <div className="max-w-5xl space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
+                        <ShoppingCart className="text-accent" />
+                        Checkout
+                    </h1>
+                    <p className="text-white/50 mt-1 max-w-2xl">
+                        Check what you are buying and pay below. Your courses unlock as soon as the
+                        payment is confirmed.
+                    </p>
+                </div>
+                <EmbeddedCheckoutPanel
+                    clientSecret={checkout.clientSecret}
+                    publishableKey={checkout.publishableKey}
+                    leaving={leaving}
+                    onBack={() => leaveCheckout(true)}
+                    onCancel={() => leaveCheckout(false)}
+                    onComplete={checkoutComplete}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-5xl space-y-6 pb-24">

@@ -34,6 +34,24 @@ const MAX_LINES = 100;
 /** Tells a course checkout apart from a subscription one on the way back. */
 const KIND = 'courses';
 
+/**
+ * The key the browser needs to show Stripe's payment form inside the page.
+ *
+ * Publishable by design - Stripe issues it for exactly this - so it is handed
+ * to the page by the server rather than baked in at build time. Without it,
+ * checkout falls back to sending the buyer to Stripe's own page.
+ */
+export function stripePublishableKey(): string | null {
+    return process.env.STRIPE_PUBLISHABLE_KEY?.trim() || null;
+}
+
+/** A checkout to draw inside the page rather than send the buyer away to. */
+export interface EmbeddedCheckoutStart {
+    clientSecret: string;
+    publishableKey: string;
+    sessionId: string;
+}
+
 /** The business's Stripe customer, created the first time it is needed. */
 async function stripeCustomerFor(stripe: Stripe, organizationId: string): Promise<string> {
     const org = await prisma.organization.findUnique({
@@ -148,7 +166,9 @@ export async function startCoursePurchase(options: {
     userId: string;
     courseIds: string[];
     packages?: string[];
-}): Promise<{ url: string | null; added: number }> {
+    /** Draw Stripe's form inside the page, when the key for it is set. */
+    embedded?: boolean;
+}): Promise<{ url: string | null; added: number; checkout: EmbeddedCheckoutStart | null }> {
     const { organizationId, userId } = options;
     const wantedPackages = [...new Set(options.packages ?? [])];
     let requested = [...new Set(options.courseIds)];
@@ -229,7 +249,7 @@ export async function startCoursePurchase(options: {
             skipDuplicates: true,
         });
     }
-    if (!somethingToPay || !stripe) return { url: null, added: freeIds.length };
+    if (!somethingToPay || !stripe) return { url: null, added: freeIds.length, checkout: null };
 
     // A package's courses are recorded one by one, so the history can say
     // exactly what was unlocked, each carrying an even share of the package
@@ -282,8 +302,24 @@ export async function startCoursePurchase(options: {
 
     try {
         const metadata = { kind: KIND, purchaseId: purchase.id, organizationId };
+        const publishableKey = options.embedded ? stripePublishableKey() : null;
+        const returnTo = `${appUrl()}/business/classes?purchase={CHECKOUT_SESSION_ID}`;
         const session = await stripe.checkout.sessions.create({
             mode: 'payment',
+            // Inside the page: Stripe's form and its summary of what is being
+            // paid for, in a frame, with the shop still around it. Stripe only
+            // leaves the page for a payment method that insists on it, and
+            // then comes back to the same address a redirect would have.
+            ...(publishableKey
+                ? {
+                      ui_mode: 'embedded_page' as const,
+                      redirect_on_completion: 'if_required' as const,
+                      return_url: returnTo,
+                  }
+                : {
+                      success_url: returnTo,
+                      cancel_url: `${appUrl()}/business/classes?purchase=cancelled`,
+                  }),
             customer: await stripeCustomerFor(stripe, organizationId),
             line_items: [
                 ...paidCourses.map((course) => ({
@@ -307,10 +343,9 @@ export async function startCoursePurchase(options: {
                     },
                 })),
             ],
-            // Stripe puts the session's own id where the placeholder is, which
-            // is how the page knows which payment to ask about on return.
-            success_url: `${appUrl()}/business/classes?purchase={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${appUrl()}/business/classes?purchase=cancelled`,
+            // Stripe puts the session's own id where the placeholder in the
+            // return address is, which is how the page knows which payment to
+            // ask about on return.
             metadata,
             // On the payment as well, because a refund arrives about the
             // payment and not about the checkout it came from.
@@ -321,7 +356,14 @@ export async function startCoursePurchase(options: {
             where: { id: purchase.id },
             data: { stripeSessionId: session.id },
         });
-        return { url: session.url, added: freeIds.length };
+        if (publishableKey && session.client_secret) {
+            return {
+                url: null,
+                added: freeIds.length,
+                checkout: { clientSecret: session.client_secret, publishableKey, sessionId: session.id },
+            };
+        }
+        return { url: session.url, added: freeIds.length, checkout: null };
     } catch (error) {
         // Nobody was sent to pay, so there is no purchase to keep a record of.
         await prisma.coursePurchase.delete({ where: { id: purchase.id } }).catch(() => undefined);
@@ -423,6 +465,36 @@ export async function confirmCheckoutSession(
     }
     if (session.metadata?.organizationId !== organizationId) return 'unknown';
     return fulfilCheckoutSession(session);
+}
+
+/**
+ * The buyer backed out of a checkout shown inside the page.
+ *
+ * The session is expired at Stripe so it can no longer be paid - otherwise a
+ * form left open in another tab could still take the money for a basket the
+ * buyer had walked away from. If it turns out to have been paid in the
+ * meantime, it is unlocked instead: money taken is never ignored.
+ */
+export async function cancelCheckoutSession(
+    sessionId: string,
+    organizationId: string
+): Promise<'cancelled' | FulfilOutcome> {
+    const stripe = getStripe();
+    if (!stripe) return 'unknown';
+
+    const purchase = await prisma.coursePurchase.findUnique({
+        where: { stripeSessionId: sessionId },
+        select: { organizationId: true },
+    });
+    if (!purchase || purchase.organizationId !== organizationId) return 'unknown';
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.status === 'complete') return fulfilCheckoutSession(session);
+    if (session.status === 'open') {
+        const expired = await stripe.checkout.sessions.expire(sessionId);
+        await expireCheckoutSession(expired);
+    }
+    return 'cancelled';
 }
 
 /** A checkout nobody finished. Kept as a record, marked so. */

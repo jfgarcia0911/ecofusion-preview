@@ -19,7 +19,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Only the owner buys courses' }, { status: 403 });
         }
 
-        const { courseIds = [], packages = [] } = await request.json();
+        const { courseIds = [], packages = [], embedded = false } = await request.json();
         const isList = (value: unknown) =>
             Array.isArray(value) && value.every((item) => typeof item === 'string');
         if (!isList(courseIds) || !isList(packages)) {
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
                 userId: ctx.userId,
                 courseIds,
                 packages,
+                embedded: embedded === true,
             });
             return NextResponse.json(result);
         } catch (error) {
