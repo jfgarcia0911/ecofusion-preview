@@ -9,12 +9,25 @@ import {
 import clsx from 'clsx';
 import LessonContent from '@/components/academy/LessonContent';
 import CourseCompleteModal from '@/components/academy/CourseCompleteModal';
+import CourseResources from '@/components/academy/CourseResources';
 
+/**
+ * A question as the browser receives it: no answer attached. The quiz is
+ * marked on the server, which sends back how each answer went.
+ */
 interface QuizQuestion {
     id: string;
     question: string;
     options: string[];
-    correctAnswer: number;
+}
+
+interface QuizGrade {
+    score: number;
+    correct: number;
+    total: number;
+    passed: boolean;
+    /** Correct answers and explanations arrive only with a pass. */
+    results: Array<{ id: string; correct: boolean; correctAnswer?: number; explanation?: string }>;
 }
 
 interface Lesson {
@@ -57,8 +70,11 @@ export default function CoursePlayerPage() {
     const [loading, setLoading] = useState(true);
     const [activeLessonIndex, setActiveLessonIndex] = useState(0);
     const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
-    const [quizSubmitted, setQuizSubmitted] = useState(false);
-    const [quizScore, setQuizScore] = useState<number | null>(null);
+    // The server's mark for the attempt on screen. Null until submitted.
+    const [quizGrade, setQuizGrade] = useState<QuizGrade | null>(null);
+    const [quizError, setQuizError] = useState<string | null>(null);
+    // The course's score as the server recorded it, for the certificate.
+    const [courseScore, setCourseScore] = useState<number | null>(null);
     const [completing, setCompleting] = useState(false);
     // Set when the final lesson lands, so the certification modal can take over
     // from the alert() that used to fire here.
@@ -97,6 +113,29 @@ export default function CoursePlayerPage() {
         return completedLessons.some(c => c.lessonId === lessonId);
     };
 
+    /**
+     * Record the course as finished, once every lesson is.
+     *
+     * The server decides whether it is - from the lessons this learner has
+     * actually completed - and what it scored. Nothing is sent but the course.
+     * Returns whether the certificate modal took over.
+     */
+    const finishCourseIfDone = async (allCompleted: boolean): Promise<boolean> => {
+        if (!course || !allCompleted) return false;
+        const completionRes = await fetch('/api/training/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ courseId: course.id }),
+        });
+        if (!completionRes.ok) return false;
+        const completion = await completionRes.json();
+        setCourseScore(typeof completion.quizScore === 'number' ? completion.quizScore : null);
+        // Stay on the page - the modal owns the exit now.
+        setCourseComplete(true);
+        return true;
+    };
+
+    /** Mark a reading lesson done. Quizzes complete by being passed instead. */
     const handleCompleteLesson = async () => {
         if (!course) return;
 
@@ -107,44 +146,22 @@ export default function CoursePlayerPage() {
             const res = await fetch(`/api/training/lessons/${currentLesson.id}/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    quizScore: currentLesson.type === 'quiz' ? quizScore : null
-                })
+                body: JSON.stringify({}),
             });
 
             if (res.ok) {
                 const data = await res.json();
-
-                // Update local state
                 setCompletedLessons(prev => [...prev, {
                     lessonId: currentLesson.id,
                     completedAt: new Date().toISOString(),
-                    quizScore: quizScore
+                    quizScore: null,
                 }]);
 
-                // Check if course is complete
-                if (data.courseProgress.allCompleted) {
-                    // Record course completion
-                    const completionRes = await fetch('/api/training/completions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            courseId: course.id,
-                            quizScore: quizScore
-                        })
-                    });
-
-                    if (completionRes.ok) {
-                        // Stay on the page - the modal owns the exit now, so the
-                        // pending flag has to be cleared here rather than by
-                        // navigating away.
-                        setCompleting(false);
-                        setCourseComplete(true);
-                        return;
-                    }
+                if (await finishCourseIfDone(data.courseProgress.allCompleted)) {
+                    setCompleting(false);
+                    return;
                 }
 
-                // Move to next lesson
                 if (activeLessonIndex < course.lessons.length - 1) {
                     navigateTo(activeLessonIndex + 1);
                 }
@@ -155,29 +172,62 @@ export default function CoursePlayerPage() {
         setCompleting(false);
     };
 
-    const handleQuizSubmit = () => {
+    /**
+     * Send the chosen answers to be marked.
+     *
+     * The browser has never seen the answers, so it cannot mark anything
+     * itself. A pass completes the lesson on the server in the same step; a
+     * fail records nothing and leaves the quiz open to try again.
+     */
+    const handleQuizSubmit = async () => {
         if (!course) return;
-
         const currentLesson = course.lessons[activeLessonIndex];
-        if (!currentLesson.questions) return;
+        setCompleting(true);
+        setQuizError(null);
 
-        let correct = 0;
-        currentLesson.questions.forEach((q) => {
-            if (quizAnswers[q.id] === q.correctAnswer) {
-                correct++;
+        try {
+            const res = await fetch(`/api/training/lessons/${currentLesson.id}/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answers: quizAnswers }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.grade) {
+                setQuizError(data.error ?? 'Could not mark this quiz. Try again.');
+                return;
             }
-        });
 
-        const score = Math.round((correct / currentLesson.questions.length) * 100);
-        setQuizScore(score);
-        setQuizSubmitted(true);
+            setQuizGrade(data.grade);
+            window.scrollTo(0, 0);
+
+            if (data.passed) {
+                setCompletedLessons(prev => [
+                    ...prev.filter((c) => c.lessonId !== currentLesson.id),
+                    {
+                        lessonId: currentLesson.id,
+                        completedAt: new Date().toISOString(),
+                        quizScore: data.grade.score,
+                    },
+                ]);
+                await finishCourseIfDone(data.courseProgress?.allCompleted);
+            }
+        } catch (error) {
+            console.error('Failed to submit quiz:', error);
+            setQuizError('Could not mark this quiz. Try again.');
+        } finally {
+            setCompleting(false);
+        }
+    };
+
+    const resetQuiz = () => {
+        setQuizAnswers({});
+        setQuizGrade(null);
+        setQuizError(null);
     };
 
     const navigateTo = (index: number) => {
         setActiveLessonIndex(index);
-        setQuizAnswers({});
-        setQuizSubmitted(false);
-        setQuizScore(null);
+        resetQuiz();
         window.scrollTo(0, 0);
     };
 
@@ -209,7 +259,7 @@ export default function CoursePlayerPage() {
             open={courseComplete}
             courseTitle={course.title}
             courseCode={course.code}
-            score={quizScore}
+            score={courseScore}
             passScore={course.passScore}
             onDismiss={() => router.push('/academy')}
             onReview={() => {
@@ -240,6 +290,7 @@ export default function CoursePlayerPage() {
                         <div className="bg-accent h-full transition-all" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="text-[10px] text-white/40 mt-1 text-right">{progress}% Complete</p>
+                    <CourseResources courseId={course.id} />
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -337,15 +388,21 @@ export default function CoursePlayerPage() {
                                     </div>
                                 </div>
 
-                                {quizSubmitted && quizScore !== null && (
+                                {currentLesson.content && !quizGrade && (
+                                    <div className="mb-6">
+                                        <LessonContent content={currentLesson.content} />
+                                    </div>
+                                )}
+
+                                {quizGrade && (
                                     <div className={clsx(
                                         'mb-6 p-4 rounded-xl',
-                                        quizScore >= course.passScore
+                                        quizGrade.passed
                                             ? 'bg-green-500/10 border border-green-500/30'
                                             : 'bg-red-500/10 border border-red-500/30'
                                     )}>
                                         <div className="flex items-center gap-3">
-                                            {quizScore >= course.passScore ? (
+                                            {quizGrade.passed ? (
                                                 <Award className="text-green-400" size={24} />
                                             ) : (
                                                 <HelpCircle className="text-red-400" size={24} />
@@ -353,20 +410,33 @@ export default function CoursePlayerPage() {
                                             <div>
                                                 <p className={clsx(
                                                     'font-bold',
-                                                    quizScore >= course.passScore ? 'text-green-400' : 'text-red-400'
+                                                    quizGrade.passed ? 'text-green-400' : 'text-red-400'
                                                 )}>
-                                                    {quizScore >= course.passScore ? 'Passed!' : 'Not Passed'}
+                                                    {quizGrade.passed ? 'Passed!' : 'Not Passed'}
                                                 </p>
                                                 <p className="text-sm text-white/50">
-                                                    Your score: {quizScore}% (Required: {course.passScore}%)
+                                                    {quizGrade.correct} of {quizGrade.total} correct - {quizGrade.score}%
+                                                    {' '}(Required: {course.passScore}%)
                                                 </p>
+                                                {!quizGrade.passed && (
+                                                    <p className="text-xs text-white/40 mt-1">
+                                                        The questions you missed are marked. Review the lesson and try again;
+                                                        the answers are shown once you pass.
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
+                                {quizError && (
+                                    <p className="mb-6 text-sm text-red-300">{quizError}</p>
+                                )}
+
                                 <div className="space-y-6">
-                                    {currentLesson.questions.map((q, idx) => (
+                                    {currentLesson.questions.map((q, idx) => {
+                                        const result = quizGrade?.results.find((r) => r.id === q.id);
+                                        return (
                                         <div key={q.id} className="space-y-4">
                                             <p className="font-bold text-white text-lg">
                                                 {idx + 1}. {q.question}
@@ -374,73 +444,81 @@ export default function CoursePlayerPage() {
                                             <div className="space-y-2">
                                                 {q.options.map((opt, optIdx) => {
                                                     const isSelected = quizAnswers[q.id] === optIdx;
-                                                    const isCorrect = q.correctAnswer === optIdx;
-                                                    const showResult = quizSubmitted;
+                                                    // What the server said about this choice. The
+                                                    // right option is only known once it is sent,
+                                                    // which is only on a pass.
+                                                    const markedRight = Boolean(result && isSelected && result.correct);
+                                                    const markedWrong = Boolean(result && isSelected && !result.correct);
+                                                    const revealed = result?.correctAnswer === optIdx;
 
                                                     return (
                                                         <label
                                                             key={optIdx}
                                                             className={clsx(
                                                                 'flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors',
-                                                                showResult && isCorrect
+                                                                markedRight || revealed
                                                                     ? 'bg-green-500/10 border-green-500/30'
-                                                                    : showResult && isSelected && !isCorrect
+                                                                    : markedWrong
                                                                     ? 'bg-red-500/10 border-red-500/30'
                                                                     : isSelected
                                                                     ? 'bg-accent/10 border-accent/30'
                                                                     : 'bg-white/5 border-white/10 hover:bg-white/10',
-                                                                quizSubmitted && 'cursor-default'
+                                                                quizGrade && 'cursor-default'
                                                             )}
                                                         >
                                                             <input
                                                                 type="radio"
                                                                 name={q.id}
                                                                 checked={isSelected}
-                                                                onChange={() => !quizSubmitted && setQuizAnswers({ ...quizAnswers, [q.id]: optIdx })}
-                                                                disabled={quizSubmitted}
+                                                                onChange={() => !quizGrade && setQuizAnswers({ ...quizAnswers, [q.id]: optIdx })}
+                                                                disabled={Boolean(quizGrade)}
                                                                 className="accent-accent w-4 h-4"
                                                             />
                                                             <span className={clsx(
-                                                                showResult && isCorrect ? 'text-green-400' :
-                                                                showResult && isSelected && !isCorrect ? 'text-red-400' :
+                                                                markedRight || revealed ? 'text-green-400' :
+                                                                markedWrong ? 'text-red-400' :
                                                                 'text-white/80'
                                                             )}>
                                                                 {opt}
                                                             </span>
-                                                            {showResult && isCorrect && (
+                                                            {(markedRight || revealed) && (
                                                                 <CheckCircle size={16} className="text-green-400 ml-auto" />
                                                             )}
                                                         </label>
                                                     );
                                                 })}
                                             </div>
+                                            {result?.explanation && (
+                                                <p className="text-sm text-white/55 pl-1 border-l-2 border-accent/40 ml-1 py-1 px-3">
+                                                    {result.explanation}
+                                                </p>
+                                            )}
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
 
-                                {!quizSubmitted ? (
+                                {!quizGrade ? (
                                     <button
                                         onClick={handleQuizSubmit}
-                                        disabled={Object.keys(quizAnswers).length !== currentLesson.questions.length}
+                                        disabled={completing || Object.keys(quizAnswers).length !== currentLesson.questions.length}
                                         className="w-full mt-8 py-3 bg-accent text-primary font-bold rounded-xl hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        Submit Answers
+                                        {completing ? 'Marking...' : 'Submit Answers'}
                                     </button>
-                                ) : quizScore !== null && quizScore >= course.passScore ? (
-                                    <button
-                                        onClick={handleCompleteLesson}
-                                        disabled={completing}
-                                        className="w-full mt-8 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50"
-                                    >
-                                        {completing ? 'Completing...' : nextLesson ? 'Continue to Next Lesson' : 'Complete Course'}
-                                    </button>
+                                ) : quizGrade.passed ? (
+                                    // Already completed on the server when it was marked.
+                                    nextLesson && (
+                                        <button
+                                            onClick={() => navigateTo(activeLessonIndex + 1)}
+                                            className="w-full mt-8 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors"
+                                        >
+                                            Continue to Next Lesson
+                                        </button>
+                                    )
                                 ) : (
                                     <button
-                                        onClick={() => {
-                                            setQuizAnswers({});
-                                            setQuizSubmitted(false);
-                                            setQuizScore(null);
-                                        }}
+                                        onClick={resetQuiz}
                                         className="w-full mt-8 py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
                                     >
                                         Try Again

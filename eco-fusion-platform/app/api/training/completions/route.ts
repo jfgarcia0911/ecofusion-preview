@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         }
 
         const data = await request.json();
-        const { courseId, quizScore } = data;
+        const { courseId } = data;
 
         if (!courseId) {
             return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
@@ -111,8 +111,41 @@ export async function POST(request: Request) {
             );
         }
 
-        // Determine if passed
-        const passed = quizScore ? quizScore >= course.passScore : true;
+        // A course is finished when every lesson in it is. This used to take
+        // the request's word for it: a course id and no score was a pass, and
+        // came with a certificate, without a single lesson opened.
+        //
+        // A quiz lesson only completes on a pass, marked on the server, so a
+        // full set of completions is itself the evidence. The course's score
+        // is the average of those server-marked quizzes; any score the request
+        // carries is ignored.
+        const lessons = await prisma.trainingLesson.findMany({
+            where: { courseId },
+            select: { id: true, type: true },
+        });
+        const done = await prisma.lessonCompletion.findMany({
+            where: { userId: ctx.userId, lessonId: { in: lessons.map((l) => l.id) } },
+            select: { lessonId: true, quizScore: true },
+        });
+        if (lessons.length === 0 || done.length < lessons.length) {
+            return NextResponse.json(
+                {
+                    error: 'Finish every lesson in the course first',
+                    completedLessons: done.length,
+                    totalLessons: lessons.length,
+                },
+                { status: 409 }
+            );
+        }
+
+        const quizLessons = new Set(lessons.filter((l) => l.type === 'quiz').map((l) => l.id));
+        const scores = done
+            .filter((d) => quizLessons.has(d.lessonId) && d.quizScore !== null)
+            .map((d) => d.quizScore as number);
+        const quizScore = scores.length
+            ? Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length)
+            : null;
+        const passed = true;
 
         // Calculate expiration date if renewal required
         const expiresAt = course.renewalDays

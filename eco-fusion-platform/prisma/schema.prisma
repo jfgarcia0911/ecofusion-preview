@@ -276,11 +276,41 @@ model TrainingCourse {
   assignments    CourseAssignment[]
   completions    CourseCompletion[]
   lessons        TrainingLesson[]
+  materials      CourseMaterial[]
   grants         CourseGrant[]
   organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@index([organizationId])
+}
+
+/// What a course hands its learners besides the lessons themselves: handouts,
+/// cheatsheets, a glossary, assignment briefs, the syllabus.
+///
+/// Kept apart from TrainingLesson on purpose. A lesson is a step on the path,
+/// and finishing the course means finishing every one of them; a handout is
+/// something to keep open beside the path. Filing handouts as lessons would
+/// make a learner click through a glossary to earn a certificate.
+///
+/// Nothing written for instructors lands here. Answer keys and instructor
+/// notes are cut out on import, and grading summaries are never imported.
+model CourseMaterial {
+  id         String         @id @default(cuid())
+  courseId   String
+  /// syllabus | handout | cheatsheet | reference | activity | assignment
+  kind       String
+  title      String
+  content    String
+  sortOrder  Int            @default(0)
+  /// The file it came from, relative to education/courses. What a re-import
+  /// matches on, so running the importer again updates rather than duplicates.
+  sourceKey  String
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  course     TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, sourceKey])
+  @@index([courseId])
 }
 
 /// One of EcoFusion's courses, held by one business.
@@ -402,11 +432,22 @@ model TrainingLesson {
   content     String?
   duration    Int
   sortOrder   Int                @default(0)
+  /// For a quiz: [{ id, question, options[], correctAnswer, explanation? }].
+  /// The answers never leave the server - the course API strips them, and the
+  /// quiz is graded where they are.
   questions   Json?
+  /// Which part of the written curriculum this lesson is - "module:03",
+  /// "quiz:03", "final" - so the importer can find it again. Null for a
+  /// lesson a business wrote itself. Identity lives here rather than in
+  /// sortOrder, which only says where a lesson sits and has to be free to move
+  /// when a quiz is slotted in behind a module.
+  sourceKey   String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   completions LessonCompletion[]
   course      TrainingCourse     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, sourceKey])
 }
 
 model CourseAssignment {

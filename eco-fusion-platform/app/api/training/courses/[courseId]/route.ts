@@ -3,6 +3,7 @@ import { canAdminister } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { ownedByOrganization, visibleToOrganization } from '@/lib/training';
 import { prisma } from '@/lib/prisma';
+import { publicQuestions } from '@/lib/quiz';
 
 // GET - Fetch single course with lessons
 export async function GET(
@@ -36,7 +37,16 @@ export async function GET(
             return NextResponse.json({ error: 'Course not found' }, { status: 404 });
         }
 
-        return NextResponse.json(course);
+        // Quiz questions go out without their answers. This is what the course
+        // player reads, and it used to hand every learner the answer key in the
+        // page data; the quiz is marked on the server now, where they stay.
+        return NextResponse.json({
+            ...course,
+            lessons: course.lessons.map((lesson) => ({
+                ...lesson,
+                questions: lesson.type === 'quiz' ? publicQuestions(lesson.questions) : null,
+            })),
+        });
     } catch (error) {
         console.error('Failed to fetch course:', error);
         return NextResponse.json({ error: 'Failed to fetch course' }, { status: 500 });

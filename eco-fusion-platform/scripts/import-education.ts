@@ -11,22 +11,50 @@
  * therefore loadable into a business rather than automatically visible to
  * every one of them.
  *
- * Usage:
- *   npx tsx scripts/import-education.ts            writes
- *   npx tsx scripts/import-education.ts --dry-run  parses and reports only
+ * Alongside the lessons it now brings in the rest of each course: its quizzes
+ * and final test as gradable quiz lessons slotted in behind the modules they
+ * test, and its syllabus, handouts, cheatsheets, glossary, activities and
+ * assignment briefs as course materials. Answer keys and instructor notes are
+ * cut out on the way in, and the grading summaries in assessments/ are never
+ * read at all.
  *
- * Safe to run again. Courses are matched on their code and lessons on their
- * module number, and both are updated in place. Nothing is ever deleted: a
- * LessonCompletion cascades from its lesson, so removing a lesson to re-add it
- * would silently erase every learner's record of having finished it.
+ * Usage:
+ *   npx tsx scripts/import-education.ts                     writes everything
+ *   npx tsx scripts/import-education.ts --dry-run           parses and reports only
+ *   npx tsx scripts/import-education.ts --course=EDU-101    one course (or a comma list)
+ *
+ * Safe to run again. Courses are matched on their code, lessons and materials
+ * on a sourceKey naming the file they came from, and all of it is updated in
+ * place. Nothing is ever deleted: a LessonCompletion cascades from its lesson,
+ * so removing a lesson to re-add it would silently erase every learner's
+ * record of having finished it.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { readFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join, resolve, basename } from 'path';
+import {
+    parseQuiz,
+    stripInstructorSections,
+    titleOf,
+    withoutTitleBlock,
+    type QuizQuestion,
+} from './education/parse';
 
 const prisma = new PrismaClient();
 const dryRun = process.argv.includes('--dry-run');
+const onlyCourses = process.argv
+    .find((arg) => arg.startsWith('--course='))
+    ?.slice('--course='.length)
+    .split(',')
+    .map((code) => code.trim().toUpperCase())
+    .filter(Boolean);
+
+/** A question type that is simply not multiple choice, as opposed to misread. */
+const NEEDS_A_PERSON = 'not multiple choice - needs a person to mark it';
+
+/** Fewer than this and it is not a quiz worth putting in a learner's path. */
+const MIN_QUESTIONS = 3;
 
 /** The curriculum lives beside the app, not inside it. */
 const ROOT = resolve(process.cwd(), '..', 'education', 'courses');
@@ -38,6 +66,25 @@ interface ParsedLesson {
     duration: number;
 }
 
+interface ParsedQuizLesson {
+    sourceKey: string;
+    sortOrder: number;
+    title: string;
+    instructions: string | null;
+    duration: number;
+    questions: QuizQuestion[];
+    /** Questions left out because a person has to mark them. */
+    handMarked: number;
+}
+
+interface ParsedMaterial {
+    sourceKey: string;
+    kind: string;
+    title: string;
+    content: string;
+    sortOrder: number;
+}
+
 interface ParsedCourse {
     code: string;
     number: number;
@@ -46,6 +93,184 @@ interface ParsedCourse {
     category: string;
     duration: number;
     lessons: ParsedLesson[];
+    quizzes: ParsedQuizLesson[];
+    materials: ParsedMaterial[];
+    /** What was found and deliberately not imported, and why. */
+    problems: string[];
+    /** Instructor-only sections cut out of materials. */
+    stripped: number;
+}
+
+/**
+ * Where each folder's files go, in the order a learner meets them.
+ *
+ * assessments/ is absent on purpose: it holds the grading summaries written
+ * for whoever marks the course. Grading rubrics inside an assignment brief do
+ * come through - learners are meant to see how they will be marked.
+ */
+const MATERIAL_FOLDERS: Array<{ folder: string; kind: string }> = [
+    { folder: 'handouts', kind: 'handout' },
+    { folder: 'cheatsheets', kind: 'cheatsheet' },
+    { folder: 'resources', kind: 'reference' },
+    { folder: 'activities', kind: 'activity' },
+    { folder: 'assignments', kind: 'assignment' },
+];
+
+/** Readable title from a file name, for files with no H1. */
+function titleFromFile(file: string): string {
+    return basename(file, '.md')
+        .replace(/^(module|quiz|handout|activity|assignment|cheatsheet)_\d+_?/i, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim();
+}
+
+/** The module a quiz tests, from "quiz_03_..." or "module_03_quiz". */
+function moduleOf(file: string): number | null {
+    const match = basename(file).match(/(?:quiz|module)_?(\d+)/i);
+    return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * A quiz or test, if it can be marked automatically and was read cleanly.
+ *
+ * Any question that was misread - no answer found, answer and tick
+ * disagreeing, an answer left in the wording - rejects the whole file rather
+ * than shipping the rest of it. A quiz that silently drops the question it
+ * misread is a quiz whose score means something different from what its
+ * author wrote. Questions that are simply another kind - short answer, fill in
+ * the blank - are left for a person and the rest go in.
+ */
+function readQuiz(
+    path: string,
+    sourceKey: string,
+    sortOrder: number,
+    fallbackTitle: string
+): { quiz: ParsedQuizLesson } | { problem: string } | null {
+    const parsed = parseQuiz(readFileSync(path, 'utf8'));
+    const misread = parsed.skipped.filter((s) => s.reason !== NEEDS_A_PERSON);
+    const handMarked = parsed.skipped.length - misread.length;
+
+    if (parsed.questions.length === 0 && misread.length === 0) return null;
+    if (misread.length > 0) {
+        const reasons = [...new Set(misread.map((m) => m.reason))].join('; ');
+        return { problem: `${basename(path)}: ${misread.length} question(s) misread (${reasons}) - not imported` };
+    }
+    if (parsed.questions.length < MIN_QUESTIONS) {
+        return { problem: `${basename(path)}: only ${parsed.questions.length} gradable question(s) - not imported` };
+    }
+
+    return {
+        quiz: {
+            sourceKey,
+            sortOrder,
+            title: parsed.title ?? fallbackTitle,
+            instructions: parsed.instructions,
+            // Roughly a minute a question when the file does not say.
+            duration: parsed.timeLimit ?? Math.max(10, parsed.questions.length),
+            questions: parsed.questions,
+            handMarked,
+        },
+    };
+}
+
+function readQuizzes(dir: string, problems: string[]): ParsedQuizLesson[] {
+    const quizzes: ParsedQuizLesson[] = [];
+
+    const quizDir = join(dir, 'quizzes');
+    if (existsSync(quizDir)) {
+        readdirSync(quizDir)
+            .filter((f) => f.endsWith('.md'))
+            .sort()
+            .forEach((file, index) => {
+                const moduleNumber = moduleOf(file);
+                // Behind the module it tests; unnumbered ones after every module.
+                const sortOrder = moduleNumber !== null ? moduleNumber * 10 + 5 : 9000 + index;
+                const result = readQuiz(
+                    join(quizDir, file),
+                    `quiz:${basename(file, '.md')}`,
+                    sortOrder,
+                    `Quiz ${moduleNumber ?? index + 1}`
+                );
+                if (result && 'quiz' in result) quizzes.push(result.quiz);
+                else if (result) problems.push(result.problem);
+                // Said out loud rather than skipped. A quiz written in a layout
+                // nobody taught the parser is still a quiz somebody wrote, and
+                // the only way it gets in is if its absence is noticed.
+                else problems.push(`${file}: no questions recognised in this layout - not imported`);
+            });
+    }
+
+    // Tests come last in the path. One that cannot be graded automatically is
+    // not shown as reading either: a final exam handed out as a handout is an
+    // exam with its questions published. Projects and presentations are briefs,
+    // not exams, and go in with the materials instead.
+    const testDir = join(dir, 'tests');
+    if (existsSync(testDir)) {
+        readdirSync(testDir)
+            .filter((f) => f.endsWith('.md') && !/project|presentation|portfolio/i.test(f))
+            .sort()
+            .forEach((file, index) => {
+                const result = readQuiz(
+                    join(testDir, file),
+                    `test:${basename(file, '.md')}`,
+                    10000 + index,
+                    'Final Exam'
+                );
+                if (result && 'quiz' in result) quizzes.push(result.quiz);
+                else if (result) problems.push(result.problem);
+                else problems.push(`${file}: no gradable questions - not imported`);
+            });
+    }
+
+    return quizzes;
+}
+
+function readMaterials(dir: string): { materials: ParsedMaterial[]; stripped: number } {
+    const materials: ParsedMaterial[] = [];
+    let stripped = 0;
+
+    const add = (path: string, sourceKey: string, kind: string, sortOrder: number) => {
+        const raw = readFileSync(path, 'utf8');
+        const clean = stripInstructorSections(raw);
+        if (clean.length < raw.replace(/\r/g, '').trim().length - 5) stripped += 1;
+        const content = withoutTitleBlock(clean);
+        if (!content) return;
+        materials.push({
+            sourceKey,
+            kind,
+            title: titleOf(raw) ?? titleFromFile(path),
+            content,
+            sortOrder,
+        });
+    };
+
+    // The syllabus first: what the course is, how it runs, how it is graded.
+    const overview = join(dir, 'course_overview.md');
+    if (existsSync(overview)) add(overview, 'syllabus', 'syllabus', 0);
+
+    MATERIAL_FOLDERS.forEach(({ folder, kind }, group) => {
+        const path = join(dir, folder);
+        if (!existsSync(path)) return;
+        readdirSync(path)
+            .filter((f) => f.endsWith('.md'))
+            .sort()
+            .forEach((file, index) =>
+                add(join(path, file), `${folder}/${file}`, kind, (group + 1) * 100 + index)
+            );
+    });
+
+    // Project and presentation briefs from tests/ are assignments in all but
+    // folder.
+    const testDir = join(dir, 'tests');
+    if (existsSync(testDir)) {
+        readdirSync(testDir)
+            .filter((f) => f.endsWith('.md') && /project|presentation|portfolio/i.test(f))
+            .sort()
+            .forEach((file, index) => add(join(testDir, file), `tests/${file}`, 'assignment', 900 + index));
+    }
+
+    return { materials, stripped };
 }
 
 /** The block under a `## Heading`, up to the next heading of any level. */
@@ -203,6 +428,10 @@ function parseCourse(dir: string): ParsedCourse | null {
     const stated = minutesFrom(tableField(overview, 'Duration'));
     const duration = stated ?? lessons.reduce((total, l) => total + l.duration, 0) ?? 0;
 
+    const problems: string[] = [];
+    const quizzes = readQuizzes(dir, problems);
+    const { materials, stripped } = readMaterials(dir);
+
     return {
         code: `EDU-${number}`,
         number,
@@ -211,6 +440,10 @@ function parseCourse(dir: string): ParsedCourse | null {
         category: level,
         duration: duration || 60,
         lessons,
+        quizzes,
+        materials,
+        problems,
+        stripped,
     };
 }
 
@@ -260,43 +493,101 @@ async function write(course: ParsedCourse) {
               })
           ).id;
 
-    // Matched on module number and updated in place. A lesson is never
-    // deleted to be re-added: LessonCompletion cascades from it, so that would
-    // erase every learner's record of having finished it.
+    // Every lesson is found again by its sourceKey and updated in place. A
+    // lesson is never deleted to be re-added: LessonCompletion cascades from
+    // it, so that would erase every learner's record of having finished it.
+    //
+    // Lessons imported before sourceKey existed carry none and sit at their
+    // bare module number. Those are adopted - given their key and moved to
+    // their new position - rather than duplicated. The snapshot is taken
+    // before anything moves, so a module adopted onto position 10 cannot then
+    // be mistaken for the old module 10.
     const held = await prisma.trainingLesson.findMany({
         where: { courseId },
-        select: { id: true, sortOrder: true },
+        select: { id: true, sortOrder: true, sourceKey: true, type: true },
     });
-    const bySortOrder = new Map(held.map((lesson) => [lesson.sortOrder, lesson.id]));
+    const byKey = new Map(held.filter((l) => l.sourceKey).map((l) => [l.sourceKey!, l.id]));
+    const legacyByModule = new Map(
+        held.filter((l) => !l.sourceKey && l.type === 'text').map((l) => [l.sortOrder, l.id])
+    );
 
     let created = 0;
     let updated = 0;
+    const wanted = new Set<string>();
 
-    for (const lesson of course.lessons) {
-        const id = bySortOrder.get(lesson.sortOrder);
-        const data = {
-            title: lesson.title,
-            content: lesson.content,
-            duration: lesson.duration,
-            type: 'text',
-        };
-
+    const put = async (
+        sourceKey: string,
+        data: Omit<Prisma.TrainingLessonUncheckedCreateInput, 'courseId' | 'sourceKey'>,
+        legacyId?: string
+    ) => {
+        wanted.add(sourceKey);
+        const id = byKey.get(sourceKey) ?? legacyId;
         if (id) {
-            await prisma.trainingLesson.update({ where: { id }, data });
+            await prisma.trainingLesson.update({ where: { id }, data: { ...data, sourceKey } });
             updated += 1;
         } else {
-            await prisma.trainingLesson.create({
-                data: { courseId, sortOrder: lesson.sortOrder, ...data },
-            });
+            await prisma.trainingLesson.create({ data: { ...data, courseId, sourceKey } });
             created += 1;
         }
+    };
+
+    for (const lesson of course.lessons) {
+        const moduleNumber = lesson.sortOrder;
+        await put(
+            `module:${String(moduleNumber).padStart(2, '0')}`,
+            {
+                title: lesson.title,
+                content: lesson.content,
+                duration: lesson.duration,
+                type: 'text',
+                questions: Prisma.DbNull,
+                // Tens, so the quiz for module 3 has room at 35.
+                sortOrder: moduleNumber * 10,
+            },
+            legacyByModule.get(moduleNumber)
+        );
+    }
+
+    for (const quiz of course.quizzes) {
+        await put(quiz.sourceKey, {
+            title: quiz.title,
+            // The instructions only. The markdown the quiz came from carries
+            // its answers, and never reaches a lesson.
+            content: quiz.instructions,
+            duration: quiz.duration,
+            type: 'quiz',
+            questions: quiz.questions as unknown as Prisma.InputJsonValue,
+            sortOrder: quiz.sortOrder,
+        });
     }
 
     const orphaned = held.filter(
-        (lesson) => !course.lessons.some((l) => l.sortOrder === lesson.sortOrder)
+        (lesson) => lesson.sourceKey && !wanted.has(lesson.sourceKey)
     ).length;
 
-    return { created, updated, orphaned, isNew: !existing };
+    // Materials carry no completions, but are kept the same way for the same
+    // reason a lesson is: an import should never be the thing that loses work.
+    const heldMaterials = await prisma.courseMaterial.findMany({
+        where: { courseId },
+        select: { sourceKey: true },
+    });
+    for (const material of course.materials) {
+        await prisma.courseMaterial.upsert({
+            where: { courseId_sourceKey: { courseId, sourceKey: material.sourceKey } },
+            update: {
+                kind: material.kind,
+                title: material.title,
+                content: material.content,
+                sortOrder: material.sortOrder,
+            },
+            create: { courseId, ...material },
+        });
+    }
+    const orphanedMaterials = heldMaterials.filter(
+        (m) => !course.materials.some((c) => c.sourceKey === m.sourceKey)
+    ).length;
+
+    return { created, updated, orphaned, orphanedMaterials, isNew: !existing };
 }
 
 async function main() {
@@ -306,13 +597,25 @@ async function main() {
             (dryRun ? '  (dry run, nothing will be written)\n' : '\n')
     );
 
-    const parsed: ParsedCourse[] = [];
+    const everything: ParsedCourse[] = [];
     const skipped: string[] = [];
 
     for (const dir of directories) {
         const course = parseCourse(dir);
-        if (course) parsed.push(course);
+        if (course) everything.push(course);
         else skipped.push(basename(dir));
+    }
+
+    const parsed = onlyCourses
+        ? everything.filter((course) => onlyCourses.includes(course.code))
+        : everything;
+    if (onlyCourses) {
+        const missing = onlyCourses.filter((code) => !parsed.some((c) => c.code === code));
+        if (missing.length) {
+            console.error(`\nNo course folder for: ${missing.join(', ')}\n`);
+            process.exit(1);
+        }
+        console.log(`Only ${onlyCourses.join(', ')}.\n`);
     }
 
     const noLessons = parsed.filter((c) => c.lessons.length === 0);
@@ -335,17 +638,62 @@ async function main() {
         .sort((a, b) => b[1] - a[1])
         .forEach(([name, count]) => console.log(`  ${String(count).padStart(3)}  ${name}`));
 
+    const totals = {
+        quizzes: parsed.reduce((n, c) => n + c.quizzes.length, 0),
+        questions: parsed.reduce((n, c) => n + c.quizzes.reduce((q, z) => q + z.questions.length, 0), 0),
+        handMarked: parsed.reduce((n, c) => n + c.quizzes.reduce((q, z) => q + z.handMarked, 0), 0),
+        materials: parsed.reduce((n, c) => n + c.materials.length, 0),
+        stripped: parsed.reduce((n, c) => n + c.stripped, 0),
+        problems: parsed.reduce((n, c) => n + c.problems.length, 0),
+    };
+    console.log(
+        `\nQuizzes and tests: ${totals.quizzes} (${totals.questions} questions, ` +
+            `${totals.handMarked} left for a person to mark)`
+    );
+    console.log(
+        `Materials: ${totals.materials} (instructor-only sections cut from ${totals.stripped})`
+    );
+    console.log(`Not imported: ${totals.problems} quiz or test file(s), listed below`);
+
+    /** One course, in full: what goes where, and what was held back. */
+    const describe = (c: ParsedCourse) => {
+        console.log(`\n  ${c.code}  ${c.title}`);
+        console.log(`         ${c.category} · ${c.duration} min`);
+        const path = [
+            ...c.lessons.map((l) => ({ at: l.sortOrder * 10, line: `lesson  ${l.title}` })),
+            ...c.quizzes.map((q) => ({
+                at: q.sortOrder,
+                line:
+                    `quiz    ${q.title} - ${q.questions.length} questions` +
+                    (q.handMarked ? `, ${q.handMarked} for a person` : ''),
+            })),
+        ].sort((a, b) => a.at - b.at);
+        path.forEach((p) => console.log(`    ${String(p.at).padStart(5)}  ${p.line}`));
+        const kinds = new Map<string, number>();
+        c.materials.forEach((m) => kinds.set(m.kind, (kinds.get(m.kind) ?? 0) + 1));
+        console.log(
+            `    materials: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ') || 'none'}`
+        );
+        c.problems.forEach((p) => console.log(`    held back: ${p}`));
+    };
+
     if (dryRun) {
-        console.log('\nA sample of what would be written:\n');
-        parsed.slice(0, 3).forEach((c) => {
-            console.log(`  ${c.code}  ${c.title}`);
-            console.log(`         ${c.category} · ${c.duration} min · ${c.lessons.length} lessons`);
-            console.log(`         ${c.description.slice(0, 110)}...`);
-            c.lessons.slice(0, 2).forEach((l) =>
-                console.log(`           ${l.sortOrder}. ${l.title} (${l.duration} min, ${l.content.length} chars)`)
+        if (parsed.length <= 3) {
+            parsed.forEach(describe);
+        } else {
+            console.log('\nPer course:');
+            parsed.forEach((c) =>
+                console.log(
+                    `  ${c.code.padEnd(8)} ${String(c.lessons.length).padStart(3)} lessons ` +
+                        `${String(c.quizzes.length).padStart(3)} quizzes ` +
+                        `${String(c.materials.length).padStart(3)} materials` +
+                        (c.problems.length ? `   ${c.problems.length} held back` : '')
+                )
             );
-            console.log('');
-        });
+            const held = parsed.flatMap((c) => c.problems.map((p) => `${c.code}  ${p}`));
+            if (held.length) console.log(`\nHeld back:\n  ${held.join('\n  ')}`);
+        }
+        console.log('\nDry run - nothing was written.\n');
         return;
     }
 
@@ -353,6 +701,7 @@ async function main() {
     let createdLessons = 0;
     let updatedLessons = 0;
     let orphanedLessons = 0;
+    let orphanedMaterials = 0;
 
     for (const course of parsed) {
         const result = await write(course);
@@ -360,9 +709,12 @@ async function main() {
         createdLessons += result.created;
         updatedLessons += result.updated;
         orphanedLessons += result.orphaned;
+        orphanedMaterials += result.orphanedMaterials;
         process.stdout.write(
             `  ${course.code.padEnd(8)} ${result.isNew ? 'added  ' : 'updated'} ` +
-                `${String(course.lessons.length).padStart(3)} lessons\n`
+                `${String(course.lessons.length).padStart(3)} lessons ` +
+                `${String(course.quizzes.length).padStart(3)} quizzes ` +
+                `${String(course.materials.length).padStart(3)} materials\n`
         );
     }
 
@@ -370,11 +722,15 @@ async function main() {
         `\n${parsed.length} courses (${newCourses} new), ` +
             `${createdLessons} lessons added, ${updatedLessons} updated.`
     );
-    if (orphanedLessons > 0) {
+    const held = parsed.flatMap((c) => c.problems.map((p) => `${c.code}  ${p}`));
+    if (held.length) {
+        console.log(`\nHeld back, fix the file and run again to bring these in:\n  ${held.join('\n  ')}`);
+    }
+    if (orphanedLessons > 0 || orphanedMaterials > 0) {
         console.log(
-            `\n${orphanedLessons} lessons in the database have no module in the folder any more. ` +
-                `They were left alone rather than deleted, because learners may have completed them. ` +
-                `Retire them from Training Management if they are genuinely gone.`
+            `\n${orphanedLessons} lesson(s) and ${orphanedMaterials} material(s) in the database ` +
+                `have no file in the folder any more. They were left alone rather than deleted, ` +
+                `because learners may have completed them.`
         );
     }
     console.log('\nThese are EcoFusion courses. Load them into a business from Classes.\n');
