@@ -36,6 +36,30 @@ export async function POST(
             return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
         }
 
+        // Lessons are taken in order. The player locks what lies ahead, and
+        // this is what makes the lock hold: without it, a button is the only
+        // thing between a learner and a certificate. Ordered as the course is
+        // served, ties broken the same way.
+        const courseLessons = await prisma.trainingLesson.findMany({
+            where: { courseId: lesson.courseId },
+            orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+            select: { id: true },
+        });
+        const earlier = courseLessons
+            .slice(0, courseLessons.findIndex((l) => l.id === lessonId))
+            .map((l) => l.id);
+        if (earlier.length > 0) {
+            const finished = await prisma.lessonCompletion.count({
+                where: { userId: ctx.userId, lessonId: { in: earlier } },
+            });
+            if (finished < earlier.length) {
+                return NextResponse.json(
+                    { error: 'Finish the lessons before this one first' },
+                    { status: 409 }
+                );
+            }
+        }
+
         // A quiz is marked here, against answers the browser was never sent.
         // Any score the request carries is ignored; what counts is what was
         // chosen. A quiz that is not passed is not completed - the attempt is
@@ -79,10 +103,6 @@ export async function POST(
         });
 
         // Check if all lessons in course are completed
-        const courseLessons = await prisma.trainingLesson.findMany({
-            where: { courseId: lesson.courseId }
-        });
-
         const completedLessons = await prisma.lessonCompletion.findMany({
             where: {
                 userId: ctx.userId,

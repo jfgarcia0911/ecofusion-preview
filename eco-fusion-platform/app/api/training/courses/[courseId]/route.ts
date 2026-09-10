@@ -22,7 +22,9 @@ export async function GET(
             where: { id: courseId, ...visibleToOrganization(ctx.organizationId) },
             include: {
                 lessons: {
-                    orderBy: { sortOrder: 'asc' }
+                    // Ties broken by id, as the completion route does, so both
+                    // agree on which lesson comes first.
+                    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
                 },
                 _count: {
                     select: {
@@ -127,7 +129,7 @@ export async function PATCH(
             },
             include: {
                 lessons: {
-                    orderBy: { sortOrder: 'asc' },
+                    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
                 },
                 _count: {
                     select: {

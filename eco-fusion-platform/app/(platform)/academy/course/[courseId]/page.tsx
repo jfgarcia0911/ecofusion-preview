@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     PlayCircle, CheckCircle, Circle, FileText, HelpCircle,
-    ArrowLeft, ArrowRight, Video, Shield, Clock, Award
+    ArrowLeft, ArrowRight, Video, Shield, Award, Lock
 } from 'lucide-react';
 import clsx from 'clsx';
 import LessonContent from '@/components/academy/LessonContent';
@@ -79,6 +79,8 @@ export default function CoursePlayerPage() {
     // Set when the final lesson lands, so the certification modal can take over
     // from the alert() that used to fire here.
     const [courseComplete, setCourseComplete] = useState(false);
+    // The lesson pane scrolls on its own; the window does not move.
+    const lessonPaneRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (courseId) {
@@ -198,7 +200,7 @@ export default function CoursePlayerPage() {
             }
 
             setQuizGrade(data.grade);
-            window.scrollTo(0, 0);
+            toTop();
 
             if (data.passed) {
                 setCompletedLessons(prev => [
@@ -225,10 +227,14 @@ export default function CoursePlayerPage() {
         setQuizError(null);
     };
 
+    // Back to the top of the lesson pane. window.scrollTo cannot do it: the
+    // player fills the screen and only the pane itself scrolls.
+    const toTop = () => lessonPaneRef.current?.scrollTo({ top: 0 });
+
     const navigateTo = (index: number) => {
         setActiveLessonIndex(index);
         resetQuiz();
-        window.scrollTo(0, 0);
+        toTop();
     };
 
     if (loading) {
@@ -252,6 +258,10 @@ export default function CoursePlayerPage() {
     const nextLesson = activeLessonIndex < course.lessons.length - 1 ? course.lessons[activeLessonIndex + 1] : null;
     const currentLessonCompleted = isLessonCompleted(currentLesson.id);
     const progress = Math.round((completedLessons.length / course.lessons.length) * 100);
+    // Where the learner is up to: the first lesson not yet finished. Everything
+    // finished can be revisited, and this one can be opened; what lies past it
+    // stays locked until it is done. -1 once every lesson is.
+    const upToIndex = course.lessons.findIndex((l) => !isLessonCompleted(l.id));
 
     return (
         <>
@@ -297,24 +307,30 @@ export default function CoursePlayerPage() {
                     {course.lessons.map((lesson, idx) => {
                         const isActive = idx === activeLessonIndex;
                         const isCompleted = isLessonCompleted(lesson.id);
+                        const isLocked = !isActive && !isCompleted && idx !== upToIndex;
 
                         return (
                             <button
                                 key={lesson.id}
                                 onClick={() => navigateTo(idx)}
+                                disabled={isLocked}
+                                title={isLocked ? 'Finish the lessons above to unlock this one' : undefined}
                                 className={clsx(
-                                    'w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-white/5 transition-colors border-l-2',
-                                    isActive ? 'bg-accent/10 border-accent' : 'border-transparent'
+                                    'w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-l-2',
+                                    isActive ? 'bg-accent/10 border-accent' : 'border-transparent',
+                                    isLocked ? 'cursor-not-allowed' : 'hover:bg-white/5'
                                 )}
                             >
                                 <div className={clsx(
                                     'mt-0.5',
-                                    isActive ? 'text-accent' : isCompleted ? 'text-green-500' : 'text-white/30'
+                                    isActive ? 'text-accent' : isCompleted ? 'text-green-500' : isLocked ? 'text-white/20' : 'text-white/30'
                                 )}>
                                     {isCompleted ? (
                                         <CheckCircle size={16} />
                                     ) : isActive ? (
                                         <PlayCircle size={16} />
+                                    ) : isLocked ? (
+                                        <Lock size={16} />
                                     ) : (
                                         <Circle size={16} />
                                     )}
@@ -322,7 +338,7 @@ export default function CoursePlayerPage() {
                                 <div className="flex-1 min-w-0">
                                     <p className={clsx(
                                         'text-sm font-medium line-clamp-2',
-                                        isActive ? 'text-white' : 'text-white/70'
+                                        isActive ? 'text-white' : isLocked ? 'text-white/35' : 'text-white/70'
                                     )}>
                                         {lesson.title}
                                     </p>
@@ -340,7 +356,7 @@ export default function CoursePlayerPage() {
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 overflow-y-auto bg-[#0a0f18] relative">
+            <div ref={lessonPaneRef} className="flex-1 overflow-y-auto bg-[#0a0f18] relative">
                 <div className="p-8 lg:p-12 min-h-full flex flex-col">
                     {/* Content Header */}
                     <div className="mb-8 border-b border-white/10 pb-6">
