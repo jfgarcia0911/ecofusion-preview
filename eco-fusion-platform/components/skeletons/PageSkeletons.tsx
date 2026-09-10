@@ -692,7 +692,7 @@ export function TasksSkeleton() {
  */
 export function HelpSkeleton() {
     return (
-        <div className="max-w-7xl mx-auto" aria-busy="true" aria-label="Loading the help centre">
+        <div aria-busy="true" aria-label="Loading the help centre">
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 rounded-xl bg-accent/20">

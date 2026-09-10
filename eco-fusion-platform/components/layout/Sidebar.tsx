@@ -38,9 +38,16 @@ const baseNavItems = [
 const adminNavItems = [
     { name: "Employees", href: "/business/employees", icon: Users, tourId: "nav-employees" },
     { name: "Scheduling", href: "/admin/scheduling", icon: Calendar, tourId: "nav-scheduling" },
-    // Moved out of settings. Assigning courses and chasing completions is work
-    // done during the week, alongside the people and the rota it concerns, not
-    // something configured once and left.
+];
+
+/**
+ * The owner's and EcoFusion's. Moved out of settings - assigning courses and
+ * chasing completions is work done during the week, beside the people and the
+ * rota it concerns - but deciding who must be trained on what stays with the
+ * owner. Supervisors and managers were shown it and turned away at the door
+ * (admin/training/layout), so they are not shown it.
+ */
+const trainingNavItems = [
     { name: "Training Management", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
 ];
 
@@ -138,6 +145,7 @@ export default function Sidebar({
     const navItems = [
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
+        ...(isStaff || isOwner ? trainingNavItems : []),
         ...((showClasses ?? isOwner) ? ownerNavItems : []),
         ...commonNavItems,
         ...(isStaff ? staffNavItems : []),

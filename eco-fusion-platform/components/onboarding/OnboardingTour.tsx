@@ -47,7 +47,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Operations Center</h3>
-                <p>Monitor your zones in real-time. Track sensor data, manage aquaculture tanks, hydroponics systems, and more.</p>
+                <p>Your zones and their readings: water temperature, pH, dissolved oxygen, ammonia and humidity. Add a reading, set the limits, and anything outside them raises an alert.</p>
             </div>
         ),
         placement: 'right',
@@ -57,7 +57,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Business Units</h3>
-                <p>Manage your 7 integrated business silos: Aquaculture, Plant Production, Methane Gas, Bio-Fertilizer, Training, Farm-to-Table, and Solar.</p>
+                <p>The silos this business runs - seven to start with, from Aquaculture to Solar - and the revenue each one brings in this month.</p>
             </div>
         ),
         placement: 'right',
@@ -87,7 +87,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Academy (LMS)</h3>
-                <p>Learn and grow! Access training courses, earn XP, complete certifications, and track your learning progress.</p>
+                <p>The courses assigned to you. Lessons are taken in order, quizzes are marked as you go, and a finished course earns its certification.</p>
             </div>
         ),
         placement: 'right',
@@ -97,7 +97,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Intelligence Hub</h3>
-                <p>AI-powered insights and recommendations. Get predictive analytics, optimization suggestions, and smart alerts.</p>
+                <p>Ask about your own zones and readings in plain words. It can also set or remove alert limits when you ask it to.</p>
             </div>
         ),
         placement: 'right',
@@ -107,7 +107,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">AI Assistant</h3>
-                <p>Ask about the farm in plain words. It knows your zones, stock and readings, so &quot;why is tank three lagging&quot; is a fair question.</p>
+                <p>General growing advice, in plain words. It does not see your data - for questions about your own zones, use Intelligence.</p>
             </div>
         ),
         placement: 'right',
@@ -127,7 +127,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Scheduling</h3>
-                <p>Shifts and the work that comes round again. Assign it once and it appears for whoever is on, week after week.</p>
+                <p>The weekly rota, and tasks with a time and a due date. Whoever you assign is told, and sees it under My Schedule.</p>
             </div>
         ),
         placement: 'right',
@@ -138,6 +138,16 @@ const tourSteps: Step[] = [
             <div>
                 <h3 className="font-bold mb-2">Training Management</h3>
                 <p>Decide what your people are trained on. Assign courses, see who has finished which, and export the record when somebody asks for it.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-classes"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Classes</h3>
+                <p>The courses this business holds, and the shop for more - one course at a time or a whole level. Paid for here, and ready to assign as soon as the payment goes through.</p>
             </div>
         ),
         placement: 'right',
@@ -157,7 +167,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Task Manager</h3>
-                <p>Create, assign, and track tasks. Set priorities, due dates, and keep your team organized.</p>
+                <p>A shared checklist for the business. Add what needs doing and tick it off when it is done.</p>
             </div>
         ),
         placement: 'right',
@@ -167,7 +177,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Settings</h3>
-                <p>Everything that configures rather than runs: your units and password, the business&apos;s integrations and training, and what your subscription covers.</p>
+                <p>Everything that configures rather than runs: your units and password, and for the owner, billing, business units, integrations and the access record.</p>
             </div>
         ),
         placement: 'right',
@@ -177,7 +187,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Help Center</h3>
-                <p>Access comprehensive documentation, tutorials, and support articles. Find answers to any questions about using EcoFusion.</p>
+                <p>How each screen works, what to do when something goes wrong, and how to reach support.</p>
             </div>
         ),
         placement: 'right',
@@ -186,8 +196,8 @@ const tourSteps: Step[] = [
         target: '[data-tour="header"]',
         content: (
             <div>
-                <h3 className="font-bold mb-2">Quick Actions</h3>
-                <p>Search across the platform, check notifications, and access your profile settings from the header.</p>
+                <h3 className="font-bold mb-2">Notifications</h3>
+                <p>Notifications land here: readings outside their limits, alerts, new shifts and tasks, and courses assigned to you.</p>
             </div>
         ),
         placement: 'bottom',
@@ -196,8 +206,8 @@ const tourSteps: Step[] = [
         target: '[data-tour="user-menu"]',
         content: (
             <div>
-                <h3 className="font-bold mb-2">Your Profile</h3>
-                <p>Access your account settings, preferences, and sign out from here.</p>
+                <h3 className="font-bold mb-2">Your Account</h3>
+                <p>Sign out from here. Your units and password are under Settings &rarr; Preferences.</p>
             </div>
         ),
         placement: 'bottom-end',
