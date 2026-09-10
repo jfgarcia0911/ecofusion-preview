@@ -66,7 +66,9 @@ export default async function DashboardLayout({
     // The settings the sidebar offers depend on this, and the session's own
     // orgRole is the wrong answer while staff are inside somebody else's
     // business: it still names their own membership somewhere else.
-    const isOwner = ctx?.role === "owner" && !ctx.isStaff;
+    // Staff enter as supervisors, so this is false for them; the master
+    // account enters as the owner, and is shown everything an owner is.
+    const isOwner = ctx?.role === "owner";
 
 
     return (

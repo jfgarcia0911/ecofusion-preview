@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { validatePassword } from '@/lib/validation/password';
+import { isPlatformRole } from '@/lib/roles';
+import { logStaffAccess } from '@/lib/staff';
 
 // PATCH - Change your own password.
 //
@@ -25,7 +27,7 @@ export async function PATCH(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { password: true },
+      select: { password: true, role: true },
     });
 
     if (!user?.password) {
@@ -48,6 +50,17 @@ export async function PATCH(request: Request) {
       where: { id: session.user.id },
       data: { password: await bcrypt.hash(newPassword, 12) },
     });
+
+    // An EcoFusion account changing its own password is a change to who can
+    // reach every business it reaches, so it is written to the platform's
+    // trail. The password itself never is.
+    if (isPlatformRole(user.role)) {
+      await logStaffAccess(session.user.id, null, 'write', {
+        method: 'PATCH',
+        path: '/api/user/password',
+        summary: 'Changed their own password',
+      });
+    }
 
     return NextResponse.json({ changed: true });
   } catch (error) {

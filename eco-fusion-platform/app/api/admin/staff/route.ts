@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, isPlatformOwner } from '@/lib/staff';
+import { isPlatformAdmin, isPlatformOwner, logStaffAccess } from '@/lib/staff';
 import { validatePassword } from '@/lib/validation/password';
 import { PLATFORM_ROLES } from '@/lib/roles';
 
@@ -136,6 +136,12 @@ export async function POST(request: Request) {
       select: { id: true, name: true, email: true, createdAt: true },
     });
 
+    await logStaffAccess(guard.userId, null, 'write', {
+      method: 'POST',
+      path: '/api/admin/staff',
+      summary: `Took on ${created.email} as EcoFusion staff`,
+    });
+
     // No business comes with the account. Reach is handed over deliberately,
     // one at a time, rather than arriving with the job.
     return NextResponse.json({ ...created, businesses: [] }, { status: 201 });
@@ -161,11 +167,20 @@ export async function PUT(request: Request) {
 
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true },
+      select: { role: true, email: true },
     });
     if (target?.role !== PLATFORM_ROLES.STAFF) {
       return NextResponse.json({ error: 'That is not a staff account' }, { status: 404 });
     }
+
+    const before = new Set(
+      (
+        await prisma.staffBusinessAccess.findMany({
+          where: { userId },
+          select: { organizationId: true },
+        })
+      ).map((row) => row.organizationId)
+    );
 
     const wanted = [...new Set(organizationIds.map(String))];
     const real = await prisma.organization.findMany({
@@ -196,6 +211,37 @@ export async function PUT(request: Request) {
       select: { organization: { select: { id: true, name: true } } },
     });
 
+    // One line for the change as a whole, and one in each business that was
+    // handed over or taken back, so its owner sees in their own record that
+    // somebody new may now come in.
+    const given = now.filter((b) => !before.has(b.organization.id)).map((b) => b.organization);
+    const taken = [...before].filter((id) => !realIds.includes(id));
+    if (given.length || taken.length) {
+      await logStaffAccess(guard.userId, null, 'write', {
+        method: 'PUT',
+        path: '/api/admin/staff',
+        summary:
+          `Changed what ${target.email} reaches: ` +
+          `${given.length} business${given.length === 1 ? '' : 'es'} given, ${taken.length} taken back`,
+      });
+      await Promise.all([
+        ...given.map((b) =>
+          logStaffAccess(guard.userId, b.id, 'write', {
+            method: 'PUT',
+            path: '/api/admin/staff',
+            summary: `Let ${target.email} from EcoFusion into this business`,
+          })
+        ),
+        ...taken.map((id) =>
+          logStaffAccess(guard.userId, id, 'write', {
+            method: 'PUT',
+            path: '/api/admin/staff',
+            summary: `Took away ${target.email}'s access to this business`,
+          })
+        ),
+      ]);
+    }
+
     return NextResponse.json({ businesses: now.map((b) => b.organization) });
   } catch (error) {
     console.error('Failed to set staff access:', error);
@@ -222,11 +268,20 @@ export async function DELETE(request: Request) {
 
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true },
+      select: { role: true, email: true },
     });
     if (target?.role !== PLATFORM_ROLES.STAFF) {
       return NextResponse.json({ error: 'That is not a staff account' }, { status: 404 });
     }
+
+    // The line is the master's rather than theirs, so it outlives them: the
+    // trail's cascade removes only what the departing account did, not what
+    // was done to it.
+    await logStaffAccess(guard.userId, null, 'write', {
+      method: 'DELETE',
+      path: '/api/admin/staff',
+      summary: `Removed ${target.email} from EcoFusion staff`,
+    });
 
     // The grants go with the account; the trail of what they did does not,
     // because that belongs to the businesses they did it in.

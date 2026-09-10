@@ -266,8 +266,22 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'That person is not on this business' }, { status: 404 });
     }
 
+    // Only the master account may remove an owner, and even it may not remove
+    // the last one: a business with no owner has nobody to answer for it or
+    // to pay for it, which no amount of reach can be allowed to produce.
     if (membership.role === 'owner') {
-      return NextResponse.json({ error: 'The owner cannot be removed' }, { status: 400 });
+      if (!ctx.isMaster) {
+        return NextResponse.json({ error: 'The owner cannot be removed' }, { status: 400 });
+      }
+      const owners = await prisma.membership.count({
+        where: { organizationId: ctx.organizationId, role: 'owner' },
+      });
+      if (owners <= 1) {
+        return NextResponse.json(
+          { error: 'This is the only owner. Make someone else an owner first.' },
+          { status: 400 }
+        );
+      }
     }
 
     // Removing an admin is the same decision as demoting one, so it rests with
@@ -324,8 +338,11 @@ export async function PATCH(request: Request) {
     // A reset hands over the account, so it follows the same line as changing
     // someone's role: an admin must not be able to seize the owner's account,
     // nor a fellow admin's. Resetting your own password is always allowed.
+    //
+    // The master account alone may reset an owner's: an owner locked out of
+    // their own business is exactly the problem it is there to solve.
     if (ctx.userId !== userId) {
-      if (membership.role === 'owner') {
+      if (membership.role === 'owner' && !ctx.isMaster) {
         return NextResponse.json(
           { error: "Only the owner can change the owner's password" },
           { status: 403 }

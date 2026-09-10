@@ -198,6 +198,7 @@ export async function POST(request: Request) {
         await logStaffAccess(session.user.id, organizationId, 'write', {
             method: 'POST',
             path: '/api/admin/organizations',
+            summary: `Created the business "${name}" with ${ownerEmail} as its owner`,
         });
 
         const organization = await prisma.organization.findUniqueOrThrow({
@@ -306,6 +307,7 @@ export async function PATCH(request: Request) {
         await logStaffAccess(session.user.id, organizationId, 'write', {
             method: 'PATCH',
             path: '/api/admin/organizations',
+            summary: `Renamed the business to "${name}"`,
         });
 
         return NextResponse.json({ organization });

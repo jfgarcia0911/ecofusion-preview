@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin } from '@/lib/staff';
+import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
 
 /** The staff account making the request, or null. */
 async function requireStaff(): Promise<string | null> {
@@ -16,7 +16,8 @@ export async function PATCH(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    if (!(await requireStaff())) {
+    const staffUserId = await requireStaff();
+    if (!staffUserId) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
@@ -51,6 +52,21 @@ export async function PATCH(
       });
     });
 
+    // A snapshot belongs to no one business, so the line names none. Making
+    // one the default decides how every future business starts, which is a
+    // change as real as any made inside one.
+    await logStaffAccess(staffUserId, null, 'write', {
+      method: 'PATCH',
+      path: `/api/admin/snapshots/${snapshotId}`,
+      summary:
+        `Edited the snapshot "${snapshot.name}"` +
+        (isDefault === true
+          ? ': made it the default for new businesses'
+          : isDefault === false
+            ? ': cleared it as the default'
+            : ''),
+    });
+
     return NextResponse.json(snapshot);
   } catch (error) {
     console.error('Failed to update snapshot:', error);
@@ -67,7 +83,8 @@ export async function DELETE(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    if (!(await requireStaff())) {
+    const staffUserId = await requireStaff();
+    if (!staffUserId) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
@@ -75,7 +92,7 @@ export async function DELETE(
 
     const existing = await prisma.snapshot.findUnique({
       where: { id: snapshotId },
-      select: { isDefault: true },
+      select: { isDefault: true, name: true },
     });
     if (!existing) {
       return NextResponse.json({ error: 'No such snapshot' }, { status: 404 });
@@ -92,6 +109,12 @@ export async function DELETE(
     }
 
     await prisma.snapshot.delete({ where: { id: snapshotId } });
+
+    await logStaffAccess(staffUserId, null, 'write', {
+      method: 'DELETE',
+      path: `/api/admin/snapshots/${snapshotId}`,
+      summary: `Deleted the snapshot "${existing.name}"`,
+    });
 
     return NextResponse.json({ deleted: snapshotId });
   } catch (error) {

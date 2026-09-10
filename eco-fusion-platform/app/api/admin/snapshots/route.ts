@@ -116,6 +116,9 @@ export async function POST(request: Request) {
     await logStaffAccess(staffUserId, organizationId, 'write', {
       method: 'POST',
       path: '/api/admin/snapshots',
+      summary:
+        `Captured the snapshot "${snapshot.name}" from this business` +
+        (isDefault ? ', and made it the default for new businesses' : ''),
     });
 
     return NextResponse.json(

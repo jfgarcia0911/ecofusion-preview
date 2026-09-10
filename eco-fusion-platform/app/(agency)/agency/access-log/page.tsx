@@ -1,17 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ScrollText, LogIn, LogOut, Pencil } from "lucide-react";
+import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { isMasterRole } from "@/lib/roles";
+import { AccessLogRowsSkeleton, AgencyAccessLogSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ACCESS_LOG_STANDFIRST } from "./standfirst";
+
+interface Person {
+    id: string;
+    name: string | null;
+    email: string;
+    role: string;
+}
 
 interface Entry {
     id: string;
     action: string;
     method: string | null;
     path: string | null;
+    /** What the change said, with secrets blanked out. Null for older lines. */
+    detail: string | null;
     createdAt: string;
-    staffUser: { name: string | null; email: string };
-    organization: { id: string; name: string };
+    staffUser: Person;
+    /** Null for a change to the platform itself rather than to one business. */
+    organization: { id: string; name: string } | null;
 }
 
 const ACTION_STYLES: Record<string, { style: string; icon: typeof LogIn; label: string }> = {
@@ -21,39 +34,58 @@ const ACTION_STYLES: Record<string, { style: string; icon: typeof LogIn; label: 
 };
 
 /**
- * What EcoFusion staff have done inside customers' businesses.
+ * What EcoFusion staff have done inside customers' businesses, and to the
+ * platform itself.
  *
  * The point of the trail is that it can be read, not merely that it is
  * written. A support session that nobody ever looks at is the same as no
  * record at all, so this is a page rather than a table somebody has to know
- * how to query.
+ * how to query. The master account has no limits anywhere in the app, and
+ * this is where that is answered for: every change it makes lands here.
  */
 export default function AccessLogPage() {
     const [entries, setEntries] = useState<Entry[]>([]);
+    const [people, setPeople] = useState<Person[]>([]);
     const [loading, setLoading] = useState(true);
+    // Only the first load draws the whole page as a skeleton. After that the
+    // filters stay on screen and only the lines below them wait.
+    const [loadedOnce, setLoadedOnce] = useState(false);
+    const [who, setWho] = useState("");
+    const [changesOnly, setChangesOnly] = useState(false);
     const toast = useToast();
 
     useEffect(() => {
         let cancelled = false;
+        setLoading(true);
         (async () => {
             try {
-                const res = await fetch("/api/admin/access-log");
+                const query = new URLSearchParams();
+                if (who) query.set("staffUserId", who);
+                if (changesOnly) query.set("changesOnly", "1");
+                const res = await fetch(`/api/admin/access-log?${query}`);
                 if (!res.ok) {
                     toast.error("Could not load the access trail");
                     return;
                 }
                 const data = await res.json();
-                if (!cancelled) setEntries(data.entries ?? []);
+                if (cancelled) return;
+                setEntries(data.entries ?? []);
+                setPeople(data.people ?? []);
             } catch {
-                toast.error("Could not load the access trail");
+                if (!cancelled) toast.error("Could not load the access trail");
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                    setLoadedOnce(true);
+                }
             }
         })();
         return () => {
             cancelled = true;
         };
-    }, [toast]);
+    }, [toast, who, changesOnly]);
+
+    if (!loadedOnce) return <AgencyAccessLogSkeleton standfirst={ACCESS_LOG_STANDFIRST} />;
 
     return (
         <div>
@@ -62,23 +94,48 @@ export default function AccessLogPage() {
                     <ScrollText size={22} className="text-accent" />
                     Access Log
                 </h1>
-                <p className="text-white/50 mt-1 max-w-2xl text-sm">
-                    Every time EcoFusion staff stepped into a customer&apos;s business, and every
-                    change made while inside one. Written by the app and never deleted by it.
-                </p>
+                <p className="text-white/50 mt-1 max-w-2xl text-sm">{ACCESS_LOG_STANDFIRST}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+                <select
+                    value={who}
+                    onChange={(e) => setWho(e.target.value)}
+                    className="px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-white"
+                >
+                    <option value="" className="bg-neutral-900">Everyone</option>
+                    {people.map((person) => (
+                        <option key={person.id} value={person.id} className="bg-neutral-900">
+                            {person.name ?? person.email}
+                            {isMasterRole(person.role) ? " (Master)" : ""}
+                        </option>
+                    ))}
+                </select>
+                <label className="flex items-center gap-2 text-sm text-white/60 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={changesOnly}
+                        onChange={(e) => setChangesOnly(e.target.checked)}
+                        className="accent-accent"
+                    />
+                    Changes only
+                </label>
             </div>
 
             {loading ? (
-                <p className="text-white/40 text-sm py-8 text-center">Loading the trail...</p>
+                <AccessLogRowsSkeleton />
             ) : entries.length === 0 ? (
                 <p className="text-white/40 text-sm py-8 text-center">
-                    Nobody has entered a customer&apos;s business yet.
+                    {who || changesOnly
+                        ? "Nothing recorded that matches."
+                        : "Nobody has entered a customer's business yet."}
                 </p>
             ) : (
                 <div className="space-y-2">
                     {entries.map((entry) => {
                         const kind = ACTION_STYLES[entry.action] ?? ACTION_STYLES.write;
                         const Icon = kind.icon;
+                        const master = isMasterRole(entry.staffUser.role);
                         return (
                             <div
                                 key={entry.id}
@@ -92,15 +149,33 @@ export default function AccessLogPage() {
                                 </span>
 
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-white text-sm truncate">
-                                        <span className="font-medium">
+                                    <div className="text-white text-sm truncate flex items-center gap-1.5">
+                                        <span className="font-medium truncate">
                                             {entry.staffUser.name ?? entry.staffUser.email}
                                         </span>
+                                        {master && (
+                                            <span className="px-1.5 py-0.5 rounded border border-accent/30 bg-accent/10 text-accent text-[10px] flex items-center gap-1 shrink-0">
+                                                <Crown size={10} />
+                                                Master
+                                            </span>
+                                        )}
                                         <span className="text-white/40"> &middot; </span>
-                                        {entry.organization.name}
+                                        {entry.organization ? (
+                                            <span className="truncate">{entry.organization.name}</span>
+                                        ) : (
+                                            <span className="text-white/60 flex items-center gap-1 shrink-0">
+                                                <Globe size={12} />
+                                                Platform
+                                            </span>
+                                        )}
                                     </div>
+                                    {entry.detail && (
+                                        <div className="text-xs text-white/70 mt-0.5 truncate" title={entry.detail}>
+                                            {entry.detail}
+                                        </div>
+                                    )}
                                     {entry.path && (
-                                        <div className="text-xs text-white/40 mt-0.5 truncate font-mono">
+                                        <div className="text-[11px] text-white/35 mt-0.5 truncate font-mono">
                                             {entry.method} {entry.path}
                                         </div>
                                     )}

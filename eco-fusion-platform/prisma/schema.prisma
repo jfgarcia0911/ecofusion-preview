@@ -815,16 +815,21 @@ model StaffBusinessAccess {
 model StaffAccessLog {
   id             String   @id @default(cuid())
   staffUserId    String
-  organizationId String
+  /// The business it happened in. Null for a change to the platform itself,
+  /// such as taking on staff or editing a snapshot, which belongs to no one
+  /// business but is still a change somebody made.
+  organizationId String?
   /// enter | leave | write
   action         String
   /// Method and path of the request, for a write. Null for enter and leave.
   method         String?
   path           String?
+  /// What the change said, in words, with every secret blanked out.
+  detail         String?
   createdAt      DateTime @default(now())
 
-  staffUser    User         @relation("StaffAccess", fields: [staffUserId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staffUser    User          @relation("StaffAccess", fields: [staffUserId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
   @@index([staffUserId, createdAt])

@@ -26,13 +26,20 @@ interface Employee {
     canResetPassword: boolean;
     /** Whether this reader may change their access level. Decided by the route. */
     canChangeRole: boolean;
+    /** Whether Owner is one of the levels this reader may give them. */
+    canMakeOwner: boolean;
 }
 
 const ACCESS_LEVELS = [
     { value: "member", label: "Member", hint: "Day-to-day access" },
     { value: "manager", label: "Manager", hint: "Also schedules and training" },
-    { value: "admin", label: "Admin", hint: "Also adds and removes people" },
+    // "supervisor", not "admin": the role was renamed, and a select still
+    // sending the old name was refused by the route as an invalid role.
+    { value: "supervisor", label: "Supervisor", hint: "Also adds and removes people" },
 ];
+
+/** Offered only to the master account, which alone may hand out ownership. */
+const OWNER_LEVEL = { value: "owner", label: "Owner", hint: "Holds the business and its billing" };
 
 /**
  * How recently somebody has actually been here.
@@ -439,7 +446,7 @@ export default function EmployeesPage() {
                             >
                                 <option value="member" className="bg-neutral-900">Member: day-to-day access</option>
                                 <option value="manager" className="bg-neutral-900">Manager: also schedules and training</option>
-                                <option value="admin" className="bg-neutral-900">Admin: also adds and removes people</option>
+                                <option value="supervisor" className="bg-neutral-900">Supervisor: also adds and removes people</option>
                             </select>
                         </div>
                         {grantError && <p className="text-sm text-red-300">{grantError}</p>}
@@ -560,7 +567,10 @@ export default function EmployeesPage() {
                                 }}
                                 className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white"
                             >
-                                {ACCESS_LEVELS.map((option) => (
+                                {(resettingFor.canMakeOwner
+                                    ? [OWNER_LEVEL, ...ACCESS_LEVELS]
+                                    : ACCESS_LEVELS
+                                ).map((option) => (
                                     <option
                                         key={option.value}
                                         value={option.value}

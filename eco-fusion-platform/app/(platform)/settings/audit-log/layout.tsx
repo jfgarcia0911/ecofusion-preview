@@ -17,7 +17,9 @@ export default async function AuditLogLayout({
 }) {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
-    if (ctx.role !== "owner" || ctx.isStaff) redirect("/settings");
+    // The master account enters as the owner and may read it too; nothing in
+    // a business is closed to it. Other staff read the agency's own log.
+    if (ctx.role !== "owner") redirect("/settings");
 
     return <>{children}</>;
 }

@@ -204,6 +204,14 @@ export async function POST(request: Request) {
         await logStaffAccess(session.user.id, organizationId, 'write', {
             method: 'POST',
             path: '/api/admin/course-assignments',
+            summary:
+                `Assigned ${toAssign.length} course${toAssign.length === 1 ? '' : 's'} to the owner, ${owner.email}` +
+                (toAssign.length
+                    ? `: ${toAssign.map((c) => c.title).slice(0, 5).join(', ')}${toAssign.length > 5 ? ', ...' : ''}`
+                    : '') +
+                (courses.length > toAssign.length
+                    ? ` (${courses.length - toAssign.length} already assigned)`
+                    : ''),
         });
 
         return NextResponse.json({

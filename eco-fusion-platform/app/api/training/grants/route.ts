@@ -11,9 +11,9 @@ import { CourseGrantError, setCourseGrants } from '@/lib/training';
  * Classes screen; both write the same rows through lib/training.
  *
  * Staff inside a business act with a supervisor's standing and are refused
- * here. They have the agency screen, and choosing classes on a customer's
- * behalf from inside their account would read in the owner's record as a
- * choice the owner made.
+ * here; they have the agency screen. The master account enters as the owner
+ * and may choose, and its choice is recorded in the business's access record
+ * as EcoFusion's rather than the owner's.
  */
 
 // GET - The catalogue, and which of it this business carries.

@@ -61,8 +61,8 @@ export async function GET() {
       if (accountId === ctx.userId) return true;
 
       const role = roleOf.get(accountId);
-      if (role === 'owner') return false;
-      if (role === 'admin' && ctx.role !== 'owner') return false;
+      if (role === 'owner') return ctx.isMaster;
+      if (role === 'supervisor' && ctx.role !== 'owner') return false;
       return true;
     };
 
@@ -77,8 +77,10 @@ export async function GET() {
       if (!accountId || !canManageMembers(ctx)) return false;
 
       const role = roleOf.get(accountId);
-      if (role === 'owner') return false;
-      if (role === 'admin' && ctx.role !== 'owner') return false;
+      // Only the master account moves an owner. The last owner is still
+      // protected by the role route itself.
+      if (role === 'owner') return ctx.isMaster;
+      if (role === 'supervisor' && ctx.role !== 'owner') return false;
       return true;
     };
 
@@ -97,6 +99,11 @@ export async function GET() {
         orgRole: employee.accountId ? roleOf.get(employee.accountId) ?? null : null,
         canResetPassword: mayReset(employee.accountId),
         canChangeRole: mayChangeRole(employee.accountId),
+        /**
+         * Whether "Owner" is among the levels offered. Only the master account
+         * hands out ownership from here; an owner's own team never sees it.
+         */
+        canMakeOwner: ctx.isMaster && mayChangeRole(employee.accountId),
       }))
     );
   } catch (error) {

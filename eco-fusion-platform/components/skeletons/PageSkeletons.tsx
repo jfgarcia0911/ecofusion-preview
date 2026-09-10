@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -777,6 +777,52 @@ export function AgencyListSkeleton({
                     </div>
                 ))}
             </div>
+        </div>
+    );
+}
+
+/**
+ * The Access Log's lines: a pill for what happened, who and where, what the
+ * change said, and when. Used alone while a filter refreshes, so the filters
+ * stay where they are and only the list pulses.
+ */
+export function AccessLogRowsSkeleton({ rows = 8 }: { rows?: number }) {
+    return (
+        <div className="space-y-2" aria-busy="true" aria-label="Loading the trail">
+            {Array.from({ length: rows }).map((_, row) => (
+                <div
+                    key={row}
+                    className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10 animate-pulse"
+                >
+                    <div className="h-5 w-[74px] rounded-full bg-white/10 shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="h-3.5 w-56 max-w-full rounded bg-white/10" />
+                        <div className="h-3 w-80 max-w-full rounded bg-white/[0.07]" />
+                        <div className="h-2.5 w-48 max-w-full rounded bg-white/5" />
+                    </div>
+                    <div className="h-3 w-32 rounded bg-white/5 shrink-0" />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** The whole Access Log page: heading, the two filters, then the lines. */
+export function AgencyAccessLogSkeleton({ standfirst }: { standfirst: string }) {
+    return (
+        <div aria-busy="true" aria-label="Loading access log">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <ScrollText size={22} className="text-accent" />
+                    Access Log
+                </h1>
+                <p className="text-white/50 mt-1 max-w-2xl text-sm">{standfirst}</p>
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+                <div className="h-[38px] w-40 rounded-lg bg-white/5 border border-white/10 animate-pulse" />
+                <div className="h-4 w-28 rounded bg-white/5 animate-pulse" />
+            </div>
+            <AccessLogRowsSkeleton />
         </div>
     );
 }

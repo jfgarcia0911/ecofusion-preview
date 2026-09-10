@@ -122,7 +122,11 @@ export async function POST(request: Request) {
         // is its owner. Training a customer's employees over their head is the
         // owner's call to make, not ours; what staff can do is put a course in
         // front of the person who decides.
-        if (ctx.isStaff && assigneeId !== ctx.userId) {
+        //
+        // The master account is not held to this. It holds the platform, and
+        // assigning over an owner's head is recorded in the trail the owner
+        // reads, like everything else it does there.
+        if (ctx.isStaff && !ctx.isMaster && assigneeId !== ctx.userId) {
             const owns = await prisma.membership.findFirst({
                 where: { userId: assigneeId, organizationId: ctx.organizationId, role: 'owner' },
                 select: { id: true },

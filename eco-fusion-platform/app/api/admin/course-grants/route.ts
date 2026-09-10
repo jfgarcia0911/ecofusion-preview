@@ -91,6 +91,7 @@ export async function PUT(request: Request) {
             await logStaffAccess(staffUserId, organizationId, 'write', {
                 method: 'PUT',
                 path: '/api/admin/course-grants',
+                summary: `Classes: ${result.loaded} loaded, ${result.unloaded} unloaded, ${result.courseIds.length} carried now`,
             });
         }
 

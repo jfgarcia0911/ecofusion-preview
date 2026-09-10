@@ -13,7 +13,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import {
   currentStaffOrganizationId,
-  staffMayReach,
+  platformReach,
   logStaffWriteIfAny,
 } from '@/lib/staff';
 import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
@@ -58,6 +58,13 @@ export interface OrgContext {
    * opens, since needing repair is usually why staff are there.
    */
   isStaff: boolean;
+  /**
+   * True when that staff member is the master account. It enters as the
+   * business's owner rather than as a supervisor: nothing inside the business
+   * is closed to it. Always alongside `isStaff`, so every change it makes is
+   * written to the same trail as any other EcoFusion visit.
+   */
+  isMaster: boolean;
 }
 
 /**
@@ -228,6 +235,7 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     // subscription, so that is the one asked.
     access: evaluateAccess(membership.organization.billingParent ?? membership.organization),
     isStaff: false,
+    isMaster: false,
   };
 }
 
@@ -239,17 +247,24 @@ export async function getOrgContext(): Promise<OrgContext | null> {
  * database on every request that makes it, so withdrawing staff access takes
  * effect at once rather than whenever a token happens to be refreshed.
  *
- * Staff act with an admin's powers. Not an owner's - ownership and billing
+ * Staff act with a supervisor's powers. Not an owner's - ownership and billing
  * stay with the person who pays, and the guards in the member routes already
  * turn away anyone who is not them.
+ *
+ * The master account is the exception. It holds the platform, so it enters
+ * every business with the owner's powers and no less: whatever a customer can
+ * get stuck on, it can undo. What it gives up in exchange is privacy - every
+ * change it makes, like any staff member's, is written to the trail below, and
+ * that trail is one the business's own owner can read.
  */
 async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
   const organizationId = await currentStaffOrganizationId();
   if (!organizationId) return null;
 
-  // Not merely staff, but staff who were handed this business. The owner
+  // Not merely staff, but staff who were handed this business. The master
   // reaches every one; an assistant reaches what they were given.
-  if (!(await staffMayReach(userId, organizationId))) return null;
+  const reach = await platformReach(userId, organizationId);
+  if (!reach) return null;
 
   const organization = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -257,14 +272,18 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
   });
   if (!organization) return null;
 
+  // Every write, by every platform account, before the route has done
+  // anything with it. The master's unlimited reach is only acceptable because
+  // of this line.
   await logStaffWriteIfAny(userId, organizationId);
 
   return {
     userId,
     organizationId,
-    role: 'supervisor',
+    role: reach.master ? 'owner' : 'supervisor',
     access: evaluateAccess(organization),
     isStaff: true,
+    isMaster: reach.master,
   };
 }
 

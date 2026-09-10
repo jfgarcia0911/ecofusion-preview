@@ -11,6 +11,7 @@ import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole, isMasterRole } from '@/lib/roles';
+import { SUMMARY_HEADER, readSummaryHeader } from '@/lib/audit-summary';
 
 /** The farm a staff member is currently working inside. */
 export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
@@ -58,18 +59,32 @@ export async function isPlatformOwner(userId: string): Promise<boolean> {
  * taking a business back takes effect on the next request.
  */
 export async function staffMayReach(userId: string, organizationId: string): Promise<boolean> {
+    return (await platformReach(userId, organizationId)) !== null;
+}
+
+/**
+ * How a platform account stands in this business: null when it may not enter,
+ * otherwise whether it enters as the master account.
+ *
+ * One read answers both, because the tenancy check needs both on every request
+ * a support session makes, and the role is what decides each.
+ */
+export async function platformReach(
+    userId: string,
+    organizationId: string
+): Promise<{ master: boolean } | null> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { role: true },
     });
-    if (!isPlatformRole(user?.role)) return false;
-    if (isMasterRole(user?.role)) return true;
+    if (!isPlatformRole(user?.role)) return null;
+    if (isMasterRole(user?.role)) return { master: true };
 
     const granted = await prisma.staffBusinessAccess.findUnique({
         where: { userId_organizationId: { userId, organizationId } },
         select: { id: true },
     });
-    return granted !== null;
+    return granted ? { master: false } : null;
 }
 
 /**
@@ -105,18 +120,43 @@ export async function currentStaffOrganizationId(): Promise<string | null> {
 type StaffAction = 'enter' | 'leave' | 'write';
 
 /**
+ * The description middleware made of this request's body, or null. Null too
+ * outside a request altogether, where there are no headers to ask.
+ */
+async function summaryFromRequest(): Promise<string | null> {
+    try {
+        return readSummaryHeader((await headers()).get(SUMMARY_HEADER));
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Write one line of the access trail.
+ *
+ * `organizationId` is null for a change to the platform rather than to one
+ * business: taking on staff, editing a snapshot, an EcoFusion account changing
+ * its own password. Those are changes too, and a trail that only recorded the
+ * ones made inside a customer's business would miss the ones that decide who
+ * can get into them.
+ *
+ * `summary` says what the change was, in words. Left out, the description
+ * middleware took from the request body is used, so every write says something
+ * even where nobody wrote a sentence for it.
  *
  * Never throws. A failed log must not turn into a failed request for the
  * customer, but it must be visible, so it goes to the server log instead.
  */
 export async function logStaffAccess(
     staffUserId: string,
-    organizationId: string,
+    organizationId: string | null,
     action: StaffAction,
-    detail?: { method?: string | null; path?: string | null }
+    detail?: { method?: string | null; path?: string | null; summary?: string | null }
 ): Promise<void> {
     try {
+        const summary =
+            detail?.summary ?? (action === 'write' ? await summaryFromRequest() : null);
+
         await prisma.staffAccessLog.create({
             data: {
                 staffUserId,
@@ -124,6 +164,7 @@ export async function logStaffAccess(
                 action,
                 method: detail?.method ?? null,
                 path: detail?.path ?? null,
+                detail: summary,
             },
         });
     } catch (error) {
@@ -143,7 +184,7 @@ const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);
  */
 export async function logStaffWriteIfAny(
     staffUserId: string,
-    organizationId: string
+    organizationId: string | null
 ): Promise<void> {
     const head = await headers();
     const method = head.get('x-request-method');

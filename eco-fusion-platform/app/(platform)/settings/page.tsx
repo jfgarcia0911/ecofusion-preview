@@ -50,7 +50,9 @@ export default async function SettingsPage() {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
 
-    const isOwner = ctx.role === "owner" && !ctx.isStaff;
+    // True for the master account inside any business, which enters as its
+    // owner. Other staff enter as supervisors and are not shown these.
+    const isOwner = ctx.role === "owner";
 
     const [business, ownedCount] = await Promise.all([
         prisma.organization.findUnique({

@@ -76,6 +76,7 @@ export async function POST(
     await logStaffAccess(staffUserId, organizationId, 'write', {
       method: 'POST',
       path: `/api/admin/snapshots/${snapshotId}/apply`,
+      summary: `Loaded the snapshot "${snapshot.name}" into this business`,
     });
 
     return NextResponse.json({
