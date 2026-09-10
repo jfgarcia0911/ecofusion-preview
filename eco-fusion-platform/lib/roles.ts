@@ -10,13 +10,35 @@
 
 /** Roles on User.role: standing across the whole platform. */
 export const PLATFORM_ROLES = {
-  /** EcoFusion itself. Enters any business; holds the platform's own settings. */
-  OWNER: 'platform_owner',
+  /**
+   * The master account: EcoFusion itself. Enters any business, holds the
+   * platform's own settings, and decides which businesses each staff account
+   * may open.
+   */
+  MASTER: 'master',
   /** EcoFusion support. Enters a customer's business to help, nothing above it. */
   STAFF: 'platform_staff',
   /** Everybody else: a customer, whose standing comes from their memberships. */
   USER: 'user',
 } as const;
+
+/**
+ * What a master account was called before it was called that.
+ *
+ * The migration renames every stored row, so the database holds none of these
+ * after it runs. It is still recognised because a session token carries the
+ * role it was issued with and is not reissued by a migration: a master account
+ * signed in before the rename would otherwise lose the Agency link until it
+ * signed in again. Tokens last thirty days, so after that this can go.
+ */
+const LEGACY_MASTER_ROLE = 'platform_owner';
+
+/** Every User.role value that marks an EcoFusion account, the old name included. */
+export const PLATFORM_ROLE_VALUES: string[] = [
+  PLATFORM_ROLES.MASTER,
+  LEGACY_MASTER_ROLE,
+  PLATFORM_ROLES.STAFF,
+];
 
 /** Roles on Membership.role: standing inside one business. */
 export const BUSINESS_ROLES = {
@@ -45,10 +67,10 @@ export const ALL_BUSINESS_ROLES: string[] = [
 
 /** Whether a User.role belongs to EcoFusion rather than to a customer. */
 export function isPlatformRole(role: string | null | undefined): boolean {
-  return role === PLATFORM_ROLES.OWNER || role === PLATFORM_ROLES.STAFF;
+  return PLATFORM_ROLE_VALUES.includes(role ?? '');
 }
 
-/** Whether a User.role is EcoFusion's own, above support. */
-export function isPlatformOwnerRole(role: string | null | undefined): boolean {
-  return role === PLATFORM_ROLES.OWNER;
+/** Whether a User.role is the master account, above support. */
+export function isMasterRole(role: string | null | undefined): boolean {
+  return role === PLATFORM_ROLES.MASTER || role === LEGACY_MASTER_ROLE;
 }

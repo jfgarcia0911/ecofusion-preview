@@ -26,7 +26,7 @@ interface Staff {
  * nothing on this page touches a business's own members - a customer's staff
  * are managed by that customer, under Employees.
  *
- * A staff account is the platform owner's assistant. It arrives opening
+ * A staff account is the master account's assistant. It arrives opening
  * nothing, and opens a sub account only because the owner handed that one
  * over. Somebody taken on to look after three customers cannot open the other
  * forty, which is the whole reason this screen exists rather than everyone

@@ -10,7 +10,7 @@ import { PLATFORM_ROLES } from '@/lib/roles';
  * EcoFusion's own people, and which businesses each of them may work in.
  *
  * Not a customer's team: nobody here is employed by a business, and none of
- * this touches Membership. A platform_staff account is the platform owner's
+ * this touches Membership. A platform_staff account is the master account's
  * assistant, and reaches a business only because the owner handed it over -
  * one business at a time, so somebody brought in to look after three customers
  * cannot open the other forty.

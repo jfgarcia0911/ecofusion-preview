@@ -10,7 +10,7 @@
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { isPlatformRole, isPlatformOwnerRole } from '@/lib/roles';
+import { isPlatformRole, isMasterRole } from '@/lib/roles';
 
 /** The farm a staff member is currently working inside. */
 export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
@@ -36,17 +36,17 @@ export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> =>
 });
 
 /**
- * Whether an account is EcoFusion itself, rather than somebody working for it.
+ * Whether an account is the master account, rather than somebody working for it.
  *
- * The owner holds the platform: they reach every business, and they decide who
- * else on the team reaches which. Staff are their assistants and can do neither.
+ * The master account holds the platform: it reaches every business, and decides
+ * who else on the team reaches which. Staff are its assistants and can do neither.
  */
 export async function isPlatformOwner(userId: string): Promise<boolean> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { role: true },
     });
-    return isPlatformOwnerRole(user?.role);
+    return isMasterRole(user?.role);
 }
 
 /**
@@ -63,7 +63,7 @@ export async function staffMayReach(userId: string, organizationId: string): Pro
         select: { role: true },
     });
     if (!isPlatformRole(user?.role)) return false;
-    if (isPlatformOwnerRole(user?.role)) return true;
+    if (isMasterRole(user?.role)) return true;
 
     const granted = await prisma.staffBusinessAccess.findUnique({
         where: { userId_organizationId: { userId, organizationId } },
@@ -86,7 +86,7 @@ export async function staffReachableOrganizationIds(
         where: { id: userId },
         select: { role: true },
     });
-    if (isPlatformOwnerRole(user?.role)) return null;
+    if (isMasterRole(user?.role)) return null;
     if (!isPlatformRole(user?.role)) return [];
 
     const rows = await prisma.staffBusinessAccess.findMany({

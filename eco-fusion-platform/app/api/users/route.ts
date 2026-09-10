@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import { canAdminister, canManageMembers } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
-import { ALL_BUSINESS_ROLES, PLATFORM_ROLES } from '@/lib/roles';
+import { ALL_BUSINESS_ROLES, PLATFORM_ROLE_VALUES } from '@/lib/roles';
 
 // EcoFusion's own accounts are not a customer's colleagues.
-const PLATFORM_ROLE_VALUES = [PLATFORM_ROLES.OWNER, PLATFORM_ROLES.STAFF];
 
 // GET - People in the caller's organization (admin only)
 export async function GET() {
