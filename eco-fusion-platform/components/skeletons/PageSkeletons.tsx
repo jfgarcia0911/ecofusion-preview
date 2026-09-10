@@ -1102,7 +1102,7 @@ export function EmployeeProfileSkeleton() {
  */
 export function BusinessClassesSkeleton({ confirming = false }: { confirming?: boolean } = {}) {
     return (
-        <div className="max-w-5xl space-y-6 pb-24" aria-busy="true" aria-label="Loading classes">
+        <div className="space-y-6 pb-24" aria-busy="true" aria-label="Loading classes">
             <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
                     <GraduationCap className="text-accent" />

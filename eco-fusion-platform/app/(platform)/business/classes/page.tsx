@@ -468,7 +468,11 @@ export default function BusinessClassesPage() {
     }
 
     return (
-        <div className="max-w-5xl space-y-6 pb-24">
+        // Full width, as the other lists are. Both sections below are rows of
+        // courses, and a column held to 64rem left a third of a wide screen empty
+        // beside them. The paragraph keeps its own measure, which is the one part
+        // narrow lines actually help.
+        <div className="space-y-6 pb-24">
             <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
                     <GraduationCap className="text-accent" />
