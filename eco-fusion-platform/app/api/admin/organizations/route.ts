@@ -66,7 +66,9 @@ export async function GET(request: Request) {
                     select: { user: { select: { name: true, email: true } } },
                     take: 1,
                 },
-                _count: { select: { memberships: true } },
+                // How many of EcoFusion's classes each business carries, so the
+                // classes screen can show at a glance which ones have none.
+                _count: { select: { memberships: true, courseGrants: true } },
             },
             orderBy: { createdAt: 'desc' },
             take: 100,
@@ -85,6 +87,7 @@ export async function GET(request: Request) {
                     trialEndsAt: org.trialEndsAt,
                     createdAt: org.createdAt,
                     memberCount: org._count.memberships,
+                    classCount: org._count.courseGrants,
                     owner: org.memberships[0]?.user ?? null,
                     // Three standings, not Stripe's five. A business is paying,
                     // trying, or neither, and the third covers a trial that ran

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, KeyRound, Camera, ScrollText, ArrowLeft } from "lucide-react";
+import { Building2, KeyRound, Camera, ScrollText, ArrowLeft, GraduationCap } from "lucide-react";
 import clsx from "clsx";
 import { LinkSpinner } from "@/components/ui/Skeleton";
 
@@ -23,6 +23,9 @@ interface User {
  */
 const agencyNavItems = [
     { name: "Sub Accounts", href: "/agency/sub-accounts", icon: Building2 },
+    // Its own section rather than a button on every business: loading classes
+    // is a job done across several businesses in one sitting.
+    { name: "Classes", href: "/agency/classes", icon: GraduationCap },
     { name: "Team Access", href: "/agency/team", icon: KeyRound },
     { name: "Snapshots", href: "/agency/snapshots", icon: Camera },
     { name: "Access Log", href: "/agency/access-log", icon: ScrollText },

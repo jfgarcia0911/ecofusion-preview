@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, GraduationCap, ShoppingCart, Users, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -1014,6 +1014,59 @@ export function EmployeeProfileSkeleton() {
                     </div>
                 </section>
             ))}
+        </div>
+    );
+}
+
+/**
+ * Agency Classes: the list of businesses beside a prompt to choose one.
+ *
+ * The right hand side is held as the prompt rather than as a class list,
+ * because that is what arrives. Nothing is chosen when the page opens.
+ */
+export function AgencyClassesSkeleton() {
+    return (
+        <div className="space-y-6" aria-busy="true" aria-label="Loading classes">
+            <div>
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <GraduationCap size={22} className="text-accent" />
+                    Classes
+                </h1>
+                <div className="h-3.5 w-[28rem] max-w-full rounded bg-white/5 mt-2 animate-pulse" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1">
+                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Building2 size={18} className="text-white/50" />
+                            <h2 className="font-bold text-white">Businesses</h2>
+                        </div>
+                        <div className="h-9 w-full rounded-lg bg-black/20 mb-4 animate-pulse" />
+                        <div className="space-y-1.5">
+                            {Array.from({ length: 6 }).map((_, row) => (
+                                <div key={row} className="p-3 rounded-xl bg-white/[0.03] animate-pulse space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-3.5 flex-1 rounded bg-white/10" />
+                                        <div className="h-4 w-12 rounded-full bg-white/5" />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-3 flex-1 rounded bg-white/5" />
+                                        <div className="h-3 w-14 rounded bg-white/5" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-2">
+                    <div className="h-full min-h-[320px] flex flex-col items-center justify-center text-center border border-dashed border-white/10 rounded-2xl p-8">
+                        <Building2 size={36} className="text-white/15 mb-3" />
+                        <p className="text-white/60 font-medium">Choose a business</p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
