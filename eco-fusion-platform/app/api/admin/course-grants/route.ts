@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { isPlatformAdmin, logStaffAccess, staffMayReach } from '@/lib/staff';
+import { CourseGrantError, setCourseGrants } from '@/lib/training';
 
 /** The staff account making the request, or null. */
 async function requireStaff(): Promise<string | null> {
@@ -74,70 +75,26 @@ export async function PUT(request: Request) {
             return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
-        // Only EcoFusion's own courses can be loaded. A business's private course
-        // is not ours to hand to anybody, including its author's neighbours.
-        const grantable = await prisma.trainingCourse.findMany({
-            where: { id: { in: courseIds }, organizationId: null },
-            select: { id: true },
-        });
-        const grantableIds = grantable.map((c) => c.id);
-
-        if (grantableIds.length !== courseIds.length) {
-            return NextResponse.json(
-                { error: 'One or more of those courses is not an EcoFusion course' },
-                { status: 400 }
-            );
+        // The rules live in lib/training, shared with the business's own
+        // owner choosing for themselves, so the two cannot drift apart.
+        let result;
+        try {
+            result = await setCourseGrants(organizationId, courseIds, staffUserId);
+        } catch (error) {
+            if (error instanceof CourseGrantError) {
+                return NextResponse.json({ error: error.message }, { status: 400 });
+            }
+            throw error;
         }
 
-        // Work out the difference rather than clearing and rewriting, so a
-        // course the business already had keeps the date it was loaded and the name
-        // of whoever loaded it. Those are the only record of how this business's
-        // academy came to look the way it does.
-        const held = await prisma.courseGrant.findMany({
-            where: { organizationId },
-            select: { courseId: true },
-        });
-        const heldIds = new Set(held.map((g) => g.courseId));
-        const wanted = new Set(grantableIds);
-
-        const toRemove = [...heldIds].filter((id) => !wanted.has(id));
-        const toAdd = grantableIds.filter((id) => !heldIds.has(id));
-
-        if (toRemove.length > 0 || toAdd.length > 0) {
-            await prisma.$transaction([
-                ...(toRemove.length > 0
-                    ? [
-                          prisma.courseGrant.deleteMany({
-                              where: { organizationId, courseId: { in: toRemove } },
-                          }),
-                      ]
-                    : []),
-                ...(toAdd.length > 0
-                    ? [
-                          prisma.courseGrant.createMany({
-                              data: toAdd.map((courseId) => ({
-                                  courseId,
-                                  organizationId,
-                                  grantedById: staffUserId,
-                              })),
-                              skipDuplicates: true,
-                          }),
-                      ]
-                    : []),
-            ]);
-
+        if (result.loaded > 0 || result.unloaded > 0) {
             await logStaffAccess(staffUserId, organizationId, 'write', {
                 method: 'PUT',
                 path: '/api/admin/course-grants',
             });
         }
 
-        return NextResponse.json({
-            organizationId,
-            courseIds: grantableIds,
-            loaded: toAdd.length,
-            unloaded: toRemove.length,
-        });
+        return NextResponse.json({ organizationId, ...result });
     } catch (error) {
         console.error('Failed to set course grants:', error);
         return NextResponse.json({ error: 'Failed to update classes' }, { status: 500 });

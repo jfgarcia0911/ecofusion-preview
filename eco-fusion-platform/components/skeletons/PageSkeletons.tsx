@@ -1070,3 +1070,37 @@ export function AgencyClassesSkeleton() {
         </div>
     );
 }
+
+/** A business choosing its classes: the heading, then the grouped chooser. */
+export function BusinessClassesSkeleton() {
+    return (
+        <div className="max-w-4xl space-y-6" aria-busy="true" aria-label="Loading classes">
+            <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
+                    <GraduationCap className="text-accent" />
+                    Classes
+                </h1>
+                <div className="h-4 w-[30rem] max-w-full rounded bg-white/5 mt-2 animate-pulse" />
+            </div>
+
+            <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                    <h2 className="text-lg font-bold text-white">EcoFusion classes</h2>
+                    <div className="h-3 w-20 rounded bg-white/5 animate-pulse" />
+                </div>
+                <div className="h-9 w-full rounded-xl bg-black/20 mb-3 animate-pulse" />
+                <div className="space-y-2">
+                    {Array.from({ length: 8 }).map((_, row) => (
+                        <div
+                            key={row}
+                            className="h-11 rounded-xl border border-white/10 bg-white/[0.02] animate-pulse"
+                        />
+                    ))}
+                </div>
+                <div className="flex items-center gap-3 pt-5">
+                    <div className="h-9 w-36 rounded-lg bg-white/10 animate-pulse" />
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -8,6 +8,7 @@
  */
 
 import type { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 /**
  * The courses one farm may see: what it wrote, and what it was given.
@@ -38,4 +39,71 @@ export function ownedByOrganization(
   organizationId: string
 ): boolean {
   return course.organizationId === organizationId;
+}
+
+/** A request that asked for something a business cannot be given. */
+export class CourseGrantError extends Error {}
+
+/**
+ * Sets exactly which of EcoFusion's courses a business carries.
+ *
+ * Shared by the agency, which sets them up for a customer, and by the
+ * business's own owner, who chooses for themselves. Both write the same rows,
+ * so the rules live here once rather than in each route that remembers them.
+ *
+ * Only EcoFusion's own courses can be granted. A course a business wrote for
+ * itself is not anybody else's to hand out, and it is never a grant in the
+ * first place, so nothing here reaches it.
+ *
+ * The difference is applied rather than the set being cleared and rewritten,
+ * so a course the business already had keeps the date it was granted and the
+ * name of whoever granted it: the only record of how its academy came to look
+ * the way it does. Unloading leaves completions alone, since somebody who
+ * finished a course still finished it.
+ */
+export async function setCourseGrants(
+  organizationId: string,
+  courseIds: string[],
+  grantedById: string
+): Promise<{ courseIds: string[]; loaded: number; unloaded: number }> {
+  // A repeated id is one course asked for twice, not a course that does not
+  // exist. Counting it twice made the check below report the wrong fault.
+  const requested = [...new Set(courseIds)];
+
+  const grantable = await prisma.trainingCourse.findMany({
+    where: { id: { in: requested }, organizationId: null },
+    select: { id: true },
+  });
+  if (grantable.length !== requested.length) {
+    throw new CourseGrantError('One or more of those courses is not an EcoFusion course');
+  }
+  const grantableIds = grantable.map((course) => course.id);
+
+  const held = await prisma.courseGrant.findMany({
+    where: { organizationId },
+    select: { courseId: true },
+  });
+  const heldIds = new Set(held.map((grant) => grant.courseId));
+  const wanted = new Set(grantableIds);
+
+  const toRemove = [...heldIds].filter((id) => !wanted.has(id));
+  const toAdd = grantableIds.filter((id) => !heldIds.has(id));
+
+  if (toRemove.length > 0 || toAdd.length > 0) {
+    await prisma.$transaction([
+      ...(toRemove.length > 0
+        ? [prisma.courseGrant.deleteMany({ where: { organizationId, courseId: { in: toRemove } } })]
+        : []),
+      ...(toAdd.length > 0
+        ? [
+            prisma.courseGrant.createMany({
+              data: toAdd.map((courseId) => ({ courseId, organizationId, grantedById })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+    ]);
+  }
+
+  return { courseIds: grantableIds, loaded: toAdd.length, unloaded: toRemove.length };
 }

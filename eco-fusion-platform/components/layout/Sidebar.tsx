@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Activity, Brain, Users, ClipboardList, Layers, BookOpen, HelpCircle, Calendar, Package, ShoppingCart, Settings, Bot, Building2, GraduationCap, BookMarked } from "lucide-react";
 import { LinkSpinner } from "@/components/ui/Skeleton";
 import clsx from "clsx";
 import SubAccountSwitcher from "@/components/layout/SubAccountSwitcher";
@@ -42,6 +42,15 @@ const adminNavItems = [
     // done during the week, alongside the people and the rota it concerns, not
     // something configured once and left.
     { name: "Training Management", href: "/admin/training", icon: GraduationCap, tourId: "nav-training" },
+];
+
+/**
+ * The owner's alone. Which classes a business carries is part of what the
+ * business is, so it sits with the person answerable for it rather than with
+ * everybody who runs the week.
+ */
+const ownerNavItems = [
+    { name: "Classes", href: "/business/classes", icon: BookMarked, tourId: "nav-classes" },
 ];
 
 // User-only navigation items
@@ -123,6 +132,7 @@ export default function Sidebar({
     const navItems = [
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
+        ...(isOwner ? ownerNavItems : []),
         ...commonNavItems,
         ...(isStaff ? staffNavItems : []),
     ];
