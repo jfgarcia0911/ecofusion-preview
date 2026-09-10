@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, LogIn, Building2, Camera, Plus, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
 import { PERMISSIONS, type StaffPermission } from "@/lib/staff-permissions";
+import { SUB_ACCOUNT_COLUMNS, SubAccountsTableSkeleton } from "@/components/skeletons/PageSkeletons";
+import { SUB_ACCOUNTS_STANDFIRST } from "./standfirst";
 import CreateSubAccountModal from "@/components/admin/CreateSubAccountModal";
 import EditSubAccountModal from "@/components/admin/EditSubAccountModal";
 
@@ -58,6 +60,10 @@ export default function SubAccountsPage() {
     const [businesses, setBusinesses] = useState<SubAccount[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    // Whether the list has arrived at least once. Before it has, the table is
+    // drawn as its skeleton; after, a new search keeps the rows on screen and
+    // dims them rather than blanking the table on every keystroke.
+    const [loadedOnce, setLoadedOnce] = useState(false);
     const [entering, setEntering] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
     const [editing, setEditing] = useState<SubAccount | null>(null);
@@ -91,10 +97,20 @@ export default function SubAccountsPage() {
             toast.error("Could not load the sub account list");
         } finally {
             setLoading(false);
+            setLoadedOnce(true);
         }
     }, [toast]);
 
+    // The first load goes at once. Only typing waits, so a search is sent
+    // when somebody pauses rather than on every letter; the page opening
+    // used to wait the same quarter second for no reason.
+    const firstLoad = useRef(true);
     useEffect(() => {
+        if (firstLoad.current) {
+            firstLoad.current = false;
+            load(search);
+            return;
+        }
         const id = setTimeout(() => load(search), 250);
         return () => clearTimeout(id);
     }, [search, load]);
@@ -135,13 +151,14 @@ export default function SubAccountsPage() {
                         <Building2 size={22} className="text-accent" />
                         Sub Accounts
                     </h1>
-                    <p className="text-white/50 mt-1 max-w-2xl text-sm">
-                        Every business on the platform. Create one for a customer, or step into
-                        an existing one to diagnose or fix a problem and then leave it. Entering
-                        and leaving are both written to the access trail.
-                    </p>
+                    <p className="text-white/50 mt-1 max-w-2xl text-sm">{SUB_ACCOUNTS_STANDFIRST}</p>
                 </div>
-                {can(PERMISSIONS.CREATE_BUSINESS) && (
+                {/* Held as the skeleton's placeholder until the server has said
+                    whether this reader may create, so it does not pop in late. */}
+                {!loadedOnce && (
+                    <div className="shrink-0 h-[42px] w-[182px] rounded-xl bg-accent/10 border border-accent/20 animate-pulse" />
+                )}
+                {loadedOnce && can(PERMISSIONS.CREATE_BUSINESS) && (
                     <button
                         type="button"
                         onClick={() => setCreating(true)}
@@ -166,8 +183,8 @@ export default function SubAccountsPage() {
                 />
             </div>
 
-            {loading ? (
-                <p className="text-white/40 text-sm py-8 text-center">Loading sub accounts...</p>
+            {!loadedOnce ? (
+                <SubAccountsTableSkeleton />
             ) : businesses.length === 0 ? (
                 <p className="text-white/40 text-sm py-8 text-center">
                     {search ? "No businesses match that." : "No sub accounts yet."}
@@ -177,11 +194,16 @@ export default function SubAccountsPage() {
                 // the answers are worth reading down rather than across. The
                 // wrapper alone scrolls, so a narrow window moves the table and
                 // leaves the page still.
-                <div className="overflow-x-auto rounded-xl border border-white/10 custom-scrollbar">
+                <div
+                    className={`overflow-x-auto rounded-xl border border-white/10 custom-scrollbar transition-opacity ${
+                        loading ? "opacity-50" : ""
+                    }`}
+                    aria-busy={loading}
+                >
                     <table className="w-full border-collapse text-left text-sm">
                         <thead>
                             <tr className="bg-white/[0.04]">
-                                {["Business", "Status", "Owner", "Location", "People", ""].map(
+                                {SUB_ACCOUNT_COLUMNS.map(
                                     (heading, i) => (
                                         <th
                                             key={heading || i}

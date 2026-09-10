@@ -915,6 +915,103 @@ export function CheckoutSkeleton() {
     );
 }
 
+/** The Sub Accounts table's columns, shared by the page and its skeleton. */
+export const SUB_ACCOUNT_COLUMNS = ["Business", "Status", "Owner", "Location", "People", ""];
+
+/**
+ * The Sub Accounts table while its rows are on their way: the real header,
+ * then rows with each cell's shape where its content will land - the building
+ * icon and name, the status pill, the owner's name over their email, the
+ * location, the head count on the right, and the row's buttons.
+ */
+export function SubAccountsTableSkeleton({ rows = 6 }: { rows?: number }) {
+    return (
+        <div
+            className="overflow-x-auto rounded-xl border border-white/10 custom-scrollbar"
+            aria-busy="true"
+            aria-label="Loading sub accounts"
+        >
+            <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                    <tr className="bg-white/[0.04]">
+                        {SUB_ACCOUNT_COLUMNS.map((heading, i) => (
+                            <th
+                                key={heading || i}
+                                scope="col"
+                                className={`px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-white/40 whitespace-nowrap ${
+                                    heading === "People" ? "text-right" : ""
+                                }`}
+                            >
+                                {heading}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody className="animate-pulse">
+                    {Array.from({ length: rows }).map((_, row) => (
+                        <tr key={row} className="border-t border-white/5">
+                            <td className="px-4 py-3.5">
+                                <span className="flex items-center gap-2.5">
+                                    <Building2 size={15} className="text-white/15 shrink-0" />
+                                    <span className="h-3.5 w-36 rounded bg-white/10" />
+                                </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                                <span className="block h-5 w-14 rounded-full bg-white/[0.07]" />
+                            </td>
+                            <td className="px-4 py-3.5">
+                                <span className="block h-3.5 w-28 rounded bg-white/[0.07]" />
+                                <span className="block h-3 w-40 rounded bg-white/[0.04] mt-1.5" />
+                            </td>
+                            <td className="px-4 py-3.5">
+                                <span className="block h-3.5 w-24 rounded bg-white/[0.05]" />
+                            </td>
+                            <td className="px-4 py-3.5">
+                                <span className="block h-3.5 w-5 rounded bg-white/[0.05] ml-auto" />
+                            </td>
+                            <td className="px-4 py-3.5">
+                                <span className="flex items-center justify-end gap-1.5">
+                                    <span className="h-7 w-[60px] rounded-lg bg-white/[0.07]" />
+                                    <span className="h-7 w-[78px] rounded-lg bg-white/[0.07]" />
+                                    <span className="h-7 w-[66px] rounded-lg bg-white/[0.07]" />
+                                </span>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+/**
+ * The whole Sub Accounts page before anything is known: its real heading and
+ * sentence, the create button, the search box at the page's own size, and the
+ * table. The page draws the same shapes while it fetches, so the handover from
+ * this to the page changes nothing on screen.
+ */
+export function SubAccountsSkeleton({ standfirst }: { standfirst: string }) {
+    return (
+        <div aria-busy="true" aria-label="Loading sub accounts">
+            <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Building2 size={22} className="text-accent" />
+                        Sub Accounts
+                    </h1>
+                    <p className="text-white/50 mt-1 max-w-2xl text-sm">{standfirst}</p>
+                </div>
+                <div className="shrink-0 h-[42px] w-[182px] rounded-xl bg-accent/10 border border-accent/20 animate-pulse" />
+            </div>
+            <div className="relative mb-4">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+                <div className="w-full h-[42px] bg-white/5 border border-white/10 rounded-xl" />
+            </div>
+            <SubAccountsTableSkeleton />
+        </div>
+    );
+}
+
 /**
  * Team Access: heading, the table of staff with what each can do, and the
  * panel of what stays with the master account. The standfirst differs for the
