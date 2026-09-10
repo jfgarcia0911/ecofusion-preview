@@ -55,7 +55,7 @@ export default function CaptureSnapshotModal({
             }
             const { contents } = await res.json();
             toast.success(`Captured "${name.trim()}"`, {
-                description: `${contents.businessUnits} units, ${contents.zones} zones, ${contents.growthParameters} growing parameters, ${contents.courses} classes`,
+                description: `${contents.businessUnits} units, ${contents.zones} zones, ${contents.growthParameters} growing parameters`,
             });
             onClose();
             router.refresh();
@@ -75,8 +75,8 @@ export default function CaptureSnapshotModal({
                 <div className="text-sm text-white/50 leading-relaxed">
                     <p>
                         Takes this business&apos;s <strong className="text-white/80">setup</strong> as a
-                        template: business units, zones and their alert thresholds, growing
-                        parameters, and which EcoFusion classes it carries.
+                        template: business units, zones and their alert thresholds, and growing
+                        parameters. Classes are not included: each business buys its own.
                     </p>
                     <p className="mt-2">
                         Nothing that happened in the business is copied. No stock, sales, sensor

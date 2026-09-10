@@ -59,13 +59,17 @@ export interface SnapshotPayload {
     yieldUnit: string | null;
     notes: string | null;
   }[];
-  /** EcoFusion courses the farm carries. Farm-authored courses never travel. */
-  courseIds: string[];
+  /**
+   * EcoFusion courses the business held, in snapshots taken before courses
+   * were sold. No longer captured and never applied: a course is bought, so a
+   * template handing classes out free would be a way around the shop.
+   */
+  courseIds?: string[];
 }
 
 /** Read one farm's configuration into a payload. */
 export async function captureSnapshot(organizationId: string): Promise<SnapshotPayload> {
-  const [businessUnits, zones, growthParameters, grants] = await Promise.all([
+  const [businessUnits, zones, growthParameters] = await Promise.all([
     prisma.businessUnit.findMany({
       where: { organizationId },
       orderBy: { sortOrder: 'asc' },
@@ -78,10 +82,6 @@ export async function captureSnapshot(organizationId: string): Promise<SnapshotP
     prisma.growthParameter.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'asc' },
-    }),
-    prisma.courseGrant.findMany({
-      where: { organizationId },
-      select: { courseId: true },
     }),
   ]);
 
@@ -123,7 +123,6 @@ export async function captureSnapshot(organizationId: string): Promise<SnapshotP
       yieldUnit: p.yieldUnit,
       notes: p.notes,
     })),
-    courseIds: grants.map((g) => g.courseId),
   };
 }
 
@@ -132,7 +131,6 @@ export interface ApplyResult {
   businessUnits: number;
   zones: number;
   growthParameters: number;
-  courses: number;
 }
 
 /** Case-insensitive key for deciding whether a farm already has something. */
@@ -161,7 +159,6 @@ export async function applySnapshot(
     businessUnits: 0,
     zones: 0,
     growthParameters: 0,
-    courses: 0,
   };
 
   if (payload.businessUnits?.length) {
@@ -218,22 +215,6 @@ export async function applySnapshot(
         skipDuplicates: true,
       });
       result.growthParameters = created.count;
-    }
-  }
-
-  if (payload.courseIds?.length) {
-    // Only courses that are still EcoFusion's, and still exist: a snapshot can
-    // outlive a course it names, and must not resurrect one as a grant.
-    const live = await prisma.trainingCourse.findMany({
-      where: { id: { in: payload.courseIds }, organizationId: null },
-      select: { id: true },
-    });
-    if (live.length) {
-      const created = await prisma.courseGrant.createMany({
-        data: live.map((course) => ({ courseId: course.id, organizationId })),
-        skipDuplicates: true,
-      });
-      result.courses = created.count;
     }
   }
 

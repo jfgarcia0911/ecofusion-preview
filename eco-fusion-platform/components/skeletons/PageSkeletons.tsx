@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, Loader2, Tag, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -827,6 +827,34 @@ export function AgencyAccessLogSkeleton({ standfirst }: { standfirst: string }) 
     );
 }
 
+/** Course Prices: heading, the search and filter, then the levels, closed. */
+export function AgencyCoursePricesSkeleton({ standfirst }: { standfirst: string }) {
+    return (
+        <div className="pb-24" aria-busy="true" aria-label="Loading course prices">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <Tag size={22} className="text-accent" />
+                    Course Prices
+                </h1>
+                <p className="text-white/50 mt-1 max-w-2xl text-sm">{standfirst}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+                <div className="h-[38px] flex-1 min-w-[14rem] rounded-lg bg-black/20 border border-white/10" />
+                <div className="h-[38px] w-32 rounded-lg bg-black/20 border border-white/10" />
+                <div className="h-3 w-20 rounded bg-white/5 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, row) => (
+                    <div
+                        key={row}
+                        className="h-11 rounded-xl border border-white/10 bg-white/[0.02] animate-pulse"
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
 /* ---------------------------------------------------------------- settings */
 
 /** The settings index: two labelled groups of cards. */
@@ -1064,36 +1092,68 @@ export function EmployeeProfileSkeleton() {
     );
 }
 
-/** A business choosing its classes: the heading, then the grouped chooser. */
-export function BusinessClassesSkeleton() {
+/**
+ * The Classes shop: the heading, the courses already held, then the shop
+ * grouped by level, closed. The panels are the page's own at their real size,
+ * so nothing moves when the courses arrive.
+ *
+ * `confirming` is set while the page asks Stripe about a payment somebody has
+ * just come back from, so the wait says what it is for.
+ */
+export function BusinessClassesSkeleton({ confirming = false }: { confirming?: boolean } = {}) {
     return (
-        <div className="max-w-4xl space-y-6" aria-busy="true" aria-label="Loading classes">
+        <div className="max-w-5xl space-y-6 pb-24" aria-busy="true" aria-label="Loading classes">
             <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
                     <GraduationCap className="text-accent" />
                     Classes
                 </h1>
-                <div className="h-4 w-[30rem] max-w-full rounded bg-white/5 mt-2 animate-pulse" />
+                <p className="text-white/50 mt-1 max-w-2xl">
+                    Buy EcoFusion courses for your business. Each is paid for once and stays yours.
+                    Your courses appear in the Academy and can be assigned from Training Management.
+                </p>
             </div>
 
-            <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
+            {confirming && (
+                <p className="px-4 py-3 rounded-xl border border-accent/25 bg-accent/10 text-sm text-accent flex items-center gap-2">
+                    <Loader2 size={15} className="motion-safe:animate-spin" />
+                    Confirming your payment with Stripe...
+                </p>
+            )}
+
+            <section className="bg-white/5 border border-white/5 rounded-2xl p-5">
                 <div className="flex items-center justify-between gap-3 mb-4">
-                    <h2 className="text-lg font-bold text-white">EcoFusion classes</h2>
+                    <h2 className="text-lg font-bold text-white">Your courses</h2>
+                    <div className="h-3 w-4 rounded bg-white/5 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                    {Array.from({ length: 3 }).map((_, row) => (
+                        <div
+                            key={row}
+                            className="h-[38px] rounded-lg bg-white/[0.02] border border-white/5 animate-pulse"
+                        />
+                    ))}
+                </div>
+            </section>
+
+            <section className="bg-white/5 border border-white/5 rounded-2xl p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <ShoppingCart size={18} className="text-accent" />
+                        Course shop
+                    </h2>
                     <div className="h-3 w-20 rounded bg-white/5 animate-pulse" />
                 </div>
-                <div className="h-9 w-full rounded-xl bg-black/20 mb-3 animate-pulse" />
+                <div className="h-[38px] w-full rounded-xl bg-black/20 border border-white/10 mb-3" />
                 <div className="space-y-2">
-                    {Array.from({ length: 8 }).map((_, row) => (
+                    {Array.from({ length: 6 }).map((_, row) => (
                         <div
                             key={row}
                             className="h-11 rounded-xl border border-white/10 bg-white/[0.02] animate-pulse"
                         />
                     ))}
                 </div>
-                <div className="flex items-center gap-3 pt-5">
-                    <div className="h-9 w-36 rounded-lg bg-white/10 animate-pulse" />
-                </div>
-            </div>
+            </section>
         </div>
     );
 }

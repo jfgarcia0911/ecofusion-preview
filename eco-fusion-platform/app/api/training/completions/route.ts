@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { canAdminister, isSameOrganization } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { visibleToOrganization } from '@/lib/training';
 
 // GET - Fetch completion records
 export async function GET(request: Request) {
@@ -97,13 +98,17 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
         }
 
-        // Get course details
-        const course = await prisma.trainingCourse.findUnique({
-            where: { id: courseId }
+        // Only a course this business holds can be completed in it, so a
+        // course that was never bought cannot be finished for a certificate.
+        const course = await prisma.trainingCourse.findFirst({
+            where: { id: courseId, ...visibleToOrganization(ctx.organizationId) }
         });
 
         if (!course) {
-            return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+            return NextResponse.json(
+                { error: 'Your business does not have that course' },
+                { status: 404 }
+            );
         }
 
         // Determine if passed

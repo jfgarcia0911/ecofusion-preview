@@ -176,6 +176,13 @@ export async function logStaffAccess(
 const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
+ * Routes that write their own line, in words, once they know what they did.
+ * Recording them here as well would put every such change in the trail twice,
+ * once readably and once as ids.
+ */
+const SELF_DESCRIBED = new Set(['/api/training/gifts']);
+
+/**
  * Record a staff change, if this request is one.
  *
  * The method and path arrive as headers set by middleware, because a route
@@ -190,8 +197,11 @@ export async function logStaffWriteIfAny(
     const method = head.get('x-request-method');
     if (!method || READ_ONLY.has(method.toUpperCase())) return;
 
+    const path = head.get('x-request-path');
+    if (path && SELF_DESCRIBED.has(path)) return;
+
     await logStaffAccess(staffUserId, organizationId, 'write', {
         method: method.toUpperCase(),
-        path: head.get('x-request-path'),
+        path,
     });
 }

@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { applySubscription } from '@/lib/billing';
+import {
+  expireCheckoutSession,
+  fulfilCheckoutSession,
+  revokeRefundedCharge,
+} from '@/lib/course-shop';
 
 // Stripe signs the raw body, so it must not be parsed before verification.
 export const runtime = 'nodejs';
@@ -45,9 +50,27 @@ export async function POST(request: Request) {
             typeof session.subscription === 'string' ? session.subscription : session.subscription.id
           );
           await applySubscription(subscription);
+        } else {
+          // A course purchase. Unlocks nothing unless the session says it
+          // was paid, which a bank transfer still pending does not.
+          await fulfilCheckoutSession(session);
         }
         break;
       }
+
+      // Payment methods that settle later report here when they do.
+      case 'checkout.session.async_payment_succeeded':
+        await fulfilCheckoutSession(event.data.object as Stripe.Checkout.Session);
+        break;
+
+      case 'checkout.session.expired':
+        await expireCheckoutSession(event.data.object as Stripe.Checkout.Session);
+        break;
+
+      // A full refund takes back the courses it paid for.
+      case 'charge.refunded':
+        await revokeRefundedCharge(event.data.object as Stripe.Charge);
+        break;
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated':

@@ -3,6 +3,7 @@ import { canAdminister, isSameOrganization } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole } from '@/lib/roles';
+import { assignmentShownIn, visibleToOrganization } from '@/lib/training';
 
 // GET - Fetch course assignments
 export async function GET(request: Request) {
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
         // of the world, every time somebody clicked a name.
         const [assignments, completions, lessonCompletions] = await Promise.all([
             prisma.courseAssignment.findMany({
-                where: { assigneeId: targetUserId },
+                where: { assigneeId: targetUserId, ...assignmentShownIn(ctx.organizationId) },
                 include: {
                     course: {
                         include: {
@@ -154,13 +155,18 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Course already assigned to this user' }, { status: 400 });
         }
 
-        // Get course details for notification
-        const course = await prisma.trainingCourse.findUnique({
-            where: { id: courseId }
+        // Only a course this business can open. Without this any course id
+        // could be assigned, including one the business never bought and a
+        // course another business wrote for itself.
+        const course = await prisma.trainingCourse.findFirst({
+            where: { id: courseId, ...visibleToOrganization(ctx.organizationId) }
         });
 
         if (!course) {
-            return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+            return NextResponse.json(
+                { error: 'Your business does not have that course' },
+                { status: 404 }
+            );
         }
 
         // Create assignment

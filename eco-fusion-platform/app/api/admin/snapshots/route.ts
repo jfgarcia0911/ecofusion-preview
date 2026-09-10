@@ -17,7 +17,6 @@ function summarise(payload: SnapshotPayload) {
     businessUnits: payload.businessUnits?.length ?? 0,
     zones: payload.zones?.length ?? 0,
     growthParameters: payload.growthParameters?.length ?? 0,
-    courses: payload.courseIds?.length ?? 0,
   };
 }
 

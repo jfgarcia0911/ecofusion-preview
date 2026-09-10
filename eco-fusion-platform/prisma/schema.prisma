@@ -49,6 +49,7 @@ model User {
   employeeRecord      Employee?             @relation("EmployeeAccount")
   staffAccess         StaffAccessLog[]      @relation("StaffAccess")
   grantedCourses      CourseGrant[]         @relation("GrantedCourses")
+  coursePurchases     CoursePurchase[]      @relation("CoursePurchases")
   capturedSnapshots   Snapshot[]            @relation("CapturedSnapshots")
   activity            ActivityLog[]         @relation("MemberActivity")
   staffBusinesses     StaffBusinessAccess[] @relation("StaffBusinessAccess")
@@ -253,51 +254,128 @@ model UserLmsProgress {
 /// is what keeps one farm's manager out of the curriculum every other farm is
 /// working through.
 model TrainingCourse {
-  id             String             @id @default(cuid())
+  id             String               @id @default(cuid())
   code           String
   title          String
   description    String
   category       String
   duration       Int
-  isRequired     Boolean            @default(false)
+  isRequired     Boolean              @default(false)
   renewalDays    Int?
-  passScore      Int                @default(80)
-  isActive       Boolean            @default(true)
-  sortOrder      Int                @default(0)
+  passScore      Int                  @default(80)
+  isActive       Boolean              @default(true)
+  sortOrder      Int                  @default(0)
+  /// What a business pays, once, to carry this course, in the smallest unit of
+  /// the shop's currency. Null means not on sale yet; 0 means free. Only ever
+  /// set on EcoFusion's courses - a business's own course is not for sale.
+  priceCents     Int?
   organizationId String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  purchaseItems  CoursePurchaseItem[]
   assignments    CourseAssignment[]
   completions    CourseCompletion[]
   lessons        TrainingLesson[]
   grants         CourseGrant[]
-  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@index([organizationId])
 }
 
-/// One of EcoFusion's courses, made available to one farm.
+/// One of EcoFusion's courses, held by one business.
 ///
-/// Loading is a grant, not a copy. There is only ever one course, so a
-/// correction reaches every farm holding it at once, and no farm can edit what
-/// it was given. A farm sees what it has been granted plus what it wrote
+/// Holding is a grant, not a copy. There is only ever one course, so a
+/// correction reaches every business holding it at once, and no business can
+/// edit what it holds. A business sees what it holds plus what it wrote
 /// itself, and nothing else.
+///
+/// A business comes to hold a course by buying it, by taking one that is free,
+/// or by being given it by the master account.
 model CourseGrant {
   id             String   @id @default(cuid())
   courseId       String
   organizationId String
-  /// The staff account that loaded it. Kept when that account is deleted,
-  /// because the grant outlives whoever made it.
+  /// purchase | free | gift
+  source         String   @default("gift")
+  /// The purchase that paid for it, when it was bought. A full refund takes
+  /// the course away again by this link.
+  purchaseId     String?
+  /// Who unlocked it: the buyer, or the master account that gave it. Kept
+  /// when that account is deleted, because the grant outlives whoever made it.
   grantedById    String?
   createdAt      DateTime @default(now())
 
-  course       TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  grantedBy    User?          @relation("GrantedCourses", fields: [grantedById], references: [id], onDelete: SetNull)
+  course       TrainingCourse  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  grantedBy    User?           @relation("GrantedCourses", fields: [grantedById], references: [id], onDelete: SetNull)
+  purchase     CoursePurchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
 
   @@unique([courseId, organizationId])
   @@index([organizationId])
+}
+
+/// What each business was carrying when courses became something bought.
+///
+/// A copy of CourseGrant as it stood, kept so that decision can be undone. The
+/// app neither reads nor writes it; it is here so the schema describes the
+/// database as it is, and a later migration does not mistake it for drift.
+model CourseGrantRetired {
+  id             String   @id
+  courseId       String
+  organizationId String
+  grantedById    String?
+  createdAt      DateTime
+  retiredAt      DateTime @default(now())
+}
+
+/// A business paying for courses, one Stripe checkout at a time.
+///
+/// Written before the customer is sent to Stripe, as pending, so there is a
+/// record of what was on offer and at what price even if they never come back.
+/// Only a confirmed payment moves it to paid and unlocks the courses; nothing
+/// the browser says can.
+model CoursePurchase {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  /// The owner who bought. Kept when that account is deleted.
+  purchasedById         String?
+  /// pending | paid | refunded | expired
+  status                String    @default("pending")
+  amountCents           Int
+  currency              String
+  stripeSessionId       String?   @unique
+  stripePaymentIntentId String?   @unique
+  createdAt             DateTime  @default(now())
+  paidAt                DateTime?
+  refundedAt            DateTime?
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchasedBy  User?                @relation("CoursePurchases", fields: [purchasedById], references: [id], onDelete: SetNull)
+  items        CoursePurchaseItem[]
+  grants       CourseGrant[]
+
+  @@index([organizationId, createdAt])
+}
+
+/// One course in a purchase, at the price it was sold for.
+///
+/// The code and title are copied rather than only referenced, so the record of
+/// what somebody paid for still reads correctly after the course is renamed or
+/// removed.
+model CoursePurchaseItem {
+  id          String  @id @default(cuid())
+  purchaseId  String
+  courseId    String?
+  courseCode  String
+  courseTitle String
+  priceCents  Int
+
+  purchase CoursePurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  course   TrainingCourse? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseId])
+  @@index([courseId])
 }
 
 model TrainingLesson {
@@ -714,7 +792,8 @@ model Organization {
   staffBusinessAccess StaffBusinessAccess[]
   trainingCourses     TrainingCourse[]
   courseGrants        CourseGrant[]
-  snapshotsTakenFrom  Snapshot[]           @relation("SnapshotSource")
+  coursePurchases     CoursePurchase[]
+  snapshotsTakenFrom  Snapshot[]            @relation("SnapshotSource")
 
   @@index([billingParentId])
 }
@@ -785,7 +864,6 @@ model ActivityLog {
   @@index([userId, createdAt])
 }
 
-
 /// Which businesses a member of EcoFusion staff may work in.
 ///
 /// The platform owner reaches every business because the platform is theirs.
@@ -810,7 +888,6 @@ model StaffBusinessAccess {
   @@unique([userId, organizationId])
   @@index([organizationId])
 }
-
 
 model StaffAccessLog {
   id             String   @id @default(cuid())

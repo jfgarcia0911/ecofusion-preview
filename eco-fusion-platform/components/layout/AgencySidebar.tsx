@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, KeyRound, Camera, ScrollText, ArrowLeft } from "lucide-react";
+import { Building2, KeyRound, Camera, ScrollText, ArrowLeft, Tag } from "lucide-react";
 import clsx from "clsx";
 import { LinkSpinner } from "@/components/ui/Skeleton";
 
@@ -25,6 +25,9 @@ const agencyNavItems = [
     { name: "Sub Accounts", href: "/agency/sub-accounts", icon: Building2 },
     { name: "Team Access", href: "/agency/team", icon: KeyRound },
     { name: "Snapshots", href: "/agency/snapshots", icon: Camera },
+    // What each course costs a business. The master account sets it; the rest
+    // of the team can see it, since customers will ask them.
+    { name: "Course Prices", href: "/agency/course-prices", icon: Tag },
     { name: "Access Log", href: "/agency/access-log", icon: ScrollText },
 ];
 

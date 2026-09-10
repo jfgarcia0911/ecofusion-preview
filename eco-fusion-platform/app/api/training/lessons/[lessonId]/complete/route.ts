@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { visibleToOrganization } from '@/lib/training';
 
 // POST - Mark lesson as complete
 export async function POST(
@@ -24,9 +25,9 @@ export async function POST(
         const data = await request.json();
         const { quizScore, timeSpent } = data;
 
-        // Verify lesson exists
-        const lesson = await prisma.trainingLesson.findUnique({
-            where: { id: lessonId },
+        // The lesson, and only if its course is one this business holds.
+        const lesson = await prisma.trainingLesson.findFirst({
+            where: { id: lessonId, course: visibleToOrganization(ctx.organizationId) },
             include: { course: true }
         });
 

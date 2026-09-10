@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Camera, ShieldAlert, Star, Trash2, Download, Layers, MapPin, Sprout, GraduationCap } from "lucide-react";
+import { Camera, ShieldAlert, Star, Trash2, Download, Layers, MapPin, Sprout } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
@@ -18,7 +18,6 @@ interface Snapshot {
         businessUnits: number;
         zones: number;
         growthParameters: number;
-        courses: number;
     };
 }
 
@@ -151,7 +150,7 @@ export default function SnapshotsPage() {
             }
             const { applied, business: businessName } = await res.json();
             const added =
-                applied.businessUnits + applied.zones + applied.growthParameters + applied.courses;
+                applied.businessUnits + applied.zones + applied.growthParameters;
             toast.success(
                 added === 0
                     ? `${businessName} already had everything in this snapshot`
@@ -160,7 +159,7 @@ export default function SnapshotsPage() {
                     description:
                         added === 0
                             ? undefined
-                            : `${applied.businessUnits} units, ${applied.zones} zones, ${applied.growthParameters} growing parameters, ${applied.courses} classes`,
+                            : `${applied.businessUnits} units, ${applied.zones} zones, ${applied.growthParameters} growing parameters`,
                 }
             );
         } finally {
@@ -247,9 +246,6 @@ export default function SnapshotsPage() {
                                         </span>
                                         <span className="flex items-center gap-1.5">
                                             <Sprout size={12} /> {snapshot.contents.growthParameters} growing parameters
-                                        </span>
-                                        <span className="flex items-center gap-1.5">
-                                            <GraduationCap size={12} /> {snapshot.contents.courses} classes
                                         </span>
                                     </div>
                                 </div>
