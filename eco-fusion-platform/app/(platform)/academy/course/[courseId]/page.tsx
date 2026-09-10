@@ -290,7 +290,7 @@ export default function CoursePlayerPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 overflow-y-auto bg-[#0a0f18] relative">
-                <div className="max-w-4xl mx-auto p-8 lg:p-12 min-h-full flex flex-col">
+                <div className="p-8 lg:p-12 min-h-full flex flex-col">
                     {/* Content Header */}
                     <div className="mb-8 border-b border-white/10 pb-6">
                         <div className="flex items-center gap-2 mb-2">
@@ -326,7 +326,7 @@ export default function CoursePlayerPage() {
                         )}
 
                         {currentLesson.type === 'quiz' && currentLesson.questions && (
-                            <div className="glass-card p-8 rounded-2xl max-w-2xl mx-auto">
+                            <div className="glass-card p-8 rounded-2xl">
                                 <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
                                     <HelpCircle size={32} className="text-accent" />
                                     <div>

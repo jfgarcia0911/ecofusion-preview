@@ -275,7 +275,9 @@ const components: Components = {
             <img
                 src={typeof src === 'string' ? src : ''}
                 alt={alt ?? ''}
-                className="w-full rounded-xl border border-white/10"
+                // Shown at its own size up to the column, and never taller than the
+                // screen: stretched to a wide column, a screenshot scrolls off it.
+                className="mx-auto block h-auto w-auto max-w-full max-h-[75vh] rounded-xl border border-white/10"
             />
             {alt && (
                 <figcaption className="mt-2.5 text-center text-xs text-white/40">{alt}</figcaption>
@@ -302,9 +304,8 @@ const components: Components = {
 
 export default function LessonContent({ content }: { content: string }) {
     return (
-        // ~68 characters is the comfortable measure for sustained reading; the
-        // player's own 4xl column is wider than prose wants to be.
-        <div className="max-w-[68ch] text-white/70">
+        // Fills the player's column, as the rest of the platform fills its page.
+        <div className="text-white/70">
             <ReactMarkdown components={components}>{content}</ReactMarkdown>
         </div>
     );
