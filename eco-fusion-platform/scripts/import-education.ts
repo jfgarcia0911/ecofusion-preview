@@ -60,10 +60,22 @@ const MIN_QUESTIONS = 3;
 const ROOT = resolve(process.cwd(), '..', 'education', 'courses');
 
 interface ParsedLesson {
+    /** The module number: from the "# Module N:" heading, the file name, or its position. */
     sortOrder: number;
     title: string;
     content: string;
     duration: number;
+    /** The file name without .md, for a lesson that cannot be named by its module number. */
+    stem: string;
+    /** How sortOrder was arrived at. Position is only a guess. */
+    numberedBy: 'heading' | 'name' | 'position';
+    /**
+     * Set when this file claimed the same module number as a real module - the
+     * "Lessons 5-14: Summary" files, numbered only by where they sort. It goes
+     * in as a lesson of its own just ahead of that module, rather than both
+     * fighting over one slot.
+     */
+    supplement?: boolean;
 }
 
 interface ParsedQuizLesson {
@@ -362,15 +374,28 @@ function parseLesson(path: string, fallbackOrder: number): ParsedLesson | null {
           ? parseInt(fromName[1], 10)
           : fallbackOrder;
 
+    // The title comes from the file's own heading wherever it has one. A
+    // quarter of the curriculum heads its lessons "# Lesson 1: ..." rather
+    // than "# Module 1: ...", and those used to be titled from the file name -
+    // "lesson 01 nft principles physics" - in front of every learner.
+    //
+    // Only the title. How a lesson is numbered is left exactly as it was: the
+    // number is part of its key, and a lesson whose key changes is imported as
+    // a second lesson rather than updated as the first.
+    const anyHeading = raw.match(/^#\s+(.+?)\s*$/m)?.[1].replace(/\*/g, '').trim();
     const title = heading
         ? heading[2].trim()
-        : basename(path, '.md').replace(/^module_\d+_/, '').replace(/_/g, ' ');
+        : anyHeading
+          ? // "Lesson 1: X" becomes "X"; a range such as "Lessons 5-14: X"
+            // is kept whole, since it says what the lesson covers.
+            anyHeading.replace(/^lesson\s+\d+\s*:\s*/i, '')
+          : basename(path, '.md').replace(/^module_\d+_/, '').replace(/_/g, ' ');
 
     // The H1 repeats the title the player already shows in its own chrome, and
     // the line under it is a breadcrumb back to the course. Both are noise
     // once the lesson is inside the app rather than a file on disk.
     const content = raw
-        .replace(/^#\s+Module\s+\d+\s*:.*$/im, '')
+        .replace(/^#\s+.+$/m, '')
         .replace(/^##\s+Course\s+\d+\s*:.*$/im, '')
         .replace(/^\s*---\s*$/m, '')
         .trim();
@@ -382,6 +407,8 @@ function parseLesson(path: string, fallbackOrder: number): ParsedLesson | null {
         title,
         content,
         duration: minutesFrom(tableField(raw, 'Duration')) ?? 45,
+        stem: basename(path, '.md'),
+        numberedBy: heading ? 'heading' : fromName ? 'name' : 'position',
     };
 }
 
@@ -421,6 +448,20 @@ function parseCourse(dir: string): ParsedCourse | null {
             const lesson = parseLesson(join(lessonsDir, file), index + 1);
             if (lesson) lessons.push(lesson);
         });
+    }
+
+    // Two files can land on one module number when one of them was numbered
+    // only by where it sorts. The one with a real number keeps the slot; the
+    // other becomes a supplement placed just before it. Left alone, the second
+    // silently overwrote the first under one key and the old row was stranded
+    // ahead of module 1 - where, with lessons taken in order, it barred every
+    // learner from starting the course.
+    const byNumber = new Map<number, ParsedLesson[]>();
+    lessons.forEach((l) => byNumber.set(l.sortOrder, [...(byNumber.get(l.sortOrder) ?? []), l]));
+    for (const group of byNumber.values()) {
+        if (group.length < 2) continue;
+        const primary = group.find((l) => l.numberedBy !== 'position') ?? group[group.length - 1];
+        group.filter((l) => l !== primary).forEach((l) => (l.supplement = true));
     }
 
     // The table gives a course length where there is one. Otherwise the
@@ -504,12 +545,22 @@ async function write(course: ParsedCourse) {
     // be mistaken for the old module 10.
     const held = await prisma.trainingLesson.findMany({
         where: { courseId },
-        select: { id: true, sortOrder: true, sourceKey: true, type: true },
+        select: { id: true, sortOrder: true, sourceKey: true, type: true, title: true },
     });
     const byKey = new Map(held.filter((l) => l.sourceKey).map((l) => [l.sourceKey!, l.id]));
-    const legacyByModule = new Map(
-        held.filter((l) => !l.sourceKey && l.type === 'text').map((l) => [l.sortOrder, l.id])
-    );
+
+    // Kept as a list rather than a map by number: where two legacy rows share
+    // a number - which is exactly the collision above - a map keeps one and
+    // loses the other. A title match is preferred, and nothing is adopted twice.
+    const legacy = held.filter((l) => !l.sourceKey && l.type === 'text');
+    const adopted = new Set<string>();
+    const adopt = (match: (l: (typeof legacy)[number]) => boolean, title: string) => {
+        const pick =
+            legacy.find((l) => !adopted.has(l.id) && match(l) && l.title === title) ??
+            legacy.find((l) => !adopted.has(l.id) && match(l));
+        if (pick) adopted.add(pick.id);
+        return pick?.id;
+    };
 
     let created = 0;
     let updated = 0;
@@ -533,18 +584,30 @@ async function write(course: ParsedCourse) {
 
     for (const lesson of course.lessons) {
         const moduleNumber = lesson.sortOrder;
+        const key = lesson.supplement
+            ? `lesson:${lesson.stem}`
+            : `module:${String(moduleNumber).padStart(2, '0')}`;
         await put(
-            `module:${String(moduleNumber).padStart(2, '0')}`,
+            key,
             {
                 title: lesson.title,
                 content: lesson.content,
                 duration: lesson.duration,
                 type: 'text',
                 questions: Prisma.DbNull,
-                // Tens, so the quiz for module 3 has room at 35.
-                sortOrder: moduleNumber * 10,
+                // Tens, so the quiz for module 3 has room at 35. A supplement
+                // sits at 48: after module 4's quiz, before module 5.
+                sortOrder: lesson.supplement ? moduleNumber * 10 - 2 : moduleNumber * 10,
             },
-            legacyByModule.get(moduleNumber)
+            // Only when the key is new; a lesson already carrying its key is
+            // found by that and never re-adopts a stranger.
+            byKey.has(key)
+                ? undefined
+                : lesson.supplement
+                  ? // Its own old row or none: a supplement has no number
+                    // to recognise a stranger by.
+                    adopt((l) => l.title === lesson.title, lesson.title)
+                  : adopt((l) => l.sortOrder === moduleNumber, lesson.title)
         );
     }
 
@@ -660,7 +723,10 @@ async function main() {
         console.log(`\n  ${c.code}  ${c.title}`);
         console.log(`         ${c.category} · ${c.duration} min`);
         const path = [
-            ...c.lessons.map((l) => ({ at: l.sortOrder * 10, line: `lesson  ${l.title}` })),
+            ...c.lessons.map((l) => ({
+                at: l.supplement ? l.sortOrder * 10 - 2 : l.sortOrder * 10,
+                line: `lesson  ${l.title}`,
+            })),
             ...c.quizzes.map((q) => ({
                 at: q.sortOrder,
                 line:
