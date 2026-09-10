@@ -50,10 +50,17 @@ const agencyNavItems: {
 export default function AgencySidebar({
     user,
     access,
+    backTo,
 }: {
     user?: User;
     /** What this account may do. The master account may do all of it. */
     access: { master: boolean; permissions: StaffPermission[] };
+    /**
+     * The business the business screens would open: one entered in a support
+     * session, or the account's own. Null when there is neither, and then there
+     * is nowhere to go back to.
+     */
+    backTo: string | null;
 }) {
     const pathname = usePathname() ?? "";
     const visible = agencyNavItems.filter(
@@ -100,13 +107,22 @@ export default function AgencySidebar({
             </nav>
 
             <div className="p-4 border-t border-white/10 space-y-4">
-                <Link
-                    href="/dashboard/executive"
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white transition-all duration-200"
-                >
-                    <ArrowLeft size={18} className="text-white/50" />
-                    <span className="font-medium text-sm">My business</span>
-                </Link>
+                {backTo ? (
+                    <Link
+                        href="/dashboard/executive"
+                        title={`Back to ${backTo}`}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/5 hover:text-white transition-colors duration-200"
+                    >
+                        <ArrowLeft size={18} className="text-white/50 shrink-0" />
+                        <span className="font-medium text-sm truncate">Back to {backTo}</span>
+                    </Link>
+                ) : (
+                    // Nothing to go back to. Said, rather than offered as a
+                    // link that returns straight here.
+                    <p className="px-4 py-2 text-xs text-white/35 leading-relaxed">
+                        No business open. Enter one from Sub Accounts to work inside it.
+                    </p>
+                )}
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20">
                     {user?.image ? (
@@ -118,7 +134,9 @@ export default function AgencySidebar({
                     )}
                     <div className="overflow-hidden">
                         <p className="text-sm font-medium truncate">{user?.name || "Staff"}</p>
-                        <p className="text-xs text-amber-300/70 truncate">EcoFusion staff</p>
+                        <p className="text-xs text-amber-300/70 truncate">
+                            {access.master ? "Master account" : "EcoFusion staff"}
+                        </p>
                     </div>
                 </div>
 

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { currentStaffOrganizationId, platformStanding } from "@/lib/staff";
+import { currentStaffOrganizationId, platformStanding, staffMayReach } from "@/lib/staff";
 import AgencySidebar from "@/components/layout/AgencySidebar";
 import Header from "@/components/layout/Header";
 import OpenSessionNotice from "@/components/layout/OpenSessionNotice";
@@ -33,7 +33,7 @@ export default async function AgencyLayout({ children }: { children: React.React
     // whether the caller may be here is not a leak: its result is thrown away
     // on the redirect, and the id it reads came from the caller's own cookie.
     const openSessionId = await currentStaffOrganizationId();
-    const [staff, openSession] = await Promise.all([
+    const [staff, openSession, sessionReachable, ownBusiness] = await Promise.all([
         platformStanding(session.user.id),
         openSessionId
             ? prisma.organization.findUnique({
@@ -41,6 +41,16 @@ export default async function AgencyLayout({ children }: { children: React.React
                   select: { name: true },
               })
             : Promise.resolve(null),
+        // A cookie naming a business this account may no longer open is not a
+        // session; the business screens would ignore it, so this does too.
+        openSessionId ? staffMayReach(session.user.id, openSessionId) : Promise.resolve(false),
+        // A business the account belongs to in its own right, if it has one.
+        // The master account usually has none.
+        prisma.membership.findFirst({
+            where: { userId: session.user.id },
+            orderBy: { createdAt: "asc" },
+            select: { organization: { select: { name: true } } },
+        }),
     ]);
 
     // Read from the database, not the token, so withdrawing staff access shuts
@@ -48,6 +58,16 @@ export default async function AgencyLayout({ children }: { children: React.React
     if (!staff) {
         redirect("/dashboard/executive");
     }
+
+    // Where "back to the business screens" actually leads: the business open in
+    // a support session, else the account's own, else nowhere. The business
+    // screens resolve in the same order, so the name shown is the one that
+    // opens. With neither there is nothing to go back to, and a link there only
+    // bounced back to this view.
+    const backTo =
+        openSession && sessionReachable
+            ? openSession.name
+            : ownBusiness?.organization.name ?? null;
 
     return (
         <ToastProvider>
@@ -58,6 +78,7 @@ export default async function AgencyLayout({ children }: { children: React.React
                         <AgencySidebar
                             user={session.user}
                             access={{ master: staff.master, permissions: staff.permissions }}
+                            backTo={backTo}
                         />
                         <div className="flex flex-col flex-1 overflow-hidden">
                             <Header />

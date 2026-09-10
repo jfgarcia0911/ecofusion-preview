@@ -96,9 +96,9 @@ function AgencySidebarSkeleton({ pathname }: { pathname: string }) {
                 })}
             </nav>
             <div className="p-4 border-t border-white/10 space-y-4">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70">
-                    <ArrowLeft size={18} className="text-white/50" />
-                    <span className="font-medium text-sm">My business</span>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl animate-pulse">
+                    <ArrowLeft size={18} className="text-white/20" />
+                    <div className="h-3.5 w-32 rounded bg-white/5" />
                 </div>
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20 animate-pulse">
                     <div className="w-8 h-8 rounded-full bg-amber-400/20" />
