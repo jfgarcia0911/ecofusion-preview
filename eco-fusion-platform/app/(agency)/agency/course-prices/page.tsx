@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Loader2, Search, ShieldAlert, Tag } from "lucide-react";
+import { ChevronRight, Loader2, Package, Search, ShieldAlert, Tag } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { groupByCategory } from "@/lib/course-groups";
 import {
@@ -35,6 +35,10 @@ type Filter = "all" | "unpriced" | "free" | "paid";
  * "12." is not rejected mid-keystroke. A box that cannot be read is outlined
  * and holds the save back until it is fixed or cleared.
  *
+ * Each level also has a package price, for every course in it bought at once.
+ * It sits in the level's own header beside what the level would cost bought a
+ * course at a time, which is the comparison anyone setting it is making.
+ *
  * The master account sets prices; other staff see the list and cannot change
  * it. The route enforces that; this only avoids offering what would be refused.
  */
@@ -44,6 +48,9 @@ export default function CoursePricesPage() {
     const [canEdit, setCanEdit] = useState(false);
     const [loading, setLoading] = useState(true);
     const [drafts, setDrafts] = useState<Record<string, string>>({});
+    /** Package prices as saved, by level. A level missing here has no package. */
+    const [packages, setPackages] = useState<Record<string, number>>({});
+    const [packageDrafts, setPackageDrafts] = useState<Record<string, string>>({});
     const [levelDrafts, setLevelDrafts] = useState<Record<string, string>>({});
     const [open, setOpen] = useState<Set<string>>(new Set());
     const [search, setSearch] = useState("");
@@ -63,6 +70,7 @@ export default function CoursePricesPage() {
                 const data = await res.json();
                 if (cancelled) return;
                 setCourses(data.courses ?? []);
+                setPackages(data.packages ?? {});
                 setCurrency(data.currency ?? "usd");
                 setCanEdit(Boolean(data.canEdit));
             } catch {
@@ -93,8 +101,24 @@ export default function CoursePricesPage() {
         }
         return out;
     }, [courses, drafts]);
-    const broken = changes.filter((c) => c.problem);
-    const brokenIds = new Set(broken.map((c) => c.id));
+
+    /** The same for package prices, by level. */
+    const packageChanges = useMemo(() => {
+        const out: { category: string; cents: CoursePrice | undefined; problem: string | null }[] = [];
+        for (const [category, draft] of Object.entries(packageDrafts)) {
+            const cents = parsePriceInput(draft);
+            if (cents === (packages[category] ?? null)) continue;
+            const problem =
+                cents === undefined ? "Not a price" : cents === null ? null : priceProblem(cents);
+            out.push({ category, cents, problem });
+        }
+        return out;
+    }, [packages, packageDrafts]);
+
+    const broken = [...changes, ...packageChanges].filter((c) => c.problem);
+    const brokenIds = new Set(changes.filter((c) => c.problem).map((c) => c.id));
+    const brokenLevels = new Set(packageChanges.filter((c) => c.problem).map((c) => c.category));
+    const changeCount = changes.length + packageChanges.length;
 
     const term = search.trim().toLowerCase();
     const visible = courses.filter((course) => {
@@ -135,14 +159,17 @@ export default function CoursePricesPage() {
     }
 
     async function save() {
-        if (!changes.length || broken.length) return;
+        if (!changeCount || broken.length) return;
         setSaving(true);
         try {
             const prices = Object.fromEntries(changes.map((c) => [c.id, c.cents ?? null]));
+            const packagePrices = Object.fromEntries(
+                packageChanges.map((c) => [c.category, c.cents ?? null])
+            );
             const res = await fetch("/api/admin/course-prices", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prices }),
+                body: JSON.stringify({ prices, packages: packagePrices }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -155,7 +182,16 @@ export default function CoursePricesPage() {
                     course.id in prices ? { ...course, priceCents: prices[course.id] } : course
                 )
             );
+            setPackages((current) => {
+                const next = { ...current };
+                for (const [category, cents] of Object.entries(packagePrices)) {
+                    if (cents === null) delete next[category];
+                    else next[category] = cents;
+                }
+                return next;
+            });
             setDrafts({});
+            setPackageDrafts({});
             toast.success(`Saved ${data.changed} price${data.changed === 1 ? "" : "s"}`);
         } finally {
             setSaving(false);
@@ -165,6 +201,7 @@ export default function CoursePricesPage() {
     if (loading) return <AgencyCoursePricesSkeleton standfirst={COURSE_PRICES_STANDFIRST} />;
 
     const priced = courses.filter((c) => c.priceCents !== null).length;
+    const packageCount = Object.keys(packages).length;
 
     return (
         <div className="pb-24">
@@ -205,6 +242,7 @@ export default function CoursePricesPage() {
                 </select>
                 <span className="text-xs text-white/40">
                     {priced} of {courses.length} on sale
+                    {packageCount > 0 && ` · ${packageCount} package${packageCount === 1 ? "" : "s"}`}
                 </span>
             </div>
 
@@ -215,6 +253,18 @@ export default function CoursePricesPage() {
                     {groups.map(({ category, courses: list }) => {
                         const isOpen = term !== "" || filter !== "all" || open.has(category);
                         const onSale = list.filter((c) => c.priceCents !== null).length;
+                        // The whole level, not just what the search left visible.
+                        const active = courses.filter((c) => c.category === category && c.isActive);
+                        // What the level costs a course at a time, for comparing
+                        // with the package. Only meaningful when every course has
+                        // a price of its own.
+                        const individually = active.every((c) => c.priceCents !== null)
+                            ? active.reduce((sum, c) => sum + (c.priceCents ?? 0), 0)
+                            : null;
+                        const packageText =
+                            packageDrafts[category] ??
+                            (packages[category] !== undefined ? priceInputValue(packages[category]) : "");
+                        const packageChanged = packageChanges.some((c) => c.category === category);
                         return (
                             <div
                                 key={category}
@@ -235,30 +285,69 @@ export default function CoursePricesPage() {
                                             {onSale} of {list.length} on sale
                                         </span>
                                     </button>
-                                    {canEdit && isOpen && (
-                                        <div className="flex items-center gap-1.5 shrink-0">
+
+                                    {/* The whole level at one price. */}
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {individually !== null && individually > 0 && (
+                                            <span className="text-[11px] text-white/35 hidden lg:inline">
+                                                {formatPrice(individually, currency)} separately
+                                            </span>
+                                        )}
+                                        <Package
+                                            size={14}
+                                            className={packages[category] !== undefined ? "text-accent" : "text-white/30"}
+                                        />
+                                        <span className="text-[11px] text-white/50 hidden sm:inline">Package</span>
+                                        <div className="relative">
+                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-white/30 uppercase">
+                                                {currency}
+                                            </span>
                                             <input
-                                                value={levelDrafts[category] ?? ""}
+                                                value={packageText}
                                                 onChange={(e) =>
-                                                    setLevelDrafts((current) => ({ ...current, [category]: e.target.value }))
+                                                    setPackageDrafts((current) => ({ ...current, [category]: e.target.value }))
                                                 }
-                                                placeholder="0.00"
-                                                aria-label={`Price for every course in ${category}`}
-                                                className="w-20 px-2 py-1 bg-black/20 border border-white/10 rounded-lg text-xs text-white text-right placeholder:text-white/20"
+                                                disabled={!canEdit}
+                                                placeholder="-"
+                                                inputMode="decimal"
+                                                aria-label={`Package price for ${category}`}
+                                                className={`w-28 pl-11 pr-2.5 py-1.5 bg-black/20 border rounded-lg text-sm text-white text-right tabular-nums placeholder:text-white/20 disabled:opacity-60 ${
+                                                    brokenLevels.has(category)
+                                                        ? "border-red-400/60"
+                                                        : packageChanged
+                                                          ? "border-amber-300/40"
+                                                          : "border-white/10"
+                                                }`}
                                             />
-                                            <button
-                                                type="button"
-                                                onClick={() => applyToLevel(category, list)}
-                                                className="text-[11px] px-2.5 py-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 whitespace-nowrap"
-                                            >
-                                                Set all
-                                            </button>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
 
                                 {isOpen && (
                                     <div className="px-2 pb-2 space-y-1">
+                                        {canEdit && (
+                                            <div className="flex items-center justify-end gap-1.5 px-3 pb-1.5 mb-1 border-b border-white/5">
+                                                <span className="text-[11px] text-white/40">
+                                                    Set every course in this level to
+                                                </span>
+                                                <input
+                                                    value={levelDrafts[category] ?? ""}
+                                                    onChange={(e) =>
+                                                        setLevelDrafts((current) => ({ ...current, [category]: e.target.value }))
+                                                    }
+                                                    placeholder="0.00"
+                                                    aria-label={`Price for every course in ${category}`}
+                                                    className="w-20 px-2 py-1 bg-black/20 border border-white/10 rounded-lg text-xs text-white text-right placeholder:text-white/20"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyToLevel(category, list)}
+                                                    className="text-[11px] px-2.5 py-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 whitespace-nowrap"
+                                                >
+                                                    Apply
+                                                </button>
+                                            </div>
+                                        )}
                                         {list.map((course) => {
                                             const text = textFor(course);
                                             const changed = drafts[course.id] !== undefined &&
@@ -318,11 +407,11 @@ export default function CoursePricesPage() {
                 </div>
             )}
 
-            {canEdit && changes.length > 0 && (
+            {canEdit && changeCount > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 w-[min(40rem,calc(100%-3rem))] rounded-2xl border border-white/10 bg-neutral-900/95 backdrop-blur shadow-2xl px-5 py-3.5 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                         <p className="text-sm text-white">
-                            {changes.length} price{changes.length === 1 ? "" : "s"} changed
+                            {changeCount} price{changeCount === 1 ? "" : "s"} changed
                         </p>
                         {broken.length > 0 && (
                             <p className="text-[11px] text-red-300/90">
@@ -332,7 +421,10 @@ export default function CoursePricesPage() {
                     </div>
                     <button
                         type="button"
-                        onClick={() => setDrafts({})}
+                        onClick={() => {
+                            setDrafts({});
+                            setPackageDrafts({});
+                        }}
                         disabled={saving}
                         className="px-3 py-2 text-white/60 hover:text-white rounded-lg text-sm"
                     >

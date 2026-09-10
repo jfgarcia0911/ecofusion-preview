@@ -5,8 +5,9 @@ import { CourseShopError, startCoursePurchase } from '@/lib/course-shop';
 /**
  * POST - Buy courses for this business.
  *
- * The owner's to do, as they are the one who pays for the business. Free
- * courses in the basket are unlocked straight away; the rest go to a Stripe
+ * The owner's to do, as they are the one who pays for the business. Body:
+ * { courseIds, packages } where packages names levels. Free things in the
+ * basket are unlocked straight away; the rest go to a Stripe
  * checkout whose address comes back as `url`. Nothing paid for is unlocked
  * here - that waits for Stripe to confirm the payment.
  */
@@ -18,9 +19,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Only the owner buys courses' }, { status: 403 });
         }
 
-        const { courseIds } = await request.json();
-        if (!Array.isArray(courseIds) || courseIds.some((id) => typeof id !== 'string')) {
-            return NextResponse.json({ error: 'courseIds must be a list' }, { status: 400 });
+        const { courseIds = [], packages = [] } = await request.json();
+        const isList = (value: unknown) =>
+            Array.isArray(value) && value.every((item) => typeof item === 'string');
+        if (!isList(courseIds) || !isList(packages)) {
+            return NextResponse.json(
+                { error: 'courseIds and packages must be lists' },
+                { status: 400 }
+            );
         }
 
         try {
@@ -28,6 +34,7 @@ export async function POST(request: Request) {
                 organizationId: ctx.organizationId,
                 userId: ctx.userId,
                 courseIds,
+                packages,
             });
             return NextResponse.json(result);
         } catch (error) {

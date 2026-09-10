@@ -10,6 +10,7 @@ import {
     Gift,
     GraduationCap,
     Loader2,
+    Package,
     Receipt,
     Search,
     ShieldAlert,
@@ -30,7 +31,7 @@ interface ShopCourse {
     duration: number;
     isActive: boolean;
     lessonCount: number;
-    /** Null: not on sale yet. Only the master account is ever sent these. */
+    /** Null: not sold on its own - either only in its level's package, or (seen by the master account alone) not on sale at all. */
     priceCents: number | null;
     held: { source: "purchase" | "free" | "gift"; since: string } | null;
 }
@@ -44,7 +45,25 @@ interface Purchase {
     refundedAt: string | null;
     createdAt: string;
     purchasedBy: { name: string | null; email: string } | null;
-    items: { courseCode: string; courseTitle: string; priceCents: number }[];
+    items: {
+        courseCode: string;
+        courseTitle: string;
+        priceCents: number;
+        /** Set when the course was bought as part of its level's package. */
+        packageCategory: string | null;
+    }[];
+}
+
+/** A level sold whole, quoted for this business. */
+interface LevelPackage {
+    category: string;
+    /** The package's list price. */
+    priceCents: number;
+    /** What this business would pay: less when it already holds part of the level. */
+    chargeCents: number;
+    reduced: boolean;
+    totalCourses: number;
+    remainingCourses: number;
 }
 
 interface Shop {
@@ -53,6 +72,27 @@ interface Shop {
     isMaster: boolean;
     courses: ShopCourse[];
     purchases: Purchase[];
+    packages: LevelPackage[];
+}
+
+/**
+ * A purchase's contents in a line: each package by its level, then the
+ * courses bought on their own by code.
+ */
+function describeItems(items: Purchase["items"]): string {
+    const packages = new Map<string, number>();
+    const loose: string[] = [];
+    for (const item of items) {
+        if (item.packageCategory) {
+            packages.set(item.packageCategory, (packages.get(item.packageCategory) ?? 0) + 1);
+        } else {
+            loose.push(item.courseCode);
+        }
+    }
+    return [
+        ...[...packages].map(([level, n]) => `${level} package (${n} course${n === 1 ? "" : "s"})`),
+        ...loose,
+    ].join(", ");
 }
 
 const SOURCE_LABEL: Record<NonNullable<ShopCourse["held"]>["source"], string> = {
@@ -76,6 +116,8 @@ export default function BusinessClassesPage() {
     const [shop, setShop] = useState<Shop | null>(null);
     const [refused, setRefused] = useState(false);
     const [basket, setBasket] = useState<Set<string>>(new Set());
+    /** Levels chosen as whole packages. Their courses are not also in `basket`. */
+    const [basketPackages, setBasketPackages] = useState<Set<string>>(new Set());
     const [search, setSearch] = useState("");
     const [open, setOpen] = useState<Set<string>>(new Set());
     const [busy, setBusy] = useState<"buy" | "give" | null>(null);
@@ -162,10 +204,37 @@ export default function BusinessClassesPage() {
         [forSale, term]
     );
 
-    const chosen = forSale.filter((c) => basket.has(c.id));
-    const total = chosen.reduce((sum, c) => sum + (c.priceCents ?? 0), 0);
+    const packageOf = useMemo(
+        () => new Map((shop?.packages ?? []).map((pkg) => [pkg.category, pkg])),
+        [shop]
+    );
+    const chosenPackages = (shop?.packages ?? []).filter(
+        (pkg) => basketPackages.has(pkg.category) && pkg.remainingCourses > 0
+    );
+    // A course in a chosen package is bought as part of it, not again alone.
+    const chosen = forSale.filter((c) => basket.has(c.id) && !basketPackages.has(c.category));
+    const total =
+        chosen.reduce((sum, c) => sum + (c.priceCents ?? 0), 0) +
+        chosenPackages.reduce((sum, pkg) => sum + pkg.chargeCents, 0);
     const unpriced = chosen.filter((c) => c.priceCents === null).length;
-    const paidCount = chosen.filter((c) => (c.priceCents ?? 0) > 0).length;
+    const paidCount =
+        chosen.filter((c) => (c.priceCents ?? 0) > 0).length +
+        chosenPackages.filter((pkg) => pkg.chargeCents > 0).length;
+    const itemCount = chosen.length + chosenPackages.length;
+
+    function clearBasket() {
+        setBasket(new Set());
+        setBasketPackages(new Set());
+    }
+
+    function togglePackage(category: string) {
+        setBasketPackages((current) => {
+            const next = new Set(current);
+            if (next.has(category)) next.delete(category);
+            else next.add(category);
+            return next;
+        });
+    }
 
     function toggle(id: string) {
         setBasket((current) => {
@@ -194,13 +263,16 @@ export default function BusinessClassesPage() {
     }
 
     async function buy() {
-        if (!chosen.length) return;
+        if (!itemCount) return;
         setBusy("buy");
         try {
             const res = await fetch("/api/training/purchases", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ courseIds: chosen.map((c) => c.id) }),
+                body: JSON.stringify({
+                    courseIds: chosen.map((c) => c.id),
+                    packages: chosenPackages.map((pkg) => pkg.category),
+                }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -214,7 +286,7 @@ export default function BusinessClassesPage() {
                 return;
             }
             toast.success(`${data.added} free course${data.added === 1 ? "" : "s"} added`);
-            setBasket(new Set());
+            clearBasket();
             await load();
         } finally {
             setBusy((b) => (b === "buy" ? null : b));
@@ -222,13 +294,18 @@ export default function BusinessClassesPage() {
     }
 
     async function give() {
-        if (!chosen.length) return;
+        if (!itemCount) return;
         setBusy("give");
         try {
+            // A package given free is simply every course in it not held yet.
+            const courseIds = [
+                ...chosen.map((c) => c.id),
+                ...forSale.filter((c) => basketPackages.has(c.category)).map((c) => c.id),
+            ];
             const res = await fetch("/api/training/gifts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ courseIds: chosen.map((c) => c.id) }),
+                body: JSON.stringify({ courseIds }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -236,7 +313,7 @@ export default function BusinessClassesPage() {
                 return;
             }
             toast.success(`Gave ${data.given} course${data.given === 1 ? "" : "s"} free`);
-            setBasket(new Set());
+            clearBasket();
             await load();
         } finally {
             setBusy(null);
@@ -395,7 +472,9 @@ export default function BusinessClassesPage() {
                     <div className="space-y-2">
                         {groups.map(({ category, courses: list }) => {
                             const isOpen = term !== "" || open.has(category);
-                            const count = list.filter((c) => basket.has(c.id)).length;
+                            const pkg = packageOf.get(category);
+                            const packaged = basketPackages.has(category);
+                            const count = packaged ? list.length : list.filter((c) => basket.has(c.id)).length;
                             const all = count === list.length;
                             return (
                                 <div
@@ -416,27 +495,68 @@ export default function BusinessClassesPage() {
                                             <span className="text-sm font-semibold text-white truncate">{category}</span>
                                             <span className="text-xs text-white/30 shrink-0">
                                                 {list.length} course{list.length === 1 ? "" : "s"}
-                                                {count > 0 && <span className="text-accent"> · {count} chosen</span>}
+                                                {count > 0 && (
+                                                    <span className="text-accent">
+                                                        {" "}
+                                                        · {packaged ? "whole level" : `${count} chosen`}
+                                                    </span>
+                                                )}
                                             </span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setGroup(list, !all)}
-                                            className="text-[11px] shrink-0 px-2.5 py-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-                                        >
-                                            {all ? "Clear" : "Select all"}
-                                        </button>
+                                        {pkg && pkg.remainingCourses > 0 ? (
+                                            // The level at one price. Chosen, it stands in for
+                                            // every course in the level.
+                                            <button
+                                                type="button"
+                                                onClick={() => togglePackage(category)}
+                                                title={
+                                                    pkg.reduced
+                                                        ? `You already have ${pkg.totalCourses - pkg.remainingCourses} of these, so the rest cost less`
+                                                        : `Every course in ${category}`
+                                                }
+                                                className={`text-[11px] shrink-0 px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-colors ${
+                                                    packaged
+                                                        ? "border-accent/50 bg-accent/15 text-accent"
+                                                        : "border-accent/25 text-accent/90 hover:bg-accent/10"
+                                                }`}
+                                            >
+                                                {packaged ? <Check size={12} strokeWidth={3} /> : <Package size={12} />}
+                                                {packaged ? "Package chosen" : "Buy whole level"}
+                                                <span className="font-semibold tabular-nums">{money(pkg.chargeCents)}</span>
+                                                {pkg.reduced && (
+                                                    <span className="line-through text-white/30 tabular-nums">
+                                                        {money(pkg.priceCents)}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ) : null}
+                                        {!packaged && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setGroup(list.filter((c) => shop.isMaster || c.priceCents !== null), !all)}
+                                                className="text-[11px] shrink-0 px-2.5 py-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                                            >
+                                                {all ? "Clear" : "Select all"}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {isOpen && (
                                         <div className="px-2 pb-2 space-y-1">
                                             {list.map((course) => {
-                                                const on = basket.has(course.id);
+                                                // Not sold alone: for an owner, choosing it
+                                                // chooses its level's package.
+                                                const packageOnly = course.priceCents === null && !shop.isMaster;
+                                                const on = packaged || basket.has(course.id);
                                                 return (
                                                     <button
                                                         key={course.id}
                                                         type="button"
-                                                        onClick={() => toggle(course.id)}
+                                                        onClick={() =>
+                                                            packaged || packageOnly
+                                                                ? togglePackage(category)
+                                                                : toggle(course.id)
+                                                        }
                                                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors ${
                                                             on ? "border-accent/40 bg-accent/10" : "border-transparent hover:bg-white/5"
                                                         }`}
@@ -472,7 +592,13 @@ export default function BusinessClassesPage() {
                                                                       : "text-white"
                                                             }`}
                                                         >
-                                                            {course.priceCents === null ? "Not for sale" : money(course.priceCents)}
+                                                            {packaged
+                                                                ? "In package"
+                                                                : course.priceCents === null
+                                                                  ? packageOf.has(category)
+                                                                      ? "Package only"
+                                                                      : "Not for sale"
+                                                                  : money(course.priceCents)}
                                                         </span>
                                                     </button>
                                                 );
@@ -510,7 +636,7 @@ export default function BusinessClassesPage() {
                                         </span>
                                     </p>
                                     <p className="text-xs text-white/45 mt-0.5 truncate">
-                                        {purchase.items.map((item) => item.courseCode).join(", ")}
+                                        {describeItems(purchase.items)}
                                     </p>
                                 </div>
                                 <span className="text-sm font-semibold text-white tabular-nums shrink-0">
@@ -532,11 +658,19 @@ export default function BusinessClassesPage() {
             )}
 
             {/* The basket, pinned to the bottom while anything is in it. */}
-            {chosen.length > 0 && (
+            {itemCount > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 w-[min(44rem,calc(100%-3rem))] rounded-2xl border border-white/10 bg-neutral-900/95 backdrop-blur shadow-2xl px-5 py-3.5 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                         <p className="text-sm text-white">
-                            {chosen.length} course{chosen.length === 1 ? "" : "s"} chosen
+                            {[
+                                chosenPackages.length
+                                    ? `${chosenPackages.length} package${chosenPackages.length === 1 ? "" : "s"}`
+                                    : null,
+                                chosen.length ? `${chosen.length} course${chosen.length === 1 ? "" : "s"}` : null,
+                            ]
+                                .filter(Boolean)
+                                .join(" and ")}{" "}
+                            chosen
                             <span className="text-white/40"> · </span>
                             <span className="font-semibold">{money(total)}</span>
                         </p>
@@ -548,7 +682,7 @@ export default function BusinessClassesPage() {
                     </div>
                     <button
                         type="button"
-                        onClick={() => setBasket(new Set())}
+                        onClick={clearBasket}
                         className="px-3 py-2 text-white/60 hover:text-white rounded-lg text-sm"
                     >
                         Clear

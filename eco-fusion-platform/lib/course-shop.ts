@@ -56,60 +56,172 @@ async function stripeCustomerFor(stripe: Stripe, organizationId: string): Promis
     return customer.id;
 }
 
+/** What one level's package would cost one business right now. */
+export interface PackageQuote {
+    category: string;
+    /** The package's own price, as set on Course Prices. */
+    priceCents: number;
+    /** Active courses in the level. */
+    totalCourses: number;
+    /** The ones this business does not hold yet: what buying would unlock. */
+    courseIds: string[];
+    /** What this business would pay for them. */
+    chargeCents: number;
+    /** Whether that is less than the package price, and why. */
+    reduced: boolean;
+}
+
 /**
- * Start buying `courseIds` for a business.
+ * The pricing rule for a package, written once so the shop and the checkout
+ * cannot disagree about it.
  *
- * Free courses in the basket are unlocked at once; there is nothing to pay.
- * The rest become one Stripe checkout, and the answer carries its address.
- * A basket of only free courses comes back with no address at all.
+ * A business that already holds some of a level pays for the rest, never more
+ * than the rest would cost bought one at a time. When any of the rest cannot be
+ * bought on its own there is nothing to compare with, and the package price
+ * stands.
+ */
+export function quotePackage(
+    pkg: { category: string; priceCents: number },
+    levelCourses: { id: string; priceCents: number | null }[],
+    held: Set<string>
+): PackageQuote {
+    const remaining = levelCourses.filter((course) => !held.has(course.id));
+    const allPriced = remaining.every((course) => course.priceCents !== null);
+    const individually = remaining.reduce((sum, course) => sum + (course.priceCents ?? 0), 0);
+    const chargeCents =
+        remaining.length === 0 ? 0 : allPriced ? Math.min(pkg.priceCents, individually) : pkg.priceCents;
+    return {
+        category: pkg.category,
+        priceCents: pkg.priceCents,
+        totalCourses: levelCourses.length,
+        courseIds: remaining.map((course) => course.id),
+        chargeCents,
+        reduced: chargeCents < pkg.priceCents,
+    };
+}
+
+/** Every package on sale, quoted for one business. */
+export async function packageQuotes(organizationId: string): Promise<PackageQuote[]> {
+    const packages = await prisma.coursePackage.findMany({ orderBy: { category: 'asc' } });
+    if (!packages.length) return [];
+
+    const [courses, grants] = await Promise.all([
+        prisma.trainingCourse.findMany({
+            where: {
+                organizationId: null,
+                isActive: true,
+                category: { in: packages.map((p) => p.category) },
+            },
+            select: { id: true, category: true, priceCents: true },
+        }),
+        prisma.courseGrant.findMany({
+            where: { organizationId },
+            select: { courseId: true },
+        }),
+    ]);
+    const held = new Set(grants.map((grant) => grant.courseId));
+
+    return packages
+        .map((pkg) =>
+            quotePackage(
+                pkg,
+                courses.filter((course) => course.category === pkg.category),
+                held
+            )
+        )
+        // A level whose courses have all been retired has nothing to sell.
+        .filter((quote) => quote.totalCourses > 0);
+}
+
+/**
+ * Start buying courses and level packages for a business.
+ *
+ * Anything free in the basket is unlocked at once; there is nothing to pay.
+ * The rest becomes one Stripe checkout, and the answer carries its address.
+ * A basket of only free things comes back with no address at all.
+ *
+ * A course chosen on its own and also part of a chosen package is bought once,
+ * as part of the package.
  */
 export async function startCoursePurchase(options: {
     organizationId: string;
     userId: string;
     courseIds: string[];
+    packages?: string[];
 }): Promise<{ url: string | null; added: number }> {
     const { organizationId, userId } = options;
-    const requested = [...new Set(options.courseIds)];
-    if (requested.length === 0) throw new CourseShopError('Choose at least one course');
-    if (requested.length > MAX_LINES) {
-        throw new CourseShopError(`Choose at most ${MAX_LINES} courses at a time`);
+    const wantedPackages = [...new Set(options.packages ?? [])];
+    let requested = [...new Set(options.courseIds)];
+    if (requested.length === 0 && wantedPackages.length === 0) {
+        throw new CourseShopError('Choose at least one course or package');
     }
 
-    const courses = await prisma.trainingCourse.findMany({
-        where: { id: { in: requested }, organizationId: null, isActive: true },
-        select: { id: true, code: true, title: true, priceCents: true },
-    });
+    // Packages first, so their courses can be taken out of the loose ones.
+    const quotes = wantedPackages.length
+        ? (await packageQuotes(organizationId)).filter((q) => wantedPackages.includes(q.category))
+        : [];
+    if (quotes.length !== wantedPackages.length) {
+        throw new CourseShopError('One or more of those levels has no package for sale');
+    }
+    const emptied = quotes.find((quote) => quote.courseIds.length === 0);
+    if (emptied) {
+        throw new CourseShopError(`Your business already has every course in ${emptied.category}`);
+    }
+    const inPackages = new Set(quotes.flatMap((quote) => quote.courseIds));
+    requested = requested.filter((id) => !inPackages.has(id));
+
+    if (requested.length + quotes.length > MAX_LINES) {
+        throw new CourseShopError(`Choose at most ${MAX_LINES} items at a time`);
+    }
+
+    const courses = requested.length
+        ? await prisma.trainingCourse.findMany({
+              where: { id: { in: requested }, organizationId: null, isActive: true },
+              select: { id: true, code: true, title: true, priceCents: true },
+          })
+        : [];
     if (courses.length !== requested.length) {
         throw new CourseShopError('One or more of those courses is not for sale');
     }
     if (courses.some((course) => course.priceCents === null)) {
-        throw new CourseShopError('One or more of those courses is not on sale yet');
+        throw new CourseShopError(
+            'One or more of those courses is only sold as part of its level package'
+        );
     }
 
-    const held = await prisma.courseGrant.count({
-        where: { organizationId, courseId: { in: requested } },
-    });
+    const held = requested.length
+        ? await prisma.courseGrant.count({
+              where: { organizationId, courseId: { in: requested } },
+          })
+        : 0;
     if (held > 0) {
         throw new CourseShopError('Your business already has one or more of those courses');
     }
 
-    const free = courses.filter((course) => course.priceCents === 0);
-    const paid = courses.filter((course) => (course.priceCents ?? 0) > 0);
+    const freeCourses = courses.filter((course) => course.priceCents === 0);
+    const paidCourses = courses.filter((course) => (course.priceCents ?? 0) > 0);
+    const freePackages = quotes.filter((quote) => quote.chargeCents === 0);
+    const paidPackages = quotes.filter((quote) => quote.chargeCents > 0);
+    const somethingToPay = paidCourses.length > 0 || paidPackages.length > 0;
 
     // Asked before anything is unlocked, so a basket that cannot be paid for
     // is refused whole rather than half given away.
-    const stripe = paid.length ? getStripe() : null;
-    if (paid.length && !stripe) {
+    const stripe = somethingToPay ? getStripe() : null;
+    if (somethingToPay && !stripe) {
         throw new CourseShopError(
             'Payments are not set up yet, so paid courses cannot be bought. Try again later.',
             503
         );
     }
 
-    if (free.length) {
+    const freeIds = [
+        ...freeCourses.map((course) => course.id),
+        ...freePackages.flatMap((quote) => quote.courseIds),
+    ];
+    if (freeIds.length) {
         await prisma.courseGrant.createMany({
-            data: free.map((course) => ({
-                courseId: course.id,
+            data: freeIds.map((courseId) => ({
+                courseId,
                 organizationId,
                 source: 'free',
                 grantedById: userId,
@@ -117,22 +229,52 @@ export async function startCoursePurchase(options: {
             skipDuplicates: true,
         });
     }
-    if (!paid.length || !stripe) return { url: null, added: free.length };
+    if (!somethingToPay || !stripe) return { url: null, added: freeIds.length };
+
+    // A package's courses are recorded one by one, so the history can say
+    // exactly what was unlocked, each carrying an even share of the package
+    // price. The shares add up to the charge to the cent.
+    const packageCourses = paidPackages.length
+        ? await prisma.trainingCourse.findMany({
+              where: { id: { in: paidPackages.flatMap((q) => q.courseIds) } },
+              select: { id: true, code: true, title: true, category: true },
+              orderBy: { sortOrder: 'asc' },
+          })
+        : [];
+    const packageItems = paidPackages.flatMap((quote) => {
+        const list = packageCourses.filter((course) => course.category === quote.category);
+        const share = Math.floor(quote.chargeCents / list.length);
+        const leftover = quote.chargeCents - share * list.length;
+        return list.map((course, index) => ({
+            courseId: course.id,
+            courseCode: course.code,
+            courseTitle: course.title,
+            priceCents: share + (index < leftover ? 1 : 0),
+            packageCategory: quote.category,
+        }));
+    });
 
     const currency = courseCurrency();
+    const amountCents =
+        paidCourses.reduce((sum, course) => sum + (course.priceCents ?? 0), 0) +
+        paidPackages.reduce((sum, quote) => sum + quote.chargeCents, 0);
+
     const purchase = await prisma.coursePurchase.create({
         data: {
             organizationId,
             purchasedById: userId,
-            amountCents: paid.reduce((sum, course) => sum + (course.priceCents ?? 0), 0),
+            amountCents,
             currency,
             items: {
-                create: paid.map((course) => ({
-                    courseId: course.id,
-                    courseCode: course.code,
-                    courseTitle: course.title,
-                    priceCents: course.priceCents ?? 0,
-                })),
+                create: [
+                    ...paidCourses.map((course) => ({
+                        courseId: course.id,
+                        courseCode: course.code,
+                        courseTitle: course.title,
+                        priceCents: course.priceCents ?? 0,
+                    })),
+                    ...packageItems,
+                ],
             },
         },
         select: { id: true },
@@ -143,14 +285,28 @@ export async function startCoursePurchase(options: {
         const session = await stripe.checkout.sessions.create({
             mode: 'payment',
             customer: await stripeCustomerFor(stripe, organizationId),
-            line_items: paid.map((course) => ({
-                quantity: 1,
-                price_data: {
-                    currency,
-                    unit_amount: course.priceCents ?? 0,
-                    product_data: { name: `${course.code} ${course.title}`.slice(0, 250) },
-                },
-            })),
+            line_items: [
+                ...paidCourses.map((course) => ({
+                    quantity: 1,
+                    price_data: {
+                        currency,
+                        unit_amount: course.priceCents ?? 0,
+                        product_data: { name: `${course.code} ${course.title}`.slice(0, 250) },
+                    },
+                })),
+                ...paidPackages.map((quote) => ({
+                    quantity: 1,
+                    price_data: {
+                        currency,
+                        unit_amount: quote.chargeCents,
+                        product_data: {
+                            name: `${quote.category} package (${quote.courseIds.length} course${
+                                quote.courseIds.length === 1 ? '' : 's'
+                            })`.slice(0, 250),
+                        },
+                    },
+                })),
+            ],
             // Stripe puts the session's own id where the placeholder is, which
             // is how the page knows which payment to ask about on return.
             success_url: `${appUrl()}/business/classes?purchase={CHECKOUT_SESSION_ID}`,
@@ -165,7 +321,7 @@ export async function startCoursePurchase(options: {
             where: { id: purchase.id },
             data: { stripeSessionId: session.id },
         });
-        return { url: session.url, added: free.length };
+        return { url: session.url, added: freeIds.length };
     } catch (error) {
         // Nobody was sent to pay, so there is no purchase to keep a record of.
         await prisma.coursePurchase.delete({ where: { id: purchase.id } }).catch(() => undefined);

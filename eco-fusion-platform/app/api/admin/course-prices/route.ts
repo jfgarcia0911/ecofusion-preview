@@ -11,6 +11,9 @@ import { formatPrice, priceProblem } from '@/lib/course-price';
  * Any EcoFusion account may read the price list; only the master account sets
  * it, since what the platform charges is the platform's own decision. Every
  * change is written to the access trail with the old price and the new one.
+ *
+ * Two kinds of price: one per course, and one per level for the whole level
+ * bought together as a package.
  */
 
 // GET - Every EcoFusion course with its price and how many businesses hold it.
@@ -24,7 +27,7 @@ export async function GET() {
             return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
         }
 
-        const [courses, canEdit] = await Promise.all([
+        const [courses, packages, canEdit] = await Promise.all([
             prisma.trainingCourse.findMany({
                 where: { organizationId: null },
                 select: {
@@ -39,12 +42,15 @@ export async function GET() {
                 },
                 orderBy: { sortOrder: 'asc' },
             }),
+            prisma.coursePackage.findMany({ select: { category: true, priceCents: true } }),
             isPlatformOwner(session.user.id),
         ]);
 
         return NextResponse.json({
             currency: courseCurrency(),
             canEdit,
+            /** Levels sold whole, by level name. A level not listed has no package. */
+            packages: Object.fromEntries(packages.map((p) => [p.category, p.priceCents])),
             courses: courses.map((course) => ({
                 id: course.id,
                 code: course.code,
@@ -63,8 +69,9 @@ export async function GET() {
     }
 }
 
-// PUT - Set prices. Body: { prices: { [courseId]: cents | null } }, null meaning
-// "not for sale". Only the courses named are touched.
+// PUT - Set prices. Body: { prices?: { [courseId]: cents | null },
+// packages?: { [level]: cents | null } }, null meaning "not for sale". Only
+// what is named is touched.
 export async function PUT(request: Request) {
     try {
         const session = await auth();
@@ -78,26 +85,52 @@ export async function PUT(request: Request) {
             );
         }
 
-        const { prices } = await request.json();
-        if (!prices || typeof prices !== 'object' || Array.isArray(prices)) {
-            return NextResponse.json({ error: 'prices must be an object' }, { status: 400 });
+        const body = await request.json();
+        const isMap = (value: unknown) =>
+            value === undefined || (value !== null && typeof value === 'object' && !Array.isArray(value));
+        if (!isMap(body.prices) || !isMap(body.packages)) {
+            return NextResponse.json({ error: 'prices and packages must be objects' }, { status: 400 });
         }
 
-        const wanted = new Map<string, number | null>();
-        for (const [courseId, value] of Object.entries(prices as Record<string, unknown>)) {
-            if (value === null) {
-                wanted.set(courseId, null);
-                continue;
+        // Read and check both lists before anything is written, so a bad
+        // package price does not leave the course prices half saved.
+        const read = (entries: Record<string, unknown>) => {
+            const out = new Map<string, number | null>();
+            for (const [key, value] of Object.entries(entries)) {
+                if (value === null) {
+                    out.set(key, null);
+                    continue;
+                }
+                if (typeof value !== 'number') return 'Each price must be a number or empty';
+                const problem = priceProblem(value);
+                if (problem) return problem;
+                out.set(key, value);
             }
-            if (typeof value !== 'number') {
-                return NextResponse.json({ error: 'Each price must be a number or empty' }, { status: 400 });
-            }
-            const problem = priceProblem(value);
-            if (problem) return NextResponse.json({ error: problem }, { status: 400 });
-            wanted.set(courseId, value);
+            return out;
+        };
+        const wanted = read(body.prices ?? {});
+        if (typeof wanted === 'string') return NextResponse.json({ error: wanted }, { status: 400 });
+        const wantedPackages = read(body.packages ?? {});
+        if (typeof wantedPackages === 'string') {
+            return NextResponse.json({ error: wantedPackages }, { status: 400 });
         }
-        if (wanted.size === 0) {
+        if (wanted.size === 0 && wantedPackages.size === 0) {
             return NextResponse.json({ error: 'No prices to set' }, { status: 400 });
+        }
+
+        // A package can only be for a level that has EcoFusion courses in it.
+        const levels = new Set(
+            (
+                await prisma.trainingCourse.findMany({
+                    where: { organizationId: null },
+                    select: { category: true },
+                    distinct: ['category'],
+                })
+            ).map((course) => course.category)
+        );
+        const unknownLevel = [...wantedPackages.keys()].find((level) => !levels.has(level));
+        if (unknownLevel) {
+            return NextResponse.json({ error: `There is no level called "${unknownLevel}"` }, { status: 400 });
         }
 
         const courses = await prisma.trainingCourse.findMany({
@@ -113,33 +146,60 @@ export async function PUT(request: Request) {
         }
 
         const changed = courses.filter((course) => course.priceCents !== wanted.get(course.id));
-        if (changed.length) {
-            await prisma.$transaction(
-                changed.map((course) =>
+
+        const existingPackages = new Map(
+            (
+                await prisma.coursePackage.findMany({
+                    where: { category: { in: [...wantedPackages.keys()] } },
+                })
+            ).map((p) => [p.category, p.priceCents])
+        );
+        const changedPackages = [...wantedPackages.entries()].filter(
+            ([level, cents]) => (existingPackages.get(level) ?? null) !== cents
+        );
+
+        if (changed.length || changedPackages.length) {
+            await prisma.$transaction([
+                ...changed.map((course) =>
                     prisma.trainingCourse.update({
                         where: { id: course.id },
                         data: { priceCents: wanted.get(course.id) ?? null },
                     })
-                )
-            );
+                ),
+                // No row is no package, so clearing a price removes the row.
+                ...changedPackages.map(([category, cents]) =>
+                    cents === null
+                        ? prisma.coursePackage.deleteMany({ where: { category } })
+                        : prisma.coursePackage.upsert({
+                              where: { category },
+                              create: { category, priceCents: cents },
+                              update: { priceCents: cents },
+                          })
+                ),
+            ]);
 
             const currency = courseCurrency();
             const show = (cents: number | null) =>
                 cents === null ? 'not for sale' : formatPrice(cents, currency);
-            const lines = changed
-                .slice(0, 8)
-                .map((c) => `${c.code} ${show(c.priceCents)} to ${show(wanted.get(c.id) ?? null)}`);
+            const lines = [
+                ...changedPackages.map(
+                    ([level, cents]) =>
+                        `${level} package ${show(existingPackages.get(level) ?? null)} to ${show(cents)}`
+                ),
+                ...changed.map((c) => `${c.code} ${show(c.priceCents)} to ${show(wanted.get(c.id) ?? null)}`),
+            ];
+            const count = changed.length + changedPackages.length;
             await logStaffAccess(session.user.id, null, 'write', {
                 method: 'PUT',
                 path: '/api/admin/course-prices',
                 summary:
-                    `Changed the price of ${changed.length} course${changed.length === 1 ? '' : 's'}: ` +
-                    lines.join(', ') +
-                    (changed.length > 8 ? `, and ${changed.length - 8} more` : ''),
+                    `Changed ${count} price${count === 1 ? '' : 's'}: ` +
+                    lines.slice(0, 8).join(', ') +
+                    (lines.length > 8 ? `, and ${lines.length - 8} more` : ''),
             });
         }
 
-        return NextResponse.json({ changed: changed.length });
+        return NextResponse.json({ changed: changed.length + changedPackages.length });
     } catch (error) {
         console.error('Failed to set course prices:', error);
         return NextResponse.json({ error: 'Failed to save the prices' }, { status: 500 });

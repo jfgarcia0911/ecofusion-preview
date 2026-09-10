@@ -329,6 +329,17 @@ model CourseGrantRetired {
   retiredAt      DateTime @default(now())
 }
 
+/// Every course in one level, sold together at one price.
+///
+/// Keyed by the level's name, which is what TrainingCourse.category holds. A
+/// level with no row has no package. Buying one unlocks every active course in
+/// the level at that moment; one added to the level later is not included.
+model CoursePackage {
+  category   String   @id
+  priceCents Int
+  updatedAt  DateTime @updatedAt
+}
+
 /// A business paying for courses, one Stripe checkout at a time.
 ///
 /// Written before the customer is sent to Stripe, as pending, so there is a
@@ -364,12 +375,16 @@ model CoursePurchase {
 /// what somebody paid for still reads correctly after the course is renamed or
 /// removed.
 model CoursePurchaseItem {
-  id          String  @id @default(cuid())
-  purchaseId  String
-  courseId    String?
-  courseCode  String
-  courseTitle String
-  priceCents  Int
+  id              String  @id @default(cuid())
+  purchaseId      String
+  courseId        String?
+  courseCode      String
+  courseTitle     String
+  priceCents      Int
+  /// The level whose package this course was bought in, or null when it was
+  /// bought on its own. A package's price is shared across its courses here so
+  /// the items still add up to what was paid.
+  packageCategory String?
 
   purchase CoursePurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   course   TrainingCourse? @relation(fields: [courseId], references: [id], onDelete: SetNull)
