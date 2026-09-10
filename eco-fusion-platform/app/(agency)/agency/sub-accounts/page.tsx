@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LogIn, Building2, GraduationCap, Camera, Plus, Pencil } from "lucide-react";
+import { Search, LogIn, Building2, GraduationCap, Camera, Plus, Pencil, ClipboardCheck } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadClassesModal from "@/components/admin/LoadClassesModal";
 import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
 import CreateSubAccountModal from "@/components/admin/CreateSubAccountModal";
 import EditSubAccountModal from "@/components/admin/EditSubAccountModal";
+import AssignCoursesModal from "@/components/admin/AssignCoursesModal";
 
 export interface SubAccount {
     id: string;
@@ -67,6 +68,10 @@ export default function SubAccountsPage() {
     // Capturing reads a setup without entering it, so no support session is
     // opened and none is needed.
     const [captureFrom, setCaptureFrom] = useState<{ id: string; name: string } | null>(null);
+    // Assigning sits beside loading rather than inside a support session:
+    // onboarding a customer is granting the classes and then saying which the
+    // owner should start with, and the two belong together.
+    const [assignFor, setAssignFor] = useState<{ id: string; name: string } | null>(null);
     const router = useRouter();
     const toast = useToast();
     const confirmAction = useConfirm();
@@ -265,6 +270,22 @@ export default function SubAccountsPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() =>
+                                                        setAssignFor({ id: business.id, name: business.name })
+                                                    }
+                                                    disabled={!business.owner}
+                                                    title={
+                                                        business.owner
+                                                            ? "Assign courses to this business's owner"
+                                                            : "This business has no owner to assign to"
+                                                    }
+                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 disabled:hover:bg-white/10 transition-colors whitespace-nowrap"
+                                                >
+                                                    <ClipboardCheck size={13} />
+                                                    Assign
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
                                                         setCaptureFrom({ id: business.id, name: business.name })
                                                     }
                                                     title="Capture this setup as a template"
@@ -307,6 +328,7 @@ export default function SubAccountsPage() {
                 }
             />
             <LoadClassesModal business={classesFor} onClose={() => setClassesFor(null)} />
+            <AssignCoursesModal business={assignFor} onClose={() => setAssignFor(null)} />
             <CaptureSnapshotModal business={captureFrom} onClose={() => setCaptureFrom(null)} />
         </div>
     );

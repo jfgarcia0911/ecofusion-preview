@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Check, ChevronRight, Search, Clock } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { groupByCategory, hours } from "@/lib/course-groups";
 
 interface PlatformCourse {
     id: string;
@@ -13,23 +14,6 @@ interface PlatformCourse {
     duration: number;
     lessonCount: number;
     isActive: boolean;
-}
-
-/**
- * The order the curriculum is meant to be climbed in.
- *
- * Alphabetical would put Advanced above Foundational, which is the wrong shape
- * for a list somebody reads to decide what a business should start with.
- * Anything not named here is a category of its own, listed after these.
- */
-const LEVELS = ["Foundational", "Intermediate", "Advanced", "Expert", "Master"];
-
-/** Hours, said the way a person would say them. */
-function hours(minutes: number): string {
-    if (!minutes) return "";
-    if (minutes < 60) return `${minutes}m`;
-    const value = minutes / 60;
-    return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
 }
 
 /**
@@ -110,21 +94,7 @@ export default function LoadClassesModal({
                 course.title.toLowerCase().includes(term) ||
                 course.code.toLowerCase().includes(term)
         );
-
-        const byCategory = new Map<string, PlatformCourse[]>();
-        matching.forEach((course) => {
-            const list = byCategory.get(course.category) ?? [];
-            list.push(course);
-            byCategory.set(course.category, list);
-        });
-
-        const known = LEVELS.filter((level) => byCategory.has(level));
-        const rest = [...byCategory.keys()].filter((c) => !LEVELS.includes(c)).sort();
-
-        return [...known, ...rest].map((category) => ({
-            category,
-            courses: byCategory.get(category)!,
-        }));
+        return groupByCategory(matching);
     }, [courses, term]);
 
     function toggle(courseId: string) {
