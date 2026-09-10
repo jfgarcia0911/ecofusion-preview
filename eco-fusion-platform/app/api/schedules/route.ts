@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { canAdminister } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { assignedWithin, isMemberOf } from '@/lib/schedule-scope';
 
-// GET - Fetch schedules (admin sees all, users see their own)
+// GET - Fetch schedules (admin sees this business's, users see their own)
 export async function GET() {
     try {
         const { ctx, refusal } = await activeOrg();
@@ -12,7 +13,7 @@ export async function GET() {
         const isAdmin = canAdminister(ctx);
 
         const schedules = await prisma.schedule.findMany({
-            where: isAdmin ? {} : { assigneeId: ctx.userId },
+            where: isAdmin ? assignedWithin(ctx.organizationId) : { assigneeId: ctx.userId },
             include: {
                 assignee: {
                     select: { id: true, name: true, email: true, image: true },
@@ -47,6 +48,11 @@ export async function POST(request: Request) {
 
         if (!assigneeId || !title || dayOfWeek === undefined || !startTime || !endTime) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Only somebody who works here can be put on this business's rota.
+        if (!(await isMemberOf(String(assigneeId), ctx.organizationId))) {
+            return NextResponse.json({ error: 'That person is not in this business' }, { status: 404 });
         }
 
         const schedule = await prisma.schedule.create({
@@ -105,9 +111,14 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Schedule ID required' }, { status: 400 });
         }
 
-        await prisma.schedule.delete({
-            where: { id: scheduleId },
+        // Scoped rather than by id alone: an id from another business is not
+        // found, instead of being deleted.
+        const { count } = await prisma.schedule.deleteMany({
+            where: { id: scheduleId, ...assignedWithin(ctx.organizationId) },
         });
+        if (count === 0) {
+            return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

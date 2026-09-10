@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { canAdminister } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { assignedWithin, isMemberOf } from '@/lib/schedule-scope';
 
 // GET - Fetch scheduled tasks (admin sees all, users see their own)
 export async function GET() {
@@ -12,7 +13,7 @@ export async function GET() {
         const isAdmin = canAdminister(ctx);
 
         const tasks = await prisma.scheduledTask.findMany({
-            where: isAdmin ? {} : { assigneeId: ctx.userId },
+            where: isAdmin ? assignedWithin(ctx.organizationId) : { assigneeId: ctx.userId },
             include: {
                 assignee: {
                     select: { id: true, name: true, email: true, image: true },
@@ -47,6 +48,11 @@ export async function POST(request: Request) {
 
         if (!assigneeId || !title || !scheduledFor || !dueDate) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Only somebody who works here can be given this business's work.
+        if (!(await isMemberOf(String(assigneeId), ctx.organizationId))) {
+            return NextResponse.json({ error: 'That person is not in this business' }, { status: 404 });
         }
 
         const task = await prisma.scheduledTask.create({
@@ -100,8 +106,9 @@ export async function PATCH(request: Request) {
         }
 
         // Verify user is assigned to this task or is admin
-        const task = await prisma.scheduledTask.findUnique({
-            where: { id: taskId },
+        // A task from another business is not found, for anybody.
+        const task = await prisma.scheduledTask.findFirst({
+            where: { id: taskId, ...assignedWithin(ctx.organizationId) },
         });
 
         if (!task) {
