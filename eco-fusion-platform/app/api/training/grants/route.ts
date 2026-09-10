@@ -7,13 +7,13 @@ import { CourseGrantError, setCourseGrants } from '@/lib/training';
  * A business choosing which of EcoFusion's classes it carries.
  *
  * The owner's decision, as the curriculum a business teaches is part of what
- * the business is. The agency can still set this up or correct it from its own
- * Classes screen; both write the same rows through lib/training.
+ * the business is. This is the only place it is made: the agency view no
+ * longer has a screen of its own for it.
  *
  * Staff inside a business act with a supervisor's standing and are refused
- * here; they have the agency screen. The master account enters as the owner
- * and may choose, and its choice is recorded in the business's access record
- * as EcoFusion's rather than the owner's.
+ * here. The master account enters as the owner and may choose, and its choice
+ * is recorded in the business's access record as EcoFusion's rather than the
+ * owner's.
  */
 
 // GET - The catalogue, and which of it this business carries.

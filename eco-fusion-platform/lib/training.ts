@@ -47,9 +47,9 @@ export class CourseGrantError extends Error {}
 /**
  * Sets exactly which of EcoFusion's courses a business carries.
  *
- * Shared by the agency, which sets them up for a customer, and by the
- * business's own owner, who chooses for themselves. Both write the same rows,
- * so the rules live here once rather than in each route that remembers them.
+ * Called by the business's Classes screen, where its owner (or the master
+ * account, which enters as one) chooses. The rules live here rather than in
+ * the route so that any later way of choosing inherits them.
  *
  * Only EcoFusion's own courses can be granted. A course a business wrote for
  * itself is not anybody else's to hand out, and it is never a grant in the

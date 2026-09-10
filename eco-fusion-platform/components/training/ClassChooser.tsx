@@ -17,8 +17,8 @@ export interface ChoosableCourse {
 /**
  * Choosing which of EcoFusion's classes one business carries.
  *
- * Used by the agency, which sets a customer up, and by a business's owner,
- * who chooses for themselves. The parent holds what is saved and what is
+ * Used by a business's owner, who chooses for themselves, and by the master
+ * account working inside a business as its owner. The parent holds what is saved and what is
  * chosen, so it can ask before somebody walks away from unsaved changes; this
  * only draws them and says what saving would do.
  *
