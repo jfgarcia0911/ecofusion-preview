@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadStripe, type StripeEmbeddedCheckout } from "@stripe/stripe-js";
 import { ArrowLeft, Loader2, Lock, X } from "lucide-react";
+import { StripeFrameSkeleton } from "@/components/skeletons/PageSkeletons";
 
 /**
  * Stripe's checkout, drawn inside the EcoFusion page.
@@ -14,6 +15,10 @@ import { ArrowLeft, Loader2, Lock, X } from "lucide-react";
  *
  * Backing out is the parent's to handle, because it has to tell the server:
  * a checkout merely hidden could still be paid from another tab.
+ *
+ * Drawn before the payment exists: with no `clientSecret` yet it holds
+ * Stripe's outline in place, so the page is already where it will be and only
+ * the form arrives.
  */
 export default function EmbeddedCheckoutPanel({
     clientSecret,
@@ -23,8 +28,9 @@ export default function EmbeddedCheckoutPanel({
     onCancel,
     onComplete,
 }: {
-    clientSecret: string;
-    publishableKey: string;
+    /** Null while the server is still preparing the payment. */
+    clientSecret: string | null;
+    publishableKey: string | null;
     /** True while the parent is closing the checkout with the server. */
     leaving: boolean;
     /** Back to the shop, keeping what was chosen. */
@@ -48,6 +54,7 @@ export default function EmbeddedCheckoutPanel({
     useEffect(() => {
         let cancelled = false;
         let checkout: StripeEmbeddedCheckout | null = null;
+        if (!clientSecret || !publishableKey) return;
 
         (async () => {
             try {
@@ -111,9 +118,8 @@ export default function EmbeddedCheckoutPanel({
              */}
             <div className="relative rounded-2xl overflow-hidden bg-white min-h-[640px]">
                 {!ready && !failed && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-neutral-500">
-                        <Loader2 size={24} className="motion-safe:animate-spin" />
-                        <p className="text-sm">Loading secure checkout...</p>
+                    <div className="absolute inset-0">
+                        <StripeFrameSkeleton />
                     </div>
                 )}
                 {failed && (

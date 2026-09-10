@@ -827,6 +827,94 @@ export function AgencyAccessLogSkeleton({ standfirst }: { standfirst: string }) 
     );
 }
 
+/**
+ * What goes inside the white checkout card while Stripe's form is on its way:
+ * the summary of what is being bought on one side and the payment fields on
+ * the other, which is the shape Stripe draws, so the form lands where its
+ * outline already was. Grey on white, because the card is white either way.
+ */
+export function StripeFrameSkeleton() {
+    return (
+        <div
+            className="grid grid-cols-1 lg:grid-cols-2 gap-10 p-8 lg:p-12 animate-pulse"
+            aria-busy="true"
+            aria-label="Loading secure checkout"
+        >
+            <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-neutral-200" />
+                    <div className="h-4 w-32 rounded bg-neutral-200" />
+                </div>
+                <div className="space-y-2">
+                    <div className="h-3.5 w-24 rounded bg-neutral-200" />
+                    <div className="h-9 w-40 rounded bg-neutral-200" />
+                </div>
+                <div className="space-y-4 pt-2">
+                    {Array.from({ length: 3 }).map((_, line) => (
+                        <div key={line} className="flex items-center justify-between gap-4">
+                            <div className="space-y-1.5 flex-1">
+                                <div className="h-3.5 w-3/4 rounded bg-neutral-200" />
+                                <div className="h-3 w-16 rounded bg-neutral-100" />
+                            </div>
+                            <div className="h-3.5 w-14 rounded bg-neutral-200" />
+                        </div>
+                    ))}
+                </div>
+                <div className="flex items-center justify-between border-t border-neutral-200 pt-4">
+                    <div className="h-4 w-20 rounded bg-neutral-200" />
+                    <div className="h-4 w-20 rounded bg-neutral-200" />
+                </div>
+            </div>
+            <div className="space-y-5">
+                <div className="h-11 w-full rounded-md bg-neutral-900/80" />
+                <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-neutral-200" />
+                    <div className="h-3 w-24 rounded bg-neutral-100" />
+                    <div className="h-px flex-1 bg-neutral-200" />
+                </div>
+                {["w-12", "w-24", "w-28"].map((label, field) => (
+                    <div key={field} className="space-y-2">
+                        <div className={`h-3 ${label} rounded bg-neutral-200`} />
+                        <div className="h-11 w-full rounded-md border border-neutral-200 bg-neutral-50" />
+                    </div>
+                ))}
+                <div className="h-12 w-full rounded-md bg-neutral-300" />
+            </div>
+        </div>
+    );
+}
+
+/**
+ * The Checkout page, before anything about the payment is known: the heading,
+ * the bar with the ways out, and the white card with Stripe's outline in it.
+ */
+export function CheckoutSkeleton() {
+    return (
+        <div className="w-full space-y-6" aria-busy="true" aria-label="Loading checkout">
+            <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-3">
+                    <ShoppingCart className="text-accent" />
+                    Checkout
+                </h1>
+                <p className="text-white/50 mt-1 max-w-2xl">
+                    Check what you are buying and pay below. Your courses unlock as soon as the
+                    payment is confirmed.
+                </p>
+            </div>
+            <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="h-9 w-32 rounded-lg bg-white/5 animate-pulse" />
+                    <div className="h-3 w-80 max-w-full rounded bg-white/5 animate-pulse" />
+                    <div className="h-9 w-36 rounded-lg bg-white/5 animate-pulse" />
+                </div>
+                <div className="rounded-2xl overflow-hidden bg-white min-h-[640px]">
+                    <StripeFrameSkeleton />
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /** Course Prices: heading, the search and filter, then the levels, closed. */
 export function AgencyCoursePricesSkeleton({ standfirst }: { standfirst: string }) {
     return (

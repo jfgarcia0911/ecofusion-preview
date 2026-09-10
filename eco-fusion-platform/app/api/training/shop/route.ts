@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { getStripe } from '@/lib/stripe';
-import { courseCurrency, packageQuotes } from '@/lib/course-shop';
+import { courseCurrency, packageQuotes, stripePublishableKey } from '@/lib/course-shop';
 
 /**
  * GET - The course shop, as this business's owner sees it.
@@ -92,6 +92,8 @@ export async function GET() {
             currency: courseCurrency(),
             /** Whether paid courses can be bought right now. */
             paymentsReady: getStripe() !== null,
+            /** Whether paying can happen inside EcoFusion rather than on Stripe's page. */
+            embeddedCheckout: getStripe() !== null && stripePublishableKey() !== null,
             /** The master account may give courses and take them back. */
             isMaster: ctx.isMaster,
             courses: courses.map((course) => {
