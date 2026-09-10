@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Building2, KeyRound, Camera, ScrollText, ArrowLeft, Tag } from "lucide-react";
 import clsx from "clsx";
 import { LinkSpinner } from "@/components/ui/Skeleton";
+import { PERMISSIONS, type StaffPermission } from "@/lib/staff-permissions";
 
 interface User {
     name?: string | null;
@@ -21,18 +22,44 @@ interface User {
  * there" - and mixing them is how somebody ends up changing a customer's stock
  * levels while believing they are looking at their own.
  */
-const agencyNavItems = [
+/**
+ * Each section, and the permissions any one of which opens it. None listed
+ * means every EcoFusion account has it. A section somebody cannot use is left
+ * out rather than shown and refused.
+ */
+const agencyNavItems: {
+    name: string;
+    href: string;
+    icon: typeof Building2;
+    needs?: StaffPermission[];
+}[] = [
     { name: "Sub Accounts", href: "/agency/sub-accounts", icon: Building2 },
-    { name: "Team Access", href: "/agency/team", icon: KeyRound },
-    { name: "Snapshots", href: "/agency/snapshots", icon: Camera },
-    // What each course costs a business. The master account sets it; the rest
-    // of the team can see it, since customers will ask them.
+    { name: "Team Access", href: "/agency/team", icon: KeyRound, needs: [PERMISSIONS.SEE_TEAM] },
+    {
+        name: "Snapshots",
+        href: "/agency/snapshots",
+        icon: Camera,
+        needs: [PERMISSIONS.CAPTURE_SNAPSHOTS, PERMISSIONS.MANAGE_SNAPSHOTS, PERMISSIONS.APPLY_SNAPSHOTS],
+    },
+    // What each course costs a business. Everyone on the team can see it,
+    // since customers will ask them; changing it is a permission of its own.
     { name: "Course Prices", href: "/agency/course-prices", icon: Tag },
-    { name: "Access Log", href: "/agency/access-log", icon: ScrollText },
+    { name: "Access Log", href: "/agency/access-log", icon: ScrollText, needs: [PERMISSIONS.READ_ACCESS_LOG] },
 ];
 
-export default function AgencySidebar({ user }: { user?: User }) {
+export default function AgencySidebar({
+    user,
+    access,
+}: {
+    user?: User;
+    /** What this account may do. The master account may do all of it. */
+    access: { master: boolean; permissions: StaffPermission[] };
+}) {
     const pathname = usePathname() ?? "";
+    const visible = agencyNavItems.filter(
+        (item) =>
+            access.master || !item.needs || item.needs.some((p) => access.permissions.includes(p))
+    );
 
     return (
         <aside className="w-64 border-r border-white/10 glass-panel flex flex-col z-20">
@@ -44,7 +71,7 @@ export default function AgencySidebar({ user }: { user?: User }) {
             </div>
 
             <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
-                {agencyNavItems.map((item) => {
+                {visible.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     return (
                         <Link

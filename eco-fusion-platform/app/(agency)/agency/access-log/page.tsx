@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe } from "lucide-react";
+import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe, Ban, ShieldAlert } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { isMasterRole } from "@/lib/roles";
 import { AccessLogRowsSkeleton, AgencyAccessLogSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -31,6 +31,8 @@ const ACTION_STYLES: Record<string, { style: string; icon: typeof LogIn; label: 
     enter: { style: "bg-amber-400/15 text-amber-200 border-amber-400/30", icon: LogIn, label: "entered" },
     leave: { style: "bg-white/10 text-white/60 border-white/20", icon: LogOut, label: "left" },
     write: { style: "bg-red-400/15 text-red-300 border-red-400/30", icon: Pencil, label: "changed" },
+    // Somebody tried something their permissions do not cover. Nothing happened.
+    denied: { style: "bg-white/5 text-white/70 border-white/25 border-dashed", icon: Ban, label: "refused" },
 };
 
 /**
@@ -52,6 +54,7 @@ export default function AccessLogPage() {
     const [loadedOnce, setLoadedOnce] = useState(false);
     const [who, setWho] = useState("");
     const [changesOnly, setChangesOnly] = useState(false);
+    const [denied, setDenied] = useState<string | null>(null);
     const toast = useToast();
 
     useEffect(() => {
@@ -63,6 +66,10 @@ export default function AccessLogPage() {
                 if (who) query.set("staffUserId", who);
                 if (changesOnly) query.set("changesOnly", "1");
                 const res = await fetch(`/api/admin/access-log?${query}`);
+                if (res.status === 403) {
+                    if (!cancelled) setDenied((await res.json()).error ?? "You cannot read the Access Log.");
+                    return;
+                }
                 if (!res.ok) {
                     toast.error("Could not load the access trail");
                     return;
@@ -84,6 +91,21 @@ export default function AccessLogPage() {
             cancelled = true;
         };
     }, [toast, who, changesOnly]);
+
+    if (denied) {
+        return (
+            <div className="max-w-2xl">
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">
+                    <ScrollText size={22} className="text-accent" />
+                    Access Log
+                </h1>
+                <p className="px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white/60 flex items-center gap-2">
+                    <ShieldAlert size={15} className="text-white/40 shrink-0" />
+                    {denied}
+                </p>
+            </div>
+        );
+    }
 
     if (!loadedOnce) return <AgencyAccessLogSkeleton standfirst={ACCESS_LOG_STANDFIRST} />;
 

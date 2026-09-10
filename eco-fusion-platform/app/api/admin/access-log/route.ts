@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, staffMayReach, staffReachableOrganizationIds } from '@/lib/staff';
+import { staffCan, staffMayReach, staffReachableOrganizationIds } from '@/lib/staff';
+import { PERMISSIONS } from '@/lib/staff-permissions';
 import { PLATFORM_ROLE_VALUES } from '@/lib/roles';
 import type { Prisma } from '@prisma/client';
 
@@ -9,9 +10,8 @@ import type { Prisma } from '@prisma/client';
 // and of changes made to the platform itself.
 //
 // The trail is written by lib/staff and never deleted by the app. Reading it
-// is deliberately available to every staff account rather than to some smaller
-// set: an account that can enter any business on the platform should be one
-// whose colleagues can see that it did. That includes the master account,
+// takes the "Read the Access Log" permission, which the master account holds
+// and may hand on; staff who hold it see the businesses they open. That includes the master account,
 // which has no limits anywhere else and so is the one whose record matters most.
 //
 // Optional filters: organizationId, staffUserId, and changesOnly=1 to leave out
@@ -23,8 +23,12 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (!(await isPlatformAdmin(session.user.id))) {
-            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+        // Reading the trail is a permission of its own; the master holds it.
+        if (!(await staffCan(session.user.id, PERMISSIONS.READ_ACCESS_LOG))) {
+            return NextResponse.json(
+                { error: 'Your EcoFusion access does not include reading the Access Log. Ask the master account.' },
+                { status: 403 }
+            );
         }
 
         const params = new URL(request.url).searchParams;

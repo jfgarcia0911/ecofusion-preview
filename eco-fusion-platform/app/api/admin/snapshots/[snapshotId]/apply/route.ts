@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformOwner, logStaffAccess } from '@/lib/staff';
+import { logStaffAccess, requireStaffPermission, staffMayReach } from '@/lib/staff';
+import { PERMISSIONS } from '@/lib/staff-permissions';
 import { SNAPSHOT_VERSION, applySnapshot, type SnapshotPayload } from '@/lib/snapshots';
 
 // POST - Load a snapshot into a business.
@@ -15,22 +15,20 @@ export async function POST(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // Applying overwrites a business's configuration wholesale. That is the
-    // most destructive thing this app can do to a customer from outside it, so
-    // it is EcoFusion's own to do and not an assistant's.
-    if (!(await isPlatformOwner(session.user.id))) {
-      return NextResponse.json({ error: "Only EcoFusion's owner can apply a snapshot" }, { status: 403 });
-    }
-    const staffUserId = session.user.id;
+    // Applying writes a template into a customer's business from outside it,
+    // so it is a permission of its own, and only ever into a business the
+    // applier may open.
+    const guard = await requireStaffPermission(PERMISSIONS.APPLY_SNAPSHOTS);
+    if (guard instanceof NextResponse) return guard;
+    const staffUserId = guard.userId;
 
     const { snapshotId } = await params;
     const { organizationId } = await request.json();
     if (!organizationId) {
       return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
+    }
+    if (!(await staffMayReach(staffUserId, organizationId))) {
+      return NextResponse.json({ error: 'No such business' }, { status: 404 });
     }
 
     const snapshot = await prisma.snapshot.findUnique({

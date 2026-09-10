@@ -9,9 +9,12 @@
 
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole, isMasterRole } from '@/lib/roles';
 import { SUMMARY_HEADER, readSummaryHeader } from '@/lib/audit-summary';
+import { cleanPermissions, type StaffPermission } from '@/lib/staff-permissions';
 
 /** The farm a staff member is currently working inside. */
 export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
@@ -29,12 +32,63 @@ export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
  * a row is a round trip spent on an answer already held.
  */
 export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-    });
-    return isPlatformRole(user?.role);
+    return (await platformStanding(userId)) !== null;
 });
+
+/**
+ * How an account stands on the platform: null for anybody who is not EcoFusion,
+ * otherwise whether it is the master account and what it has been allowed.
+ *
+ * One read answers "is this staff", "is this the master" and "may they do this"
+ * together, cached for the request, since a layout and the route under it both
+ * ask. Read from the database every request rather than the token, so a
+ * permission taken away is gone on the next click.
+ */
+export const platformStanding = cache(
+    async (userId: string): Promise<{ master: boolean; permissions: StaffPermission[] } | null> => {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true, staffPermissions: true },
+        });
+        if (!isPlatformRole(user?.role)) return null;
+        if (isMasterRole(user?.role)) return { master: true, permissions: [] };
+        return { master: false, permissions: cleanPermissions(user?.staffPermissions) };
+    }
+);
+
+/** Whether a platform account may do this. The master account may do anything. */
+export async function staffCan(userId: string, permission: StaffPermission): Promise<boolean> {
+    const standing = await platformStanding(userId);
+    if (!standing) return false;
+    return standing.master || standing.permissions.includes(permission);
+}
+
+/**
+ * The signed-in platform account, if it may do this; otherwise the response
+ * that says why not. For the agency's own routes, which sit outside any
+ * business and so are not covered by the check in lib/tenancy.
+ *
+ * Pass several to accept any one of them.
+ */
+export async function requireStaffPermission(
+    ...permissions: StaffPermission[]
+): Promise<{ userId: string; master: boolean } | NextResponse> {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const standing = await platformStanding(session.user.id);
+    if (!standing) {
+        return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+    }
+    if (!standing.master && !permissions.some((p) => standing.permissions.includes(p))) {
+        return NextResponse.json(
+            { error: 'Your EcoFusion access does not include this. Ask the master account.' },
+            { status: 403 }
+        );
+    }
+    return { userId: session.user.id, master: standing.master };
+}
 
 /**
  * Whether an account is the master account, rather than somebody working for it.
@@ -43,11 +97,7 @@ export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> =>
  * who else on the team reaches which. Staff are its assistants and can do neither.
  */
 export async function isPlatformOwner(userId: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-    });
-    return isMasterRole(user?.role);
+    return (await platformStanding(userId))?.master ?? false;
 }
 
 /**
@@ -72,19 +122,16 @@ export async function staffMayReach(userId: string, organizationId: string): Pro
 export async function platformReach(
     userId: string,
     organizationId: string
-): Promise<{ master: boolean } | null> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-    });
-    if (!isPlatformRole(user?.role)) return null;
-    if (isMasterRole(user?.role)) return { master: true };
+): Promise<{ master: boolean; permissions: StaffPermission[] } | null> {
+    const standing = await platformStanding(userId);
+    if (!standing) return null;
+    if (standing.master) return standing;
 
     const granted = await prisma.staffBusinessAccess.findUnique({
         where: { userId_organizationId: { userId, organizationId } },
         select: { id: true },
     });
-    return granted ? { master: false } : null;
+    return granted ? standing : null;
 }
 
 /**
@@ -97,12 +144,9 @@ export async function platformReach(
 export async function staffReachableOrganizationIds(
     userId: string
 ): Promise<string[] | null> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-    });
-    if (isMasterRole(user?.role)) return null;
-    if (!isPlatformRole(user?.role)) return [];
+    const standing = await platformStanding(userId);
+    if (standing?.master) return null;
+    if (!standing) return [];
 
     const rows = await prisma.staffBusinessAccess.findMany({
         where: { userId },
@@ -117,7 +161,8 @@ export async function currentStaffOrganizationId(): Promise<string | null> {
     return jar.get(STAFF_ORG_COOKIE)?.value ?? null;
 }
 
-type StaffAction = 'enter' | 'leave' | 'write';
+/** denied: a staff member tried something their permissions do not cover. */
+type StaffAction = 'enter' | 'leave' | 'write' | 'denied';
 
 /**
  * The description middleware made of this request's body, or null. Null too

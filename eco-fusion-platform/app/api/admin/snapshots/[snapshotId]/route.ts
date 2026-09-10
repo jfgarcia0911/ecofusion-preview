@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, logStaffAccess } from '@/lib/staff';
+import { logStaffAccess, requireStaffPermission } from '@/lib/staff';
+import { PERMISSIONS } from '@/lib/staff-permissions';
 
-/** The staff account making the request, or null. */
-async function requireStaff(): Promise<string | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return (await isPlatformAdmin(session.user.id)) ? session.user.id : null;
+/** The staff account making the request, if it may edit and delete snapshots. */
+async function requireManager(): Promise<string | NextResponse> {
+  const guard = await requireStaffPermission(PERMISSIONS.MANAGE_SNAPSHOTS);
+  return guard instanceof NextResponse ? guard : guard.userId;
 }
 
 // PATCH - Rename a snapshot, or make it the one new businesses start from.
@@ -16,10 +15,8 @@ export async function PATCH(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    const staffUserId = await requireStaff();
-    if (!staffUserId) {
-      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-    }
+    const staffUserId = await requireManager();
+    if (staffUserId instanceof NextResponse) return staffUserId;
 
     const { snapshotId } = await params;
     const { name, description, isDefault } = await request.json();
@@ -83,10 +80,8 @@ export async function DELETE(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    const staffUserId = await requireStaff();
-    if (!staffUserId) {
-      return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-    }
+    const staffUserId = await requireManager();
+    if (staffUserId instanceof NextResponse) return staffUserId;
 
     const { snapshotId } = await params;
 

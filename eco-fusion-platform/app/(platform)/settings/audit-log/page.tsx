@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ScrollText, LogIn, LogOut, PenLine, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ScrollText, LogIn, LogOut, PenLine, ShieldCheck, Ban } from "lucide-react";
 
 interface Entry {
     id: string;
@@ -23,6 +23,7 @@ const ACTIONS: Record<string, { label: string; icon: typeof LogIn; tint: string 
     // EcoFusion staff.
     enter: { label: "Opened this business", icon: LogIn, tint: "text-info" },
     leave: { label: "Left this business", icon: LogOut, tint: "text-white/40" },
+    denied: { label: "Tried something they are not allowed to (refused)", icon: Ban, tint: "text-white/40" },
     // Your own people.
     signin: { label: "Signed in", icon: LogIn, tint: "text-white/40" },
     write: { label: "Made a change", icon: PenLine, tint: "text-warning" },

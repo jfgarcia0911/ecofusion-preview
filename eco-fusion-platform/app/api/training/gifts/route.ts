@@ -4,24 +4,29 @@ import { prisma } from '@/lib/prisma';
 import { CourseShopError, giveCourses } from '@/lib/course-shop';
 import { logStaffAccess } from '@/lib/staff';
 import { formatPrice } from '@/lib/course-price';
+import { PERMISSIONS, type StaffPermission } from '@/lib/staff-permissions';
 
 /**
- * The master account giving a business courses, or taking them away.
+ * EcoFusion giving a business courses, or taking them away.
  *
- * Nobody else: a business's owner buys, and other staff have no say in what a
- * customer holds. Every use writes its own line to the access trail naming the
- * courses, which is why lib/staff leaves this path out of the automatic one -
- * a course id is not something an owner reading their record can make sense of.
+ * The master account, and staff it has given "Give free classes" or "Take
+ * classes back". Never a business's own people: an owner buys.
+ *
+ * Every use writes its own line to the access trail naming the courses,
+ * which is why lib/staff leaves this path out of the automatic one - a course
+ * id is not something an owner reading their record can make sense of.
  */
 
-async function masterOnly() {
+async function allowedTo(permission: StaffPermission) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return { ctx: null, refusal };
-    if (!ctx.isMaster) {
+    // Staff without the permission are already refused by activeOrg; this
+    // keeps out everybody who is not EcoFusion at all.
+    if (!ctx.isMaster && !(ctx.isStaff && ctx.staffPermissions.includes(permission))) {
         return {
             ctx: null,
             refusal: NextResponse.json(
-                { error: 'Only the master account can give or take back courses' },
+                { error: 'Only EcoFusion can give or take back courses' },
                 { status: 403 }
             ),
         };
@@ -37,7 +42,7 @@ function describe(courses: { code: string; title: string }[]): string {
 // POST - Give courses to this business, free.
 export async function POST(request: Request) {
     try {
-        const { ctx, refusal } = await masterOnly();
+        const { ctx, refusal } = await allowedTo(PERMISSIONS.GIVE_CLASSES);
         if (refusal) return refusal;
 
         const { courseIds } = await request.json();
@@ -81,7 +86,7 @@ export async function POST(request: Request) {
 // line in the trail says plainly what was paid.
 export async function DELETE(request: Request) {
     try {
-        const { ctx, refusal } = await masterOnly();
+        const { ctx, refusal } = await allowedTo(PERMISSIONS.TAKE_CLASSES);
         if (refusal) return refusal;
 
         const courseId = new URL(request.url).searchParams.get('courseId');

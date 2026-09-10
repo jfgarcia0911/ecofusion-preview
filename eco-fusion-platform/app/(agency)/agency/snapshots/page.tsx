@@ -40,6 +40,9 @@ export default function SnapshotsPage() {
     const [denied, setDenied] = useState(false);
     const [busy, setBusy] = useState<string | null>(null);
     const [applyTo, setApplyTo] = useState<Record<string, string>>({});
+    // What the reader may do here, as the server says. Nothing is offered
+    // before it has said.
+    const [can, setCan] = useState<{ manage: boolean; apply: boolean }>({ manage: false, apply: false });
     const toast = useToast();
     const confirmAction = useConfirm();
 
@@ -52,6 +55,7 @@ export default function SnapshotsPage() {
             }
             const data = await res.json();
             setSnapshots(data.snapshots ?? []);
+            if (data.can) setCan(data.can);
 
             const businessRes = await fetch("/api/admin/organizations");
             if (businessRes.ok) {
@@ -251,65 +255,71 @@ export default function SnapshotsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setDefault(snapshot)}
-                                        disabled={busy === snapshot.id || snapshot.stale}
-                                        title={
-                                            snapshot.isDefault
-                                                ? "Stop new businesses starting from this"
-                                                : "Start new businesses from this"
-                                        }
-                                        className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
-                                            snapshot.isDefault
-                                                ? "text-accent bg-accent/15 hover:bg-accent/25"
-                                                : "text-white/40 hover:text-white hover:bg-white/10"
-                                        }`}
-                                    >
-                                        <Star size={15} fill={snapshot.isDefault ? "currentColor" : "none"} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => remove(snapshot)}
-                                        disabled={busy === snapshot.id}
-                                        title="Delete this snapshot"
-                                        className="p-2 rounded-lg text-white/40 hover:text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-40"
-                                    >
-                                        <Trash2 size={15} />
-                                    </button>
+                                    {can.manage && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDefault(snapshot)}
+                                                disabled={busy === snapshot.id || snapshot.stale}
+                                                title={
+                                                    snapshot.isDefault
+                                                        ? "Stop new businesses starting from this"
+                                                        : "Start new businesses from this"
+                                                }
+                                                className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
+                                                    snapshot.isDefault
+                                                        ? "text-accent bg-accent/15 hover:bg-accent/25"
+                                                        : "text-white/40 hover:text-white hover:bg-white/10"
+                                                }`}
+                                            >
+                                                <Star size={15} fill={snapshot.isDefault ? "currentColor" : "none"} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => remove(snapshot)}
+                                                disabled={busy === snapshot.id}
+                                                title="Delete this snapshot"
+                                                className="p-2 rounded-lg text-white/40 hover:text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/[0.07]">
-                                <select
-                                    value={applyTo[snapshot.id] ?? ""}
-                                    onChange={(e) =>
-                                        setApplyTo((current) => ({
-                                            ...current,
-                                            [snapshot.id]: e.target.value,
-                                        }))
-                                    }
-                                    className="flex-1 min-w-0 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
-                                >
-                                    <option value="" className="bg-neutral-900">
-                                        Apply to an existing business...
-                                    </option>
-                                    {businesses.map((business) => (
-                                        <option key={business.id} value={business.id} className="bg-neutral-900">
-                                            {business.name}
+                            {can.apply && (
+                                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/[0.07]">
+                                    <select
+                                        value={applyTo[snapshot.id] ?? ""}
+                                        onChange={(e) =>
+                                            setApplyTo((current) => ({
+                                                ...current,
+                                                [snapshot.id]: e.target.value,
+                                            }))
+                                        }
+                                        className="flex-1 min-w-0 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
+                                    >
+                                        <option value="" className="bg-neutral-900">
+                                            Apply to an existing business...
                                         </option>
-                                    ))}
-                                </select>
-                                <button
-                                    type="button"
-                                    onClick={() => apply(snapshot)}
-                                    disabled={busy === snapshot.id || snapshot.stale || !applyTo[snapshot.id]}
-                                    className="text-sm flex items-center gap-1.5 shrink-0 px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 transition-colors"
-                                >
-                                    <Download size={14} />
-                                    {busy === snapshot.id ? "Applying..." : "Apply"}
-                                </button>
-                            </div>
+                                        {businesses.map((business) => (
+                                            <option key={business.id} value={business.id} className="bg-neutral-900">
+                                                {business.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => apply(snapshot)}
+                                        disabled={busy === snapshot.id || snapshot.stale || !applyTo[snapshot.id]}
+                                        className="text-sm flex items-center gap-1.5 shrink-0 px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 transition-colors"
+                                    >
+                                        <Download size={14} />
+                                        {busy === snapshot.id ? "Applying..." : "Apply"}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

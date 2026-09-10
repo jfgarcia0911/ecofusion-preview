@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { currentStaffOrganizationId, isPlatformAdmin } from "@/lib/staff";
+import { currentStaffOrganizationId, platformStanding } from "@/lib/staff";
 import AgencySidebar from "@/components/layout/AgencySidebar";
 import Header from "@/components/layout/Header";
 import OpenSessionNotice from "@/components/layout/OpenSessionNotice";
@@ -34,7 +34,7 @@ export default async function AgencyLayout({ children }: { children: React.React
     // on the redirect, and the id it reads came from the caller's own cookie.
     const openSessionId = await currentStaffOrganizationId();
     const [staff, openSession] = await Promise.all([
-        isPlatformAdmin(session.user.id),
+        platformStanding(session.user.id),
         openSessionId
             ? prisma.organization.findUnique({
                   where: { id: openSessionId },
@@ -55,7 +55,10 @@ export default async function AgencyLayout({ children }: { children: React.React
                 <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
                     <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
                     <div className="relative z-10 flex w-full h-full">
-                        <AgencySidebar user={session.user} />
+                        <AgencySidebar
+                            user={session.user}
+                            access={{ master: staff.master, permissions: staff.permissions }}
+                        />
                         <div className="flex flex-col flex-1 overflow-hidden">
                             <Header />
                             <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">

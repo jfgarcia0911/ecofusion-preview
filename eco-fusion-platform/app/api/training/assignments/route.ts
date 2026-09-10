@@ -119,26 +119,11 @@ export async function POST(request: Request) {
             );
         }
 
-        // EcoFusion assigns to the person answerable for a business, and that
-        // is its owner. Training a customer's employees over their head is the
-        // owner's call to make, not ours; what staff can do is put a course in
-        // front of the person who decides.
-        //
-        // The master account is not held to this. It holds the platform, and
-        // assigning over an owner's head is recorded in the trail the owner
-        // reads, like everything else it does there.
-        if (ctx.isStaff && !ctx.isMaster && assigneeId !== ctx.userId) {
-            const owns = await prisma.membership.findFirst({
-                where: { userId: assigneeId, organizationId: ctx.organizationId, role: 'owner' },
-                select: { id: true },
-            });
-            if (!owns) {
-                return NextResponse.json(
-                    { error: "EcoFusion can only assign courses to a business's owner" },
-                    { status: 403 }
-                );
-            }
-        }
+        // EcoFusion staff assign only with the "Assign courses" permission,
+        // checked for every staff request in lib/tenancy before this route
+        // runs, and with it may assign to anyone in the business. The master
+        // account needs none. Either way it is recorded in the trail the owner
+        // reads.
 
         if (!courseId || !assigneeId) {
             return NextResponse.json({ error: 'Course ID and Assignee ID are required' }, { status: 400 });

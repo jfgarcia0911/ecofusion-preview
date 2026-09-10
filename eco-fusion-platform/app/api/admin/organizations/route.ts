@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, isPlatformOwner, logStaffAccess, staffMayReach, staffReachableOrganizationIds } from '@/lib/staff';
+import { isPlatformAdmin, isPlatformOwner, logStaffAccess, staffMayReach, staffReachableOrganizationIds, platformStanding, staffCan } from '@/lib/staff';
+import { PERMISSIONS } from '@/lib/staff-permissions';
 import { evaluateAccess, provisionOrganization } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
 
@@ -72,7 +73,13 @@ export async function GET(request: Request) {
             take: 100,
         });
 
+        const standing = await platformStanding(session.user.id);
         return NextResponse.json({
+            /** What the reader may do on this screen, so the page offers only that. */
+            viewer: {
+                master: standing?.master ?? false,
+                permissions: standing?.permissions ?? [],
+            },
             organizations: organizations.map((org) => {
                 const access = evaluateAccess(org.billingParent ?? org);
                 return {
@@ -124,12 +131,11 @@ export async function POST(request: Request) {
         }
 
         // A new business comes with a subscription, a trial and an owner
-        // account. Taking a customer on is EcoFusion's decision, not an
-        // assistant's, and an assistant who could create one could grant it to
-        // themselves.
-        if (!(await isPlatformOwner(session.user.id))) {
+        // account. Taking a customer on is the master account's decision, which
+        // it can hand to somebody with the "Create sub accounts" permission.
+        if (!(await staffCan(session.user.id, PERMISSIONS.CREATE_BUSINESS))) {
             return NextResponse.json(
-                { error: "Only EcoFusion's owner can create a business" },
+                { error: 'Your EcoFusion access does not include creating sub accounts. Ask the master account.' },
                 { status: 403 }
             );
         }
@@ -198,6 +204,14 @@ export async function POST(request: Request) {
             summary: `Created the business "${name}" with ${ownerEmail} as its owner`,
         });
 
+        // Staff who set a business up are given it, or they could not open
+        // what they had just made. The master account opens everything already.
+        if (!(await isPlatformOwner(session.user.id))) {
+            await prisma.staffBusinessAccess.create({
+                data: { userId: session.user.id, organizationId, grantedById: session.user.id },
+            });
+        }
+
         const organization = await prisma.organization.findUniqueOrThrow({
             where: { id: organizationId },
             select: {
@@ -251,8 +265,11 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (!(await isPlatformAdmin(session.user.id))) {
-            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+        if (!(await staffCan(session.user.id, PERMISSIONS.RENAME_BUSINESS))) {
+            return NextResponse.json(
+                { error: 'Your EcoFusion access does not include renaming sub accounts. Ask the master account.' },
+                { status: 403 }
+            );
         }
 
         const body = await request.json();

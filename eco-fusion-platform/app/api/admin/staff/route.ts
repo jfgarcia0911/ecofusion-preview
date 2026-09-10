@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, isPlatformOwner, logStaffAccess } from '@/lib/staff';
+import { isPlatformOwner, logStaffAccess, staffCan } from '@/lib/staff';
+import { PERMISSIONS, cleanPermissions, permissionLabel } from '@/lib/staff-permissions';
 import { validatePassword } from '@/lib/validation/password';
 import { PLATFORM_ROLES } from '@/lib/roles';
 
@@ -21,19 +22,22 @@ import { PLATFORM_ROLES } from '@/lib/roles';
  */
 
 /**
- * Any EcoFusion account, for reading.
+ * For reading: the master account, or staff with "See the team".
  *
- * Staff see who else is on the team and what each of them opens. That is a
- * colleague list, not a lever: knowing that somebody looks after three
- * customers is not the same as being able to hand yourself a fourth.
+ * A colleague list, not a lever: knowing that somebody looks after three
+ * customers, or what they may do there, is not the same as being able to give
+ * yourself either.
  */
 async function requirePlatform(): Promise<{ userId: string; isOwner: boolean } | NextResponse> {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!(await isPlatformAdmin(session.user.id))) {
-    return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+  if (!(await staffCan(session.user.id, PERMISSIONS.SEE_TEAM))) {
+    return NextResponse.json(
+      { error: 'Your EcoFusion access does not include seeing the team. Ask the master account.' },
+      { status: 403 }
+    );
   }
   return { userId: session.user.id, isOwner: await isPlatformOwner(session.user.id) };
 }
@@ -66,6 +70,7 @@ export async function GET() {
         name: true,
         email: true,
         createdAt: true,
+        staffPermissions: true,
         staffBusinesses: {
           orderBy: { createdAt: 'asc' },
           select: { organization: { select: { id: true, name: true } } },
@@ -91,6 +96,7 @@ export async function GET() {
         name: s.name,
         email: s.email,
         createdAt: s.createdAt,
+        permissions: cleanPermissions(s.staffPermissions),
         businesses: s.staffBusinesses.map((b) => b.organization),
       })),
       businesses,
@@ -107,7 +113,8 @@ export async function POST(request: Request) {
     const guard = await requireOwner();
     if (guard instanceof NextResponse) return guard;
 
-    const { name, email, password } = await request.json();
+    const { name, email, password, permissions } = await request.json();
+    const starting = cleanPermissions(permissions);
     if (!email || !password) {
       return NextResponse.json(
         { error: 'An email and a starting password are both required' },
@@ -131,20 +138,26 @@ export async function POST(request: Request) {
         email: normalisedEmail,
         password: await bcrypt.hash(password, 12),
         role: PLATFORM_ROLES.STAFF,
+        staffPermissions: starting,
         onboardingComplete: true,
       },
-      select: { id: true, name: true, email: true, createdAt: true },
+      select: { id: true, name: true, email: true, createdAt: true, staffPermissions: true },
     });
 
     await logStaffAccess(guard.userId, null, 'write', {
       method: 'POST',
       path: '/api/admin/staff',
-      summary: `Took on ${created.email} as EcoFusion staff`,
+      summary:
+        `Took on ${created.email} as EcoFusion staff` +
+        (starting.length ? `, able to: ${starting.map(permissionLabel).join(', ')}` : ', able to do nothing yet'),
     });
 
     // No business comes with the account. Reach is handed over deliberately,
     // one at a time, rather than arriving with the job.
-    return NextResponse.json({ ...created, businesses: [] }, { status: 201 });
+    return NextResponse.json(
+      { ...created, permissions: cleanPermissions(created.staffPermissions), businesses: [] },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Failed to create staff:', error);
     return NextResponse.json({ error: 'Failed to create the staff account' }, { status: 500 });
@@ -246,6 +259,52 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Failed to set staff access:', error);
     return NextResponse.json({ error: 'Failed to set what they reach' }, { status: 500 });
+  }
+}
+
+// PATCH - set exactly what one staff account may do.
+//
+// The master account's alone, whatever anybody else has been given: a staff
+// member who could change permissions could give themselves all of them.
+export async function PATCH(request: Request) {
+  try {
+    const guard = await requireOwner();
+    if (guard instanceof NextResponse) return guard;
+
+    const { userId, permissions } = await request.json();
+    if (!userId || !Array.isArray(permissions)) {
+      return NextResponse.json({ error: 'userId and permissions are required' }, { status: 400 });
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, email: true, staffPermissions: true },
+    });
+    if (target?.role !== PLATFORM_ROLES.STAFF) {
+      return NextResponse.json({ error: 'That is not a staff account' }, { status: 404 });
+    }
+
+    const wanted = cleanPermissions(permissions);
+    const before = new Set(cleanPermissions(target.staffPermissions));
+    const added = wanted.filter((p) => !before.has(p));
+    const removed = [...before].filter((p) => !wanted.includes(p));
+
+    if (added.length || removed.length) {
+      await prisma.user.update({ where: { id: userId }, data: { staffPermissions: wanted } });
+      await logStaffAccess(guard.userId, null, 'write', {
+        method: 'PATCH',
+        path: '/api/admin/staff',
+        summary:
+          `Changed what ${target.email} can do` +
+          (added.length ? `. Now allowed: ${added.map(permissionLabel).join(', ')}` : '') +
+          (removed.length ? `. No longer allowed: ${removed.map(permissionLabel).join(', ')}` : ''),
+      });
+    }
+
+    return NextResponse.json({ permissions: wanted });
+  } catch (error) {
+    console.error('Failed to set staff permissions:', error);
+    return NextResponse.json({ error: 'Failed to save what they can do' }, { status: 500 });
   }
 }
 

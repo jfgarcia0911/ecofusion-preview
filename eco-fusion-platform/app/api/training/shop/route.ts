@@ -3,6 +3,7 @@ import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { getStripe } from '@/lib/stripe';
 import { courseCurrency, packageQuotes, stripePublishableKey } from '@/lib/course-shop';
+import { PERMISSIONS } from '@/lib/staff-permissions';
 
 /**
  * GET - The course shop, as this business's owner sees it.
@@ -22,7 +23,12 @@ export async function GET() {
     try {
         const { ctx, refusal } = await activeOrg();
         if (refusal) return refusal;
-        if (ctx.role !== 'owner') {
+        // The owner buys. EcoFusion staff allowed to give or take back classes
+        // see the shop too, to do that; they cannot buy.
+        const canGive = ctx.isMaster || (ctx.isStaff && ctx.staffPermissions.includes(PERMISSIONS.GIVE_CLASSES));
+        const canTake = ctx.isMaster || (ctx.isStaff && ctx.staffPermissions.includes(PERMISSIONS.TAKE_CLASSES));
+        const canBuy = ctx.role === 'owner';
+        if (!canBuy && !canGive && !canTake) {
             return NextResponse.json({ error: 'Only the owner buys courses' }, { status: 403 });
         }
 
@@ -37,7 +43,7 @@ export async function GET() {
                     organizationId: null,
                     OR: [
                         { grants: { some: { organizationId: ctx.organizationId } } },
-                        ctx.isMaster
+                        canGive
                             ? { isActive: true }
                             : {
                                   isActive: true,
@@ -96,6 +102,10 @@ export async function GET() {
             embeddedCheckout: getStripe() !== null && stripePublishableKey() !== null,
             /** The master account may give courses and take them back. */
             isMaster: ctx.isMaster,
+            /** What this reader may do here. */
+            canBuy,
+            canGive,
+            canTake,
             courses: courses.map((course) => {
                 const grant = held.get(course.id);
                 return {

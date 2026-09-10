@@ -19,6 +19,9 @@ model User {
   updatedAt           DateTime              @updatedAt
   onboardingComplete  Boolean               @default(false)
   role                String                @default("user")
+  /// What an EcoFusion staff account may do: see lib/staff-permissions. Empty
+  /// for everyone else, and ignored for the master account, which may do all of it.
+  staffPermissions    String[]              @default([])
   accounts            Account[]
   alerts              Alert[]               @relation("AlertOwner")
   cameras             Camera[]
@@ -295,19 +298,19 @@ model TrainingCourse {
 /// Nothing written for instructors lands here. Answer keys and instructor
 /// notes are cut out on import, and grading summaries are never imported.
 model CourseMaterial {
-  id         String         @id @default(cuid())
-  courseId   String
+  id        String         @id @default(cuid())
+  courseId  String
   /// syllabus | handout | cheatsheet | reference | activity | assignment
-  kind       String
-  title      String
-  content    String
-  sortOrder  Int            @default(0)
+  kind      String
+  title     String
+  content   String
+  sortOrder Int            @default(0)
   /// The file it came from, relative to education/courses. What a re-import
   /// matches on, so running the importer again updates rather than duplicates.
-  sourceKey  String
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  course     TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sourceKey String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  course    TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, sourceKey])
   @@index([courseId])

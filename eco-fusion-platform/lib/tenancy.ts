@@ -8,14 +8,20 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import {
   currentStaffOrganizationId,
   platformReach,
+  logStaffAccess,
   logStaffWriteIfAny,
 } from '@/lib/staff';
+import {
+  permissionForBusinessRequest,
+  permissionLabel,
+  type StaffPermission,
+} from '@/lib/staff-permissions';
 import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
 import { logMemberWriteIfAny } from '@/lib/activity';
 
@@ -65,6 +71,14 @@ export interface OrgContext {
    * written to the same trail as any other EcoFusion visit.
    */
   isMaster: boolean;
+  /** What a staff member was allowed by the master account. Empty for everyone else. */
+  staffPermissions: StaffPermission[];
+  /**
+   * Why this request is refused, when it is a staff member doing something
+   * their permissions do not cover. Set here, where the request is first seen,
+   * and answered by activeOrg before the route does anything.
+   */
+  staffRefusal: string | null;
 }
 
 /**
@@ -236,6 +250,8 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     access: evaluateAccess(membership.organization.billingParent ?? membership.organization),
     isStaff: false,
     isMaster: false,
+    staffPermissions: [],
+    staffRefusal: null,
   };
 }
 
@@ -272,10 +288,33 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
   });
   if (!organization) return null;
 
-  // Every write, by every platform account, before the route has done
-  // anything with it. The master's unlimited reach is only acceptable because
-  // of this line.
-  await logStaffWriteIfAny(userId, organizationId);
+  // What this request needs, against what this staff member was given. The
+  // master account needs nothing. Worked out from the method and path that
+  // middleware forwards, so one list in lib/staff-permissions governs every
+  // route in a business rather than each route remembering to ask.
+  const head = await headers();
+  const method = head.get('x-request-method');
+  const path = head.get('x-request-path');
+  const needed = reach.master ? null : permissionForBusinessRequest(method, path);
+  const staffRefusal =
+    needed && !reach.permissions.includes(needed)
+      ? `Your EcoFusion access does not include "${permissionLabel(needed)}" in this business. Ask the master account.`
+      : null;
+
+  if (staffRefusal && needed) {
+    // Written down as an attempt rather than a change: nothing happened, but
+    // somebody tried, and that is what an access trail is for.
+    await logStaffAccess(userId, organizationId, 'denied', {
+      method: method?.toUpperCase() ?? null,
+      path,
+      summary: `Refused: needs "${permissionLabel(needed)}"`,
+    });
+  } else {
+    // Every write, by every platform account, before the route has done
+    // anything with it. The master's unlimited reach is only acceptable
+    // because of this line.
+    await logStaffWriteIfAny(userId, organizationId);
+  }
 
   return {
     userId,
@@ -284,6 +323,8 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
     access: evaluateAccess(organization),
     isStaff: true,
     isMaster: reach.master,
+    staffPermissions: reach.permissions,
+    staffRefusal,
   };
 }
 

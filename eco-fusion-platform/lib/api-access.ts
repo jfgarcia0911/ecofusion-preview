@@ -48,6 +48,11 @@ export async function activeOrg(): Promise<
     // Staff are exempt. A business that has lapsed is one of the reasons
     // EcoFusion is called in, and being unable to look at it would make the
     // support session useless precisely when it is needed.
+    // A staff member doing something the master account has not allowed them.
+    // Asked before anything else about the request, and before the route runs.
+    if (ctx.staffRefusal) {
+        return { ctx: null, refusal: NextResponse.json({ error: ctx.staffRefusal }, { status: 403 }) };
+    }
     if (!ctx.access.allowed && !ctx.isStaff) {
         return {
             ctx: null,

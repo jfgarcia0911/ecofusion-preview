@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, isPlatformOwner, logStaffAccess } from '@/lib/staff';
+import { isPlatformAdmin, logStaffAccess, staffCan } from '@/lib/staff';
+import { PERMISSIONS } from '@/lib/staff-permissions';
 import { courseCurrency } from '@/lib/course-shop';
 import { formatPrice, priceProblem } from '@/lib/course-price';
 
 /**
  * What each of EcoFusion's courses costs a business.
  *
- * Any EcoFusion account may read the price list; only the master account sets
- * it, since what the platform charges is the platform's own decision. Every
+ * Any EcoFusion account may read the price list; setting it takes the "Set
+ * prices" permission, which the master account holds and may hand on. Every
  * change is written to the access trail with the old price and the new one.
  *
  * Two kinds of price: one per course, and one per level for the whole level
@@ -43,7 +44,7 @@ export async function GET() {
                 orderBy: { sortOrder: 'asc' },
             }),
             prisma.coursePackage.findMany({ select: { category: true, priceCents: true } }),
-            isPlatformOwner(session.user.id),
+            staffCan(session.user.id, PERMISSIONS.SET_PRICES),
         ]);
 
         return NextResponse.json({
@@ -78,9 +79,9 @@ export async function PUT(request: Request) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (!(await isPlatformOwner(session.user.id))) {
+        if (!(await staffCan(session.user.id, PERMISSIONS.SET_PRICES))) {
             return NextResponse.json(
-                { error: 'Only the master account sets course prices' },
+                { error: 'Your EcoFusion access does not include setting prices. Ask the master account.' },
                 { status: 403 }
             );
         }

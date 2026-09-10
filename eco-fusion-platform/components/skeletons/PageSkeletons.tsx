@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, Loader2, Tag, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, Loader2, Tag, KeyRound, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -911,6 +911,43 @@ export function CheckoutSkeleton() {
                     <StripeFrameSkeleton />
                 </div>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Team Access: heading, the table of staff with what each can do, and the
+ * panel of what stays with the master account. The standfirst differs for the
+ * master and for staff, so it waits as a bar rather than guessing which.
+ */
+export function TeamAccessSkeleton() {
+    return (
+        <div aria-busy="true" aria-label="Loading team access">
+            <div className="flex items-start justify-between gap-4 mb-6">
+                <div className="flex-1">
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <KeyRound size={22} className="text-accent" />
+                        Team Access
+                    </h1>
+                    <div className="h-3.5 w-[32rem] max-w-full rounded bg-white/5 mt-2 animate-pulse" />
+                    <div className="h-3.5 w-80 max-w-full rounded bg-white/5 mt-1.5 animate-pulse" />
+                </div>
+                <div className="h-10 w-28 rounded-xl bg-white/5 shrink-0 animate-pulse" />
+            </div>
+            <div className="rounded-xl border border-white/10 overflow-hidden">
+                <div className="h-10 bg-white/[0.04]" />
+                {Array.from({ length: 4 }).map((_, row) => (
+                    <div key={row} className="flex items-center gap-6 px-4 py-4 border-t border-white/5 animate-pulse">
+                        <div className="h-3.5 w-28 rounded bg-white/10" />
+                        <div className="h-3.5 w-40 rounded bg-white/5" />
+                        <div className="h-5 w-24 rounded bg-white/5" />
+                        <div className="h-5 w-32 rounded bg-white/5 flex-1 max-w-[12rem]" />
+                        <div className="h-3.5 w-20 rounded bg-white/5 ml-auto" />
+                        <div className="h-7 w-24 rounded-lg bg-white/5" />
+                    </div>
+                ))}
+            </div>
+            <div className="mt-6 h-32 rounded-2xl border border-white/10 bg-white/[0.02] animate-pulse" />
         </div>
     );
 }

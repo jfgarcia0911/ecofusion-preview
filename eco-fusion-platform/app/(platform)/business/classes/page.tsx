@@ -74,6 +74,10 @@ interface Shop {
     /** Paying happens on EcoFusion's own checkout page rather than Stripe's. */
     embeddedCheckout: boolean;
     isMaster: boolean;
+    /** Whether this reader may buy (the owner), give free, or take back. */
+    canBuy: boolean;
+    canGive: boolean;
+    canTake: boolean;
     courses: ShopCourse[];
     purchases: Purchase[];
     packages: LevelPackage[];
@@ -441,7 +445,7 @@ export default function BusinessClassesPage() {
                                 <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-white/55 shrink-0">
                                     {course.held ? SOURCE_LABEL[course.held.source] : ""}
                                 </span>
-                                {shop.isMaster && (
+                                {shop.canTake && (
                                     <button
                                         type="button"
                                         onClick={() => takeBack(course)}
@@ -555,7 +559,7 @@ export default function BusinessClassesPage() {
                                         {!packaged && (
                                             <button
                                                 type="button"
-                                                onClick={() => setGroup(list.filter((c) => shop.isMaster || c.priceCents !== null), !all)}
+                                                onClick={() => setGroup(list.filter((c) => shop.canGive || c.priceCents !== null), !all)}
                                                 className="text-[11px] shrink-0 px-2.5 py-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
                                             >
                                                 {all ? "Clear" : "Select all"}
@@ -568,7 +572,7 @@ export default function BusinessClassesPage() {
                                             {list.map((course) => {
                                                 // Not sold alone: for an owner, choosing it
                                                 // chooses its level's package.
-                                                const packageOnly = course.priceCents === null && !shop.isMaster;
+                                                const packageOnly = course.priceCents === null && !shop.canGive;
                                                 const on = packaged || basket.has(course.id);
                                                 return (
                                                     <button
@@ -709,7 +713,7 @@ export default function BusinessClassesPage() {
                     >
                         Clear
                     </button>
-                    {shop.isMaster && (
+                    {shop.canGive && (
                         <button
                             type="button"
                             onClick={give}
@@ -721,15 +725,18 @@ export default function BusinessClassesPage() {
                             Give free
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={buy}
-                        disabled={busy !== null || unpriced > 0 || (paidCount > 0 && !shop.paymentsReady)}
-                        className="px-5 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-40 flex items-center gap-2"
-                    >
-                        {busy === "buy" && <Loader2 size={15} className="motion-safe:animate-spin" />}
-                        {paidCount > 0 ? `Buy for ${money(total)}` : "Add free courses"}
-                    </button>
+                    {/* Buying spends the business's money, so it is the owner's alone. */}
+                    {shop.canBuy && (
+                        <button
+                            type="button"
+                            onClick={buy}
+                            disabled={busy !== null || unpriced > 0 || (paidCount > 0 && !shop.paymentsReady)}
+                            className="px-5 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-40 flex items-center gap-2"
+                        >
+                            {busy === "buy" && <Loader2 size={15} className="motion-safe:animate-spin" />}
+                            {paidCount > 0 ? `Buy for ${money(total)}` : "Add free courses"}
+                        </button>
+                    )}
                 </div>
             )}
         </div>

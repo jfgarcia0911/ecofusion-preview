@@ -99,6 +99,7 @@ export default function Sidebar({
     user,
     business,
     isOwner = false,
+    showClasses,
 }: {
     user?: User;
     /** The business these screens are showing, named at the top of the sidebar. */
@@ -110,6 +111,11 @@ export default function Sidebar({
      * else's business.
      */
     isOwner?: boolean;
+    /**
+     * Whether Classes is offered. The owner's, to buy; also EcoFusion staff
+     * allowed to give or take back classes. Defaults to isOwner.
+     */
+    showClasses?: boolean;
 }) {
     const pathname = usePathname() ?? '';
     // What someone may do is decided by their role in this business, not by the
@@ -132,7 +138,7 @@ export default function Sidebar({
     const navItems = [
         ...baseNavItems,
         ...(isAdmin ? adminNavItems : userNavItems),
-        ...(isOwner ? ownerNavItems : []),
+        ...((showClasses ?? isOwner) ? ownerNavItems : []),
         ...commonNavItems,
         ...(isStaff ? staffNavItems : []),
     ];

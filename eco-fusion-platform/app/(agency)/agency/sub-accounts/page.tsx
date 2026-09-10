@@ -6,6 +6,7 @@ import { Search, LogIn, Building2, Camera, Plus, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import CaptureSnapshotModal from "@/components/admin/CaptureSnapshotModal";
+import { PERMISSIONS, type StaffPermission } from "@/lib/staff-permissions";
 import CreateSubAccountModal from "@/components/admin/CreateSubAccountModal";
 import EditSubAccountModal from "@/components/admin/EditSubAccountModal";
 
@@ -63,6 +64,14 @@ export default function SubAccountsPage() {
     // Capturing reads a setup without entering it, so no support session is
     // opened and none is needed.
     const [captureFrom, setCaptureFrom] = useState<{ id: string; name: string } | null>(null);
+    // What the reader may do here, as the server says. Starts empty so nothing
+    // is offered before the answer arrives.
+    const [viewer, setViewer] = useState<{ master: boolean; permissions: StaffPermission[] }>({
+        master: false,
+        permissions: [],
+    });
+    const can = (permission: StaffPermission) =>
+        viewer.master || viewer.permissions.includes(permission);
     const router = useRouter();
     const toast = useToast();
     const confirmAction = useConfirm();
@@ -77,6 +86,7 @@ export default function SubAccountsPage() {
             }
             const data = await res.json();
             setBusinesses(data.organizations ?? []);
+            if (data.viewer) setViewer(data.viewer);
         } catch {
             toast.error("Could not load the sub account list");
         } finally {
@@ -131,14 +141,16 @@ export default function SubAccountsPage() {
                         and leaving are both written to the access trail.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setCreating(true)}
-                    className="shrink-0 text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors"
-                >
-                    <Plus size={16} />
-                    Create Sub Account
-                </button>
+                {can(PERMISSIONS.CREATE_BUSINESS) && (
+                    <button
+                        type="button"
+                        onClick={() => setCreating(true)}
+                        className="shrink-0 text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors"
+                    >
+                        <Plus size={16} />
+                        Create Sub Account
+                    </button>
+                )}
             </div>
 
             <div className="relative mb-4">
@@ -239,26 +251,30 @@ export default function SubAccountsPage() {
 
                                         <td className="px-4 py-3.5">
                                             <div className="flex items-center justify-end gap-1.5">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEditing(business)}
-                                                    title="Rename this business"
-                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
-                                                >
-                                                    <Pencil size={13} />
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setCaptureFrom({ id: business.id, name: business.name })
-                                                    }
-                                                    title="Capture this setup as a template"
-                                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
-                                                >
-                                                    <Camera size={13} />
-                                                    Capture
-                                                </button>
+                                                {can(PERMISSIONS.RENAME_BUSINESS) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditing(business)}
+                                                        title="Rename this business"
+                                                        className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+                                                    >
+                                                        <Pencil size={13} />
+                                                        Edit
+                                                    </button>
+                                                )}
+                                                {can(PERMISSIONS.CAPTURE_SNAPSHOTS) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setCaptureFrom({ id: business.id, name: business.name })
+                                                        }
+                                                        title="Capture this setup as a template"
+                                                        className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+                                                    >
+                                                        <Camera size={13} />
+                                                        Capture
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={() => enter(business)}

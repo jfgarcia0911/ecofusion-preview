@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext } from "@/lib/tenancy";
 import { isPlatformAdmin } from "@/lib/staff";
+import { PERMISSIONS } from "@/lib/staff-permissions";
+import { Eye } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
@@ -70,6 +72,20 @@ export default async function DashboardLayout({
     // account enters as the owner, and is shown everything an owner is.
     const isOwner = ctx?.role === "owner";
 
+    // What a staff member's permissions leave them, shown rather than left for
+    // them to find out one refusal at a time. The master account is never
+    // limited, so neither applies to it.
+    const limitedStaff = Boolean(ctx?.isStaff && !ctx.isMaster);
+    const viewOnly =
+        limitedStaff && !ctx!.staffPermissions.includes(PERMISSIONS.WORK_IN_BUSINESS);
+    // Staff allowed to give or take back classes get the Classes screen to do
+    // it from; an owner has it anyway, to buy.
+    const showClasses =
+        isOwner ||
+        (limitedStaff &&
+            (ctx!.staffPermissions.includes(PERMISSIONS.GIVE_CLASSES) ||
+                ctx!.staffPermissions.includes(PERMISSIONS.TAKE_CLASSES)));
+
 
     return (
         <ToastProvider>
@@ -77,10 +93,16 @@ export default async function DashboardLayout({
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
-                <Sidebar user={session?.user} business={business} isOwner={isOwner} />
+                <Sidebar user={session?.user} business={business} isOwner={isOwner} showClasses={showClasses} />
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
+                        {viewOnly && (
+                            <p className="mb-6 px-4 py-3 rounded-xl border border-info/25 bg-info/10 text-sm text-info flex items-center gap-2">
+                                <Eye size={15} className="shrink-0" />
+                                View only. Your EcoFusion access lets you look around this business but not change anything. Ask the master account if you need to.
+                            </p>
+                        )}
                         {ctx && !ctx.isStaff && (
                             <div className="mb-6">
                                 <TrialBanner access={ctx.access} />
