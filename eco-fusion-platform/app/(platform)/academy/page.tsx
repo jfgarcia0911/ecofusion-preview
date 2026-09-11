@@ -8,14 +8,6 @@ import {
     CheckCircle, AlertCircle, Shield, Download, Award
 } from 'lucide-react';
 
-interface Lesson {
-    id: string;
-    title: string;
-    type: string;
-    duration: number;
-    sortOrder: number;
-}
-
 interface Course {
     id: string;
     code: string;
@@ -26,7 +18,8 @@ interface Course {
     isRequired: boolean;
     renewalDays: number | null;
     passScore: number;
-    lessons: Lesson[];
+    /** How many lessons the course has. The list itself is not sent. */
+    lessonCount: number;
 }
 
 interface Assignment {
@@ -349,7 +342,7 @@ export default function AcademyDashboard() {
                                         <p className="text-xs text-white/50 line-clamp-2 mb-3">{assignment.course.description}</p>
                                         <div className="flex items-center justify-between text-xs text-white/40 mb-4">
                                             <span>{assignment.course.code}</span>
-                                            <span>{Math.round(assignment.course.duration / 60)} hrs • {assignment.course.lessons.length} lessons</span>
+                                            <span>{Math.round(assignment.course.duration / 60)} hrs • {assignment.progress.totalLessons} lessons</span>
                                         </div>
                                         {assignment.dueDate && (
                                             <p className={`text-xs mb-3 ${getPriorityColor(assignment.priority)}`}>
