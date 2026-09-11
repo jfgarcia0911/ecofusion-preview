@@ -3,50 +3,77 @@ import { canManageMembers } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
+/** One row of the directory query in GET. */
+interface EmployeeRow {
+  id: string;
+  userId: string;
+  organizationId: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string | null;
+  status: string;
+  accountId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  accountEmail: string | null;
+  orgRole: string | null;
+  lastSignInAt: Date | null;
+}
+
 // GET - Fetch all employees for user
 export async function GET() {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const employees = await prisma.employee.findMany({
-      where: { organizationId: ctx.organizationId },
-      orderBy: { name: 'asc' },
-      include: {
+    // The whole directory in one query: each person, the login they sign in
+    // with, the access level that login holds here, and when it last signed
+    // in to this business.
+    //
+    // It was three round trips to the database in Tokyo one after another -
+    // the people, then their logins (Prisma fetches an include as a second
+    // query), then sign-ins and roles, which had to wait for the logins to
+    // know whose to ask about - and the last of those opened a second
+    // connection, which costs a further half second when none is open. About
+    // a second when warm and 1.6 cold, measured; one trip now.
+    //
+    // Last sign-in reads ActivityLog through the index on (organizationId,
+    // action, userId, createdAt), which answers it without scanning the log:
+    // every change anybody makes in a business is written there, so the log
+    // grows much faster than the sign-ins in it.
+    const rows = await prisma.$queryRaw<EmployeeRow[]>`
+      SELECT
+        e."id", e."userId", e."organizationId", e."name", e."role", e."email",
+        e."phone", e."status", e."accountId", e."createdAt", e."updatedAt",
+        u."email" AS "accountEmail",
+        m."role" AS "orgRole",
+        (SELECT max(al."createdAt") FROM "ActivityLog" al
+          WHERE al."organizationId" = e."organizationId"
+            AND al."action" = 'signin'
+            AND al."userId" = e."accountId") AS "lastSignInAt"
+      FROM "Employee" e
+      LEFT JOIN "User" u ON u."id" = e."accountId"
+      LEFT JOIN "Membership" m
+             ON m."userId" = e."accountId" AND m."organizationId" = e."organizationId"
+      WHERE e."organizationId" = ${ctx.organizationId}
+      ORDER BY e."name" ASC
+    `;
+
+    const employees = rows.map(({ accountEmail, orgRole, lastSignInAt, ...employee }) => ({
+      employee: {
+        ...employee,
         // Lets the list show who can actually sign in.
-        account: { select: { id: true, email: true } },
+        account: employee.accountId && accountEmail ? { id: employee.accountId, email: accountEmail } : null,
       },
-    });
-
-    // When each of them was last here, from the sign-ins the business already
-    // records. One grouped query for the whole directory rather than one per
-    // person, and only for the people who have a login to sign in with.
-    const accountIds = employees
-      .map((employee) => employee.accountId)
-      .filter((id): id is string => id !== null);
-
-    const [lastSignIns, memberships] = accountIds.length
-      ? await Promise.all([
-          prisma.activityLog.groupBy({
-            by: ['userId'],
-            where: {
-              organizationId: ctx.organizationId,
-              action: 'signin',
-              userId: { in: accountIds },
-            },
-            _max: { createdAt: true },
-          }),
-          prisma.membership.findMany({
-            where: { organizationId: ctx.organizationId, userId: { in: accountIds } },
-            select: { userId: true, role: true },
-          }),
-        ])
-      : [[], []];
-
-    const seenAt = new Map(
-      lastSignIns.map((row) => [row.userId, row._max.createdAt] as const)
+      orgRole,
+      lastSignInAt,
+    }));
+    const roleOf = new Map(
+      employees
+        .filter((row) => row.employee.accountId && row.orgRole)
+        .map((row) => [row.employee.accountId as string, row.orgRole as string] as const)
     );
-    const roleOf = new Map(memberships.map((m) => [m.userId, m.role] as const));
 
     /**
      * Whether this reader may set a new password for that person.
@@ -85,7 +112,7 @@ export async function GET() {
     };
 
     return NextResponse.json(
-      employees.map((employee) => ({
+      employees.map(({ employee, orgRole, lastSignInAt }) => ({
         ...employee,
         /**
          * When this person last signed in to this business, or null.
@@ -94,9 +121,9 @@ export async function GET() {
          * apart: somebody with no account cannot sign in, while somebody with
          * one who never has is a login nobody has picked up.
          */
-        lastSignInAt: employee.accountId ? seenAt.get(employee.accountId) ?? null : null,
+        lastSignInAt: employee.accountId ? lastSignInAt : null,
         /** Role held on this business by the login, when there is one. */
-        orgRole: employee.accountId ? roleOf.get(employee.accountId) ?? null : null,
+        orgRole: employee.accountId ? orgRole : null,
         canResetPassword: mayReset(employee.accountId),
         canChangeRole: mayChangeRole(employee.accountId),
         /**

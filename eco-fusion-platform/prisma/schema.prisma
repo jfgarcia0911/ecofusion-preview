@@ -921,6 +921,9 @@ model ActivityLog {
 
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
+  /// Last sign-in per person, for the Employees directory: answered from the
+  /// index without scanning a log that every change in the business adds to.
+  @@index([organizationId, action, userId, createdAt])
 }
 
 /// Which businesses a member of EcoFusion staff may work in.
