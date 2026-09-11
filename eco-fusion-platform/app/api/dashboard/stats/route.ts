@@ -3,55 +3,88 @@ import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 
 // GET - Fetch aggregated dashboard statistics
+//
+// Every figure is the business's, not the reader's. These used to be scoped
+// by userId, so a manager saw only what they had entered themselves, EcoFusion
+// staff inside a business saw zeros, and somebody in two businesses saw both
+// added together. lib/tenancy says it plainly: userId records who entered a
+// row, and must never be what a read is scoped by.
+//
+// All asked at once. The ten questions below depend on nothing but the dates,
+// and asked one after another each waited a full round trip to a database on
+// the other side of the Pacific: about four seconds measured, against about
+// one when sent together.
 export async function GET() {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const userId = ctx.userId;
+    const organizationId = ctx.organizationId;
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-
-    // Get current month sales
-    const currentMonthSales = await prisma.sale.aggregate({
-      where: {
-        userId,
-        saleDate: { gte: startOfMonth },
-        status: 'completed',
-      },
-      _sum: { total: true },
-      _count: true,
-    });
-
-    // Get last month sales for comparison
-    const lastMonthSales = await prisma.sale.aggregate({
-      where: {
-        userId,
-        saleDate: { gte: startOfLastMonth, lte: endOfLastMonth },
-        status: 'completed',
-      },
-      _sum: { total: true },
-    });
-
-    // Get total revenue (all time)
-    const totalRevenue = await prisma.sale.aggregate({
-      where: { userId, status: 'completed' },
-      _sum: { total: true },
-    });
-
-    // Get monthly revenue data for chart (last 6 months)
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    const salesByMonth = await prisma.sale.groupBy({
-      by: ['saleDate'],
-      where: {
-        userId,
-        saleDate: { gte: sixMonthsAgo },
-        status: 'completed',
-      },
-      _sum: { total: true },
-    });
+
+    const [
+      currentMonthSales,
+      lastMonthSales,
+      totalRevenue,
+      salesByMonth,
+      activeZones,
+      totalZones,
+      currentMonthHarvests,
+      lastMonthHarvests,
+      activeAlerts,
+      latestReadings,
+    ] = await Promise.all([
+      // This month's sales
+      prisma.sale.aggregate({
+        where: { organizationId, saleDate: { gte: startOfMonth }, status: 'completed' },
+        _sum: { total: true },
+        _count: true,
+      }),
+      // Last month's, for comparison
+      prisma.sale.aggregate({
+        where: {
+          organizationId,
+          saleDate: { gte: startOfLastMonth, lte: endOfLastMonth },
+          status: 'completed',
+        },
+        _sum: { total: true },
+      }),
+      // All time
+      prisma.sale.aggregate({
+        where: { organizationId, status: 'completed' },
+        _sum: { total: true },
+      }),
+      // The last six months, for the chart
+      prisma.sale.groupBy({
+        by: ['saleDate'],
+        where: { organizationId, saleDate: { gte: sixMonthsAgo }, status: 'completed' },
+        _sum: { total: true },
+      }),
+      prisma.zone.count({ where: { organizationId, status: 'active' } }),
+      prisma.zone.count({ where: { organizationId } }),
+      // Harvests, for the yield figure
+      prisma.harvest.aggregate({
+        where: { organizationId, harvestDate: { gte: startOfMonth } },
+        _sum: { quantity: true },
+        _count: true,
+      }),
+      prisma.harvest.aggregate({
+        where: { organizationId, harvestDate: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        _sum: { quantity: true },
+      }),
+      prisma.alert.count({ where: { organizationId, status: 'active' } }),
+      // Latest sensor readings, for system health
+      prisma.sensorReading.findMany({
+        where: { zone: { organizationId } },
+        orderBy: { timestamp: 'desc' },
+        take: 10,
+        include: { zone: { select: { name: true, type: true } } },
+      }),
+    ]);
 
     // Aggregate by month
     const monthlyRevenue: Record<string, number> = {};
@@ -78,39 +111,6 @@ export async function GET() {
       revenue: Math.round(revenue * 100) / 100,
     }));
 
-    // Get active zones count
-    const activeZones = await prisma.zone.count({
-      where: { userId, status: 'active' },
-    });
-
-    // Get total zones
-    const totalZones = await prisma.zone.count({
-      where: { userId },
-    });
-
-    // Get harvest data for yield calculation
-    const currentMonthHarvests = await prisma.harvest.aggregate({
-      where: {
-        userId,
-        harvestDate: { gte: startOfMonth },
-      },
-      _sum: { quantity: true },
-      _count: true,
-    });
-
-    const lastMonthHarvests = await prisma.harvest.aggregate({
-      where: {
-        userId,
-        harvestDate: { gte: startOfLastMonth, lte: endOfLastMonth },
-      },
-      _sum: { quantity: true },
-    });
-
-    // Get active alerts count
-    const activeAlerts = await prisma.alert.count({
-      where: { userId, status: 'active' },
-    });
-
     // Calculate changes
     const currentMonthTotal = currentMonthSales._sum.total || 0;
     const lastMonthTotal = lastMonthSales._sum.total || 0;
@@ -123,16 +123,6 @@ export async function GET() {
     const yieldChange = lastYield > 0
       ? ((currentYield - lastYield) / lastYield) * 100
       : currentYield > 0 ? 100 : 0;
-
-    // Get latest sensor readings for system health
-    const latestReadings = await prisma.sensorReading.findMany({
-      where: {
-        zone: { userId },
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 10,
-      include: { zone: { select: { name: true, type: true } } },
-    });
 
     // Calculate system efficiency based on zones with recent readings
     const zonesWithReadings = new Set(latestReadings.map(r => r.zoneId)).size;
