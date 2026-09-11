@@ -6,7 +6,20 @@
 | --- | --- |
 | **Scenes** | 22 |
 | **Length** | about 12–13 minutes |
+| **HeyGen** | Creator plan (600 credits a month): about 52 credits with a standard avatar, about 400 with the most lifelike one. The free plan only makes 1-minute videos, so use it to test Scene 1 |
 | **Synthesia free plan** | 10 minutes a month, so this video needs a paid plan, or two months of free minutes |
+
+## How to use this file in HeyGen
+
+1. In HeyGen, create a new video. The studio opens with your first scene ready.
+2. **Once, before anything else:** click **Avatar** on the right and pick your presenter. Then pick a voice, press ▶ to hear it, and click **Apply to all scenes** so the whole lesson has one voice.
+3. For every scene below:
+   - Copy the grey **SCRIPT** box and paste it into that scene's script section on the **left** side of the screen.
+   - Build the **CANVAS** part: click **Text** on the right and type what's shown. Where it says **MEDIA**, click **Media**, search that word, and add a picture.
+   - Then click **+ Scene** → **+ Blank Scene** for the next one.
+4. Where a scene asks for a pause, put your cursor at that spot, click the **Pause** button, and use **+** to lengthen it (it goes up in half-seconds).
+5. HeyGen can't play the whole video while you edit, so listen to each scene's audio before you generate.
+6. Click **Generate** (top right) and wait. The finished video appears in your videos list, ready to download.
 
 ## How to use this file in Synthesia
 
