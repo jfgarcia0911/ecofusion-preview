@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
@@ -79,6 +80,12 @@ export interface OrgContext {
    * and answered by activeOrg before the route does anything.
    */
   staffRefusal: string | null;
+  /**
+   * The business's name and where it is. Read in the same lookup that finds
+   * the business, so the layout, the sidebar and the switcher need no query
+   * of their own to say whose business this is.
+   */
+  business: { name: string; location: string | null };
 }
 
 /**
@@ -179,11 +186,16 @@ export function canManageMembers(ctx: OrgContext): boolean {
 /**
  * The signed-in user's organization, or null when there is no session.
  *
+ * Worked out once per request and shared: the layout, the page and anything
+ * else rendered for the same request all get this one answer instead of each
+ * asking the database again. (In a route handler there is only one caller,
+ * and it runs as before.)
+ *
  * Reads from the token where possible. Sessions issued before organizations
  * existed carry no organizationId, so those fall back to a membership lookup
  * rather than logging everyone out.
  */
-export async function getOrgContext(): Promise<OrgContext | null> {
+export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
   const session = await auth();
   if (!session?.user?.id) return null;
 
@@ -202,38 +214,36 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     session.user.organizationId,
   ].filter((id): id is string => Boolean(id));
 
-  const select = {
-    organizationId: true,
-    role: true,
-    organization: {
-      select: {
-        subscriptionStatus: true,
-        trialEndsAt: true,
-        currentPeriodEnd: true,
-        billingParent: {
-          select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+  // Every membership at once, oldest first, and the choice made here. A
+  // person belongs to a handful of businesses at most - an owner is capped at
+  // twenty - so one query that returns them all is cheaper than the up to
+  // three it replaces, each of which was a round trip to Tokyo in front of
+  // every page and every request.
+  const memberships = await prisma.membership.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      organizationId: true,
+      role: true,
+      organization: {
+        select: {
+          name: true,
+          location: true,
+          subscriptionStatus: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          billingParent: {
+            select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+          },
         },
       },
     },
-  } as const;
-
-  let membership = null as Awaited<
-    ReturnType<typeof prisma.membership.findFirst<{ select: typeof select }>>
-  >;
-
-  for (const organizationId of candidates) {
-    membership = await prisma.membership.findUnique({
-      where: { userId_organizationId: { userId: session.user.id, organizationId } },
-      select,
-    });
-    if (membership) break;
-  }
-
-  membership ??= await prisma.membership.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: 'asc' },
-    select,
   });
+
+  const membership =
+    candidates
+      .map((id) => memberships.find((m) => m.organizationId === id))
+      .find((m) => m !== undefined) ?? memberships[0];
   if (!membership) return null;
 
   // The business's own record of what its people did. Staff changes are
@@ -252,8 +262,12 @@ export async function getOrgContext(): Promise<OrgContext | null> {
     isMaster: false,
     staffPermissions: [],
     staffRefusal: null,
+    business: {
+      name: membership.organization.name,
+      location: membership.organization.location,
+    },
   };
-}
+});
 
 /**
  * The farm a staff member has stepped into, or null.
@@ -279,14 +293,25 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
 
   // Not merely staff, but staff who were handed this business. The master
   // reaches every one; an assistant reaches what they were given.
-  const reach = await platformReach(userId, organizationId);
-  if (!reach) return null;
-
-  const organization = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
-  });
-  if (!organization) return null;
+  //
+  // The business is read alongside rather than after, since neither answer
+  // depends on the other. Reading it for somebody who turns out not to reach
+  // it gives nothing away: the result is thrown away with the refusal, and
+  // the id came from their own cookie.
+  const [reach, organization] = await Promise.all([
+    platformReach(userId, organizationId),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        name: true,
+        location: true,
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        currentPeriodEnd: true,
+      },
+    }),
+  ]);
+  if (!reach || !organization) return null;
 
   // What this request needs, against what this staff member was given. The
   // master account needs nothing. Worked out from the method and path that
@@ -325,6 +350,7 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
     isMaster: reach.master,
     staffPermissions: reach.permissions,
     staffRefusal,
+    business: { name: organization.name, location: organization.location },
   };
 }
 

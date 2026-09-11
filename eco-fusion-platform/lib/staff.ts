@@ -123,14 +123,19 @@ export async function platformReach(
     userId: string,
     organizationId: string
 ): Promise<{ master: boolean; permissions: StaffPermission[] } | null> {
-    const standing = await platformStanding(userId);
+    // Asked together: the grant does not depend on the answer to "who is
+    // this", and one after the other they were two round trips to Tokyo on
+    // every request a support session made. For the master and for anybody
+    // who is not staff the grant is simply not looked at.
+    const [standing, granted] = await Promise.all([
+        platformStanding(userId),
+        prisma.staffBusinessAccess.findUnique({
+            where: { userId_organizationId: { userId, organizationId } },
+            select: { id: true },
+        }),
+    ]);
     if (!standing) return null;
     if (standing.master) return standing;
-
-    const granted = await prisma.staffBusinessAccess.findUnique({
-        where: { userId_organizationId: { userId, organizationId } },
-        select: { id: true },
-    });
     return granted ? standing : null;
 }
 

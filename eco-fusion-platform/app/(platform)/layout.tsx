@@ -21,7 +21,18 @@ export default async function DashboardLayout({
 
     // Access belongs to the business, so one check here covers every page for
     // every member, including accounts an owner created for staff.
-    const ctx = await getOrgContext();
+    //
+    // Whether to show the onboarding tour depends on nothing but who is
+    // signed in, so it is asked alongside the business rather than after it.
+    const [ctx, user] = await Promise.all([
+        getOrgContext(),
+        session?.user?.id
+            ? prisma.user.findUnique({
+                  where: { id: session.user.id },
+                  select: { onboardingComplete: true },
+              })
+            : Promise.resolve(null),
+    ]);
     // A lapsed business is often why staff were called in, so it opens for them.
     if (ctx && !ctx.access.allowed && !ctx.isStaff) {
         redirect("/billing");
@@ -35,29 +46,11 @@ export default async function DashboardLayout({
         redirect("/agency");
     }
 
-    // These three do not depend on each other, so they go together. Awaited one
-    // after another they were three round trips to a database on the other side
-    // of the world, in front of every screen in the app; asked for at once they
-    // cost one. Nothing below reads a result before this line.
-    //
-    // `business` is named rather than left as an id so the sidebar and the
-    // banner can both say whose business this is, and it is read for everyone
-    // rather than only for staff: the switcher shows the name at all times,
-    // which is how somebody notices they are not where they thought they were.
-    const [business, user] = await Promise.all([
-        ctx
-            ? prisma.organization.findUnique({
-                  where: { id: ctx.organizationId },
-                  select: { name: true, location: true },
-              })
-            : Promise.resolve(null),
-        session?.user?.id
-            ? prisma.user.findUnique({
-                  where: { id: session.user.id },
-                  select: { onboardingComplete: true },
-              })
-            : Promise.resolve(null),
-    ]);
+    // Named rather than left as an id so the sidebar and the banner can both
+    // say whose business this is; the switcher shows it at all times, which is
+    // how somebody notices they are not where they thought they were. It comes
+    // with the business lookup itself, so saying so costs no query.
+    const business = ctx?.business ?? null;
 
     const showOnboarding = Boolean(session?.user?.id) && !user?.onboardingComplete;
 
