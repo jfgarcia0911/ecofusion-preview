@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe, Ban, ShieldAlert } from "lucide-react";
+import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe, Ban, ShieldAlert, KeyRound } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { isMasterRole } from "@/lib/roles";
 import { AccessLogRowsSkeleton, AgencyAccessLogSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -28,6 +28,7 @@ interface Entry {
 }
 
 const ACTION_STYLES: Record<string, { style: string; icon: typeof LogIn; label: string }> = {
+    signin: { style: "bg-emerald-400/10 text-emerald-200 border-emerald-400/25", icon: KeyRound, label: "signed in" },
     enter: { style: "bg-amber-400/15 text-amber-200 border-amber-400/30", icon: LogIn, label: "entered" },
     leave: { style: "bg-white/10 text-white/60 border-white/20", icon: LogOut, label: "left" },
     write: { style: "bg-red-400/15 text-red-300 border-red-400/30", icon: Pencil, label: "changed" },

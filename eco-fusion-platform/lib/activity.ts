@@ -13,6 +13,7 @@
 
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import { isPlatformRole } from '@/lib/roles';
 
 type Action = 'signin' | 'write';
 
@@ -89,9 +90,18 @@ export async function logSignIn(userId: string): Promise<void> {
       orderBy: { createdAt: 'asc' },
       select: { organizationId: true },
     });
-    // A support account belongs to no business, so there is nothing for its
-    // sign-in to be a fact about. lib/staff records what it does instead.
-    if (!membership) return;
+    // A support account belongs to no business, so its sign-in goes on the
+    // Access Log as a platform line, beside everything else it does. Written
+    // here rather than through lib/staff, which imports auth and would loop.
+    if (!membership) {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (isPlatformRole(user?.role)) {
+        await prisma.staffAccessLog.create({
+          data: { staffUserId: userId, organizationId: null, action: 'signin' },
+        });
+      }
+      return;
+    }
 
     await record(membership.organizationId, userId, 'signin');
   } catch (error) {

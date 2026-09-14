@@ -167,7 +167,8 @@ export async function currentStaffOrganizationId(): Promise<string | null> {
 }
 
 /** denied: a staff member tried something their permissions do not cover. */
-type StaffAction = 'enter' | 'leave' | 'write' | 'denied';
+// 'signin' is written by lib/activity, which cannot import this file.
+type StaffAction = 'signin' | 'enter' | 'leave' | 'write' | 'denied';
 
 /**
  * The description middleware made of this request's body, or null. Null too

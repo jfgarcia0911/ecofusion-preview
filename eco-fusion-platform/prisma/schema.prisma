@@ -958,7 +958,7 @@ model StaffAccessLog {
   /// such as taking on staff or editing a snapshot, which belongs to no one
   /// business but is still a change somebody made.
   organizationId String?
-  /// enter | leave | write
+  /// signin | enter | leave | write | denied
   action         String
   /// Method and path of the request, for a write. Null for enter and leave.
   method         String?
