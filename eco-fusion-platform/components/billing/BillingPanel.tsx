@@ -55,8 +55,10 @@ export default async function BillingPanel({ ctx, embedded }: { ctx: OrgContext;
                 ? `Access to ${org?.name ?? "your business"} is paused. Your data is safe and nothing has been deleted. Subscribing restores everything exactly as you left it.`
                 : `Access to ${org?.name ?? "this business"} is paused. The owner needs to renew the subscription; anyone they added shares the same access.`;
 
+    // Inside the app it takes the page's width, like every other settings page;
+    // on its own page it stays a card in the middle of the screen.
     return (
-        <div className="w-full max-w-lg">
+        <div className={embedded ? "w-full" : "w-full max-w-lg"}>
             <div className="glass-card border-white/10 shadow-2xl shadow-black/50 p-8 rounded-3xl backdrop-blur-xl bg-black/40">
                 <div className="flex flex-col items-center text-center mb-8">
                     <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-accent/20">

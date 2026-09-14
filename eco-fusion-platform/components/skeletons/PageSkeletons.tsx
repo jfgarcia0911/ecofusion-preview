@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
     HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, Loader2, Tag, KeyRound,
-    DollarSign, Layers, ArrowLeft, type LucideIcon,
+    DollarSign, Layers, ArrowLeft, Thermometer, Scale, Compass, Settings, Key, Save, Leaf,
+    type LucideIcon,
 } from "lucide-react";
 import KpiCard from "@/components/widgets/KpiCard";
+import { IntegrationFeatures, IntegrationSetupGuide } from "@/components/settings/IntegrationGuide";
 
 /**
  * One waiting state per destination in the sidebar, shaped like the page it
@@ -1250,23 +1252,276 @@ export function SettingsIndexSkeleton() {
     );
 }
 
-/** A settings page that is mostly a form: preferences, integrations. */
-export function SettingsFormSkeleton({ title, fields = 4 }: { title: string; fields?: number }) {
+/*
+ * The settings pages. Each is mostly static - its headings, its explanations,
+ * its buttons and its labels - so those are drawn as they are and only what
+ * comes from the server pulses. Each page's opening sentence is kept here and
+ * imported by the page, so the page and its skeleton cannot drift apart.
+ */
+
+/** The page's own "back" link, drawn as text since nothing about it waits. */
+function BackLink({ label, className }: { label: string; className: string }) {
     return (
-        <div className="max-w-3xl" aria-busy="true" aria-label={`Loading ${title.toLowerCase()}`}>
-            <div className="h-4 w-24 rounded bg-white/5 mb-6 animate-pulse" />
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white">{title}</h1>
-                <div className="h-3.5 w-96 max-w-full rounded bg-white/5 mt-2 animate-pulse" />
+        <div className={className}>
+            <ArrowLeft size={16} /> {label}
+        </div>
+    );
+}
+
+export const PREFERENCES_STANDFIRST =
+    "Choose the units you want to see. Readings are stored the same way either way, so switching never changes your data.";
+
+/** One of the two choices on a Preferences card, unselected. */
+function UnitOption({ label, hint }: { label: string; hint: string }) {
+    return (
+        <div className="flex-1 text-left p-4 rounded-xl border bg-white/5 border-white/10">
+            <span className="font-bold text-white">{label}</span>
+            <p className="text-xs text-white/50 mt-1">{hint}</p>
+        </div>
+    );
+}
+
+/**
+ * Preferences: the units cards, the tour, and the password form.
+ *
+ * The choices are drawn unselected. Which one is chosen is kept in the browser
+ * and read after the page starts, so any highlight here would be a guess.
+ */
+export function PreferencesSkeleton() {
+    const field = "w-full h-[46px] bg-white/5 border border-white/10 rounded-xl";
+    return (
+        <div className="space-y-8 pb-10" aria-busy="true" aria-label="Loading preferences">
+            <div>
+                <BackLink
+                    label="Back to Dashboard"
+                    className="text-white/50 text-sm flex items-center gap-2 mb-4 w-fit"
+                />
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                    Preferences
+                </h1>
+                <p className="text-white/50 mt-1">{PREFERENCES_STANDFIRST}</p>
             </div>
-            <div className="space-y-5 animate-pulse">
-                {Array.from({ length: fields }).map((_, field) => (
-                    <div key={field} className="space-y-2">
-                        <div className="h-3 w-28 rounded bg-white/10" />
-                        <div className="h-11 w-full rounded-xl bg-white/5" />
+
+            <div className="glass-card p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <Thermometer size={18} className="text-secondary" />
+                    <div>
+                        <h2 className="text-white font-bold">Temperature</h2>
+                        <p className="text-xs text-white/50">
+                            Used for sensor readings, zone thresholds, and the sensor entry form.
+                        </p>
                     </div>
-                ))}
-                <div className="h-10 w-36 rounded-lg bg-white/5" />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <UnitOption label="Celsius (°C)" hint="Metric. Typical tank reading: 26.5 °C" />
+                    <UnitOption label="Fahrenheit (°F)" hint="Imperial. Typical tank reading: 79.7 °F" />
+                </div>
+            </div>
+
+            <div className="glass-card p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <Scale size={18} className="text-accent" />
+                    <div>
+                        <h2 className="text-white font-bold">Weight</h2>
+                        <p className="text-xs text-white/50">Used for fish weights and growth logs.</p>
+                    </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <UnitOption label="Metric (g / kg)" hint="Grams, switching to kilograms above 1,000 g" />
+                    <UnitOption label="Imperial (oz / lb)" hint="Ounces, switching to pounds above 16 oz" />
+                </div>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 className="text-white font-bold">Welcome tour</h2>
+                        <p className="text-sm text-white/45 mt-1 max-w-md">
+                            The walkthrough you saw when you first signed in. Run it again to
+                            see what each part of the sidebar is for.
+                        </p>
+                    </div>
+                    <div className="shrink-0 text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 text-white/70">
+                        <Compass size={15} />
+                        Run the tour
+                    </div>
+                </div>
+            </div>
+
+            <div className="glass-card rounded-2xl border border-white/10 p-6">
+                <div className="flex items-center gap-2 mb-1">
+                    <KeyRound size={18} className="text-white/40" />
+                    <h2 className="text-lg font-semibold text-white">Password</h2>
+                </div>
+                <p className="text-sm text-white/40 mb-5">
+                    If someone gave you a temporary password, change it here.
+                </p>
+                <div className="space-y-4 max-w-md">
+                    <div>
+                        <p className="block text-sm text-white/60 mb-1.5">Current password</p>
+                        <div className={field} />
+                    </div>
+                    <div>
+                        <p className="block text-sm text-white/60 mb-1.5">New password</p>
+                        <div className={field} />
+                        <p className="text-xs text-white/30 mt-1.5">
+                            At least 10 characters, with upper and lower case, a number and a symbol.
+                        </p>
+                    </div>
+                    <div>
+                        <p className="block text-sm text-white/60 mb-1.5">Confirm new password</p>
+                        <div className={field} />
+                    </div>
+                    <div className="py-2.5 px-5 bg-accent text-primary font-semibold rounded-xl w-fit">
+                        Change password
+                    </div>
+                </div>
+            </div>
+
+            <p className="text-xs text-white/30">
+                Preferences are saved in this browser. Signing in elsewhere starts from the
+                defaults.
+            </p>
+        </div>
+    );
+}
+
+export const INTEGRATIONS_STANDFIRST = "Connect external services to your platform";
+
+/** Whether the CRM is connected, before the answer comes back. */
+export function IntegrationStatusSkeleton() {
+    return <div className="h-8 w-32 rounded-full bg-white/10 animate-pulse" />;
+}
+
+/**
+ * The CRM card while its saved settings are out: its name, description, labels
+ * and Save button are the page's own; the connection status and the two fields
+ * wait. The Sync Status panel and the Test and Remove buttons appear only for a
+ * connected CRM, so no room is held for them.
+ */
+export function IntegrationCardSkeleton() {
+    const field = "w-full h-[42px] bg-white/5 border border-white/10 rounded-lg animate-pulse";
+    return (
+        <div className="glass-card p-6">
+            <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <Settings className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-semibold text-white">Satistio CRM</h2>
+                        <p className="text-white/50">Go HighLevel integration for customer management</p>
+                    </div>
+                </div>
+                <IntegrationStatusSkeleton />
+            </div>
+
+            <div className="space-y-4">
+                <div>
+                    <p className="text-sm text-white/70 mb-1 flex items-center gap-2">
+                        <Key className="w-4 h-4" />
+                        API Key
+                    </p>
+                    <div className={field} />
+                    <p className="text-xs text-white/40 mt-1">Your API key is encrypted and stored securely</p>
+                </div>
+                <div>
+                    <p className="block text-sm text-white/70 mb-1">Location ID</p>
+                    <div className={field} />
+                    <p className="text-xs text-white/40 mt-1">Find this in your Go HighLevel account settings</p>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-white/10 border border-white/20" />
+                        <span className="text-white">Enable CRM Integration</span>
+                    </div>
+                </div>
+                <div className="flex gap-3 pt-4">
+                    <div className="px-6 py-2 bg-accent text-primary font-bold rounded-lg flex items-center gap-2">
+                        <Save className="w-4 h-4" />
+                        Save Settings
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** The whole of Settings → Integrations. */
+export function IntegrationsSkeleton() {
+    return (
+        <div className="space-y-6" aria-busy="true" aria-label="Loading integrations">
+            <div className="flex items-center gap-4">
+                <div className="p-2 text-white/50 rounded-lg">
+                    <ArrowLeft className="w-5 h-5" />
+                </div>
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                        Integrations
+                    </h1>
+                    <p className="text-white/50 mt-1">{INTEGRATIONS_STANDFIRST}</p>
+                </div>
+            </div>
+            <div className="space-y-6">
+                <IntegrationCardSkeleton />
+                <IntegrationSetupGuide />
+                <IntegrationFeatures />
+            </div>
+        </div>
+    );
+}
+
+export const BILLING_STANDFIRST = "One subscription, covering every business you run.";
+
+/**
+ * Settings → Billing: the subscription card at full width. What the trial or
+ * subscription says waits; the card's icon, its three labels and the support
+ * line are the page's own.
+ */
+export function BillingSettingsSkeleton() {
+    return (
+        <div className="space-y-8 pb-10" aria-busy="true" aria-label="Loading billing">
+            <div>
+                <BackLink
+                    label="Back to Settings"
+                    className="text-white/50 text-sm flex items-center gap-2 mb-4 w-fit"
+                />
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                    Billing
+                </h1>
+                <p className="text-white/50 mt-1">{BILLING_STANDFIRST}</p>
+            </div>
+            <div className="w-full">
+                <div className="glass-card border-white/10 shadow-2xl shadow-black/50 p-8 rounded-3xl backdrop-blur-xl bg-black/40">
+                    <div className="flex flex-col items-center text-center mb-8">
+                        <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-accent/20">
+                            <Leaf className="text-primary" size={24} strokeWidth={2.5} />
+                        </div>
+                        <div className="h-8 w-64 max-w-full rounded bg-white/10 mb-2 animate-pulse" />
+                        <div className="h-4 w-96 max-w-full rounded bg-white/5 animate-pulse" />
+                    </div>
+                    <dl className="space-y-3 mb-8">
+                        {[
+                            { label: "Business" },
+                            { label: "Your role" },
+                            { label: "Trial period", icon: true },
+                        ].map((row) => (
+                            <div
+                                key={row.label}
+                                className="flex items-center justify-between py-3 px-4 bg-white/5 rounded-xl"
+                            >
+                                <dt className="text-sm text-white/50 flex items-center gap-2">
+                                    {row.icon && <Clock size={14} />} {row.label}
+                                </dt>
+                                <dd className="h-4 w-28 rounded bg-white/10 animate-pulse" />
+                            </div>
+                        ))}
+                    </dl>
+                    <div className="h-12 w-full rounded-xl bg-white/10 animate-pulse" />
+                </div>
+                <p className="mt-3 text-center text-xs text-white/30">
+                    Questions about billing? Email support@llayd.com
+                </p>
             </div>
         </div>
     );
@@ -1312,7 +1567,7 @@ export const BUSINESS_UNITS_STANDFIRST =
  */
 export function BusinessUnitsSettingsSkeleton() {
     return (
-        <div className="max-w-3xl" aria-busy="true" aria-label="Loading business units">
+        <div aria-busy="true" aria-label="Loading business units">
             <div className="inline-flex items-center gap-2 text-sm text-white/40 mb-6">
                 <ArrowLeft size={15} />
                 Settings
@@ -1335,39 +1590,55 @@ export function BusinessUnitsSettingsSkeleton() {
     );
 }
 
-/** A settings page that is mostly a list: business units, the access record. */
-export function SettingsListSkeleton({
-    title,
-    rows = 6,
-}: {
-    title: string;
-    rows?: number;
-}) {
+export const ACCESS_RECORD_STANDFIRST =
+    "Who has been in this business and what they changed: your own people signing in and making changes, and any time EcoFusion support opened it. Written by the platform and never edited.";
+
+/**
+ * The Access Record's lines, inside the one bordered box the page draws: the
+ * icon for what happened, the line saying so, who it was with their badge,
+ * and when. Used alone by the page under its real heading.
+ */
+export function AccessRecordRowsSkeleton({ rows = 8 }: { rows?: number }) {
     return (
-        <div className="max-w-3xl" aria-busy="true" aria-label={`Loading ${title.toLowerCase()}`}>
-            <div className="h-4 w-24 rounded bg-white/5 mb-6 animate-pulse" />
-            <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-white">{title}</h1>
-                    <div className="h-3.5 w-80 max-w-full rounded bg-white/5 mt-2 animate-pulse" />
-                </div>
-                <div className="h-9 w-28 rounded-lg bg-white/5 shrink-0 animate-pulse" />
-            </div>
-            <div className="space-y-2">
-                {Array.from({ length: rows }).map((_, row) => (
-                    <div
-                        key={row}
-                        className="flex items-center gap-4 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] animate-pulse"
-                    >
-                        <div className="w-9 h-9 rounded-lg bg-white/10 shrink-0" />
-                        <div className="flex-1 space-y-2">
-                            <div className="h-3.5 w-40 rounded bg-white/10" />
-                            <div className="h-3 w-56 max-w-full rounded bg-white/5" />
+        <div className="rounded-2xl border border-white/10 overflow-hidden" aria-busy="true" aria-label="Loading the access record">
+            {Array.from({ length: rows }).map((_, row) => (
+                <div
+                    key={row}
+                    className="flex items-start gap-3.5 px-5 py-4 border-b border-white/5 last:border-0 animate-pulse"
+                >
+                    <div className="w-4 h-4 mt-0.5 rounded bg-white/10 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        <div className="h-5 flex items-center">
+                            <div className="h-3.5 w-44 max-w-full rounded bg-white/10" />
                         </div>
-                        <div className="h-7 w-20 rounded-lg bg-white/5 shrink-0" />
+                        <div className="mt-0.5 h-5 flex items-center gap-1.5">
+                            <div className="h-[18px] w-16 rounded bg-white/[0.07]" />
+                            <div className="h-3 w-32 rounded bg-white/5" />
+                        </div>
                     </div>
-                ))}
+                    <div className="h-4 flex items-center shrink-0">
+                        <div className="h-3 w-32 rounded bg-white/5" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** The whole of Settings → Access Record. */
+export function AccessRecordSkeleton() {
+    return (
+        <div className="space-y-6" aria-busy="true" aria-label="Loading access record">
+            <div>
+                <div className="inline-flex items-center gap-2 text-xs text-white/40 mb-4">
+                    <ArrowLeft size={12} /> Settings
+                </div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                    Access Record
+                </h1>
+                <p className="text-white/50 mt-2">{ACCESS_RECORD_STANDFIRST}</p>
             </div>
+            <AccessRecordRowsSkeleton />
         </div>
     );
 }

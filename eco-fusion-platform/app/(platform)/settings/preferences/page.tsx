@@ -6,6 +6,7 @@ import { useUnits } from "@/lib/contexts/UnitContext";
 import ChangePassword from "./change-password";
 import ReplayTour from "./replay-tour";
 import { temperatureToDisplay, weightToDisplay, round } from "@/lib/units";
+import { PREFERENCES_STANDFIRST } from "@/components/skeletons/PageSkeletons";
 
 interface OptionProps {
     label: string;
@@ -53,10 +54,7 @@ export default function PreferencesPage() {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
                     Preferences
                 </h1>
-                <p className="text-white/50 mt-1">
-                    Choose the units you want to see. Readings are stored the same way either
-                    way, so switching never changes your data.
-                </p>
+                <p className="text-white/50 mt-1">{PREFERENCES_STANDFIRST}</p>
             </div>
 
             <div className="glass-card p-6 space-y-4">

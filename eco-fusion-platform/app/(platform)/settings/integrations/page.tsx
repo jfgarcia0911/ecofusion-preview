@@ -4,6 +4,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Settings, CheckCircle, XCircle, RefreshCw, Key, Save, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { IntegrationFeatures, IntegrationSetupGuide } from "@/components/settings/IntegrationGuide";
+import {
+  IntegrationCardSkeleton,
+  IntegrationStatusSkeleton,
+  INTEGRATIONS_STANDFIRST,
+} from "@/components/skeletons/PageSkeletons";
 
 interface IntegrationSettings {
   provider: string;
@@ -24,6 +30,9 @@ export default function IntegrationsPage() {
   const confirmAction = useConfirm();
   const [settings, setSettings] = useState<IntegrationSettings | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  // Asked separately from the settings, so the badge waits on its own answer
+  // rather than saying "Not Connected" until it arrives.
+  const [syncLoaded, setSyncLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -64,6 +73,8 @@ export default function IntegrationsPage() {
       setSyncStatus(data);
     } catch (error) {
       console.error("Failed to fetch sync status:", error);
+    } finally {
+      setSyncLoaded(true);
     }
   }
 
@@ -159,7 +170,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/sales">
           <button className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg">
@@ -170,14 +181,16 @@ export default function IntegrationsPage() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
             Integrations
           </h1>
-          <p className="text-white/50 mt-1">Connect external services to your platform</p>
+          <p className="text-white/50 mt-1">{INTEGRATIONS_STANDFIRST}</p>
         </div>
       </div>
 
+      {/* The same card the route's loading file draws, beside the panels that never change. */}
       {loading ? (
-        <div className="glass-card p-6 animate-pulse">
-          <div className="h-8 bg-white/10 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-white/10 rounded w-2/3"></div>
+        <div className="space-y-6">
+          <IntegrationCardSkeleton />
+          <IntegrationSetupGuide />
+          <IntegrationFeatures />
         </div>
       ) : (
         <div className="space-y-6">
@@ -194,7 +207,9 @@ export default function IntegrationsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {syncStatus?.isConfigured ? (
+                {!syncLoaded ? (
+                  <IntegrationStatusSkeleton />
+                ) : syncStatus?.isConfigured ? (
                   <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-full text-sm">
                     <CheckCircle className="w-4 h-4" />
                     Connected
@@ -329,73 +344,9 @@ export default function IntegrationsPage() {
             </form>
           </div>
 
-          {/* Help Section */}
-          <div className="glass-card p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Setup Guide</h3>
-            <ol className="space-y-3 text-white/70">
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-sm font-medium shrink-0">
-                  1
-                </span>
-                <span>Log in to your Satistio/Go HighLevel account</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-sm font-medium shrink-0">
-                  2
-                </span>
-                <span>Navigate to Settings → API Keys and generate a new key</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-sm font-medium shrink-0">
-                  3
-                </span>
-                <span>Copy your Location ID from Settings → Business Info</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-sm font-medium shrink-0">
-                  4
-                </span>
-                <span>Paste both values above and click Save Settings</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-sm font-medium shrink-0">
-                  5
-                </span>
-                <span>Test the connection to verify everything is working</span>
-              </li>
-            </ol>
-          </div>
+          <IntegrationSetupGuide />
 
-          {/* Features */}
-          <div className="glass-card p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">What You Can Do</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-white/5 rounded-lg">
-                <div className="font-medium text-white mb-1">Sync Customers</div>
-                <div className="text-sm text-white/50">
-                  Automatically sync customer data from sales to your CRM
-                </div>
-              </div>
-              <div className="p-4 bg-white/5 rounded-lg">
-                <div className="font-medium text-white mb-1">Search Contacts</div>
-                <div className="text-sm text-white/50">
-                  Look up existing CRM contacts when creating sales
-                </div>
-              </div>
-              <div className="p-4 bg-white/5 rounded-lg">
-                <div className="font-medium text-white mb-1">Create Opportunities</div>
-                <div className="text-sm text-white/50">
-                  Record sales as opportunities in your CRM pipeline
-                </div>
-              </div>
-              <div className="p-4 bg-white/5 rounded-lg">
-                <div className="font-medium text-white mb-1">Add Contacts</div>
-                <div className="text-sm text-white/50">
-                  Create new CRM contacts directly from this platform
-                </div>
-              </div>
-            </div>
-          </div>
+          <IntegrationFeatures />
         </div>
       )}
     </div>

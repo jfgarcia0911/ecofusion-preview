@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import BillingPanel from "@/components/billing/BillingPanel";
+import { BILLING_STANDFIRST } from "@/components/skeletons/PageSkeletons";
 import { getOrgContext } from "@/lib/tenancy";
 
 // Billing inside the app, beside the sidebar. A lapsed business never reaches
@@ -22,7 +23,7 @@ export default async function SettingsBillingPage() {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
                     Billing
                 </h1>
-                <p className="text-white/50 mt-1">One subscription, covering every business you run.</p>
+                <p className="text-white/50 mt-1">{BILLING_STANDFIRST}</p>
             </div>
             <BillingPanel ctx={ctx} embedded />
         </div>

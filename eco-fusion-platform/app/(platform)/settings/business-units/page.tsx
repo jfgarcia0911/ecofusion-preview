@@ -186,7 +186,7 @@ export default function BusinessUnitsPage() {
     const ordered = [...units].sort((a, b) => a.sortOrder - b.sortOrder);
 
     return (
-        <div className="max-w-3xl">
+        <div>
             <Link
                 href="/settings"
                 className="inline-flex items-center gap-2 text-sm text-white/40 hover:text-white mb-6 transition-colors"

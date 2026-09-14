@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ScrollText, LogIn, LogOut, PenLine, ShieldCheck, Ban } from "lucide-react";
+import { AccessRecordRowsSkeleton, ACCESS_RECORD_STANDFIRST } from "@/components/skeletons/PageSkeletons";
 
 interface Entry {
     id: string;
@@ -64,7 +65,7 @@ export default function AuditLogPage() {
     }, [load]);
 
     return (
-        <div className="max-w-4xl space-y-6">
+        <div className="space-y-6">
             <div>
                 <Link
                     href="/settings"
@@ -75,11 +76,7 @@ export default function AuditLogPage() {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
                     Access Record
                 </h1>
-                <p className="text-white/50 mt-2">
-                    Who has been in this business and what they changed: your own
-                    people signing in and making changes, and any time EcoFusion
-                    support opened it. Written by the platform and never edited.
-                </p>
+                <p className="text-white/50 mt-2">{ACCESS_RECORD_STANDFIRST}</p>
             </div>
 
             {error && (
@@ -88,8 +85,9 @@ export default function AuditLogPage() {
                 </p>
             )}
 
+            {/* The same lines the route's loading file draws, under the real heading. */}
             {loading ? (
-                <p className="text-white/40 text-sm py-10 text-center">Loading...</p>
+                <AccessRecordRowsSkeleton />
             ) : entries.length === 0 && !error ? (
                 <div className="flex flex-col items-center text-center py-16 rounded-2xl border border-white/10 bg-white/[0.02]">
                     <ShieldCheck size={36} className="text-accent/60 mb-4" />
