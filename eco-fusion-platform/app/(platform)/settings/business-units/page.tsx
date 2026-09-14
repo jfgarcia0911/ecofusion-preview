@@ -7,6 +7,7 @@ import { ICON_NAMES, UNIT_PALETTES, iconFor } from "@/lib/business-units";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { BusinessUnitRowsSkeleton, BUSINESS_UNITS_STANDFIRST } from "@/components/skeletons/PageSkeletons";
 
 interface Unit {
     id: string;
@@ -200,11 +201,7 @@ export default function BusinessUnitsPage() {
                         <Layers size={22} className="text-accent" />
                         Business Units
                     </h1>
-                    <p className="text-white/50 mt-1 text-sm max-w-xl">
-                        The silos this business runs. Sales, tasks and targets are attributed to
-                        these, and the keywords decide which silo a sale lands in when nobody
-                        picked one.
-                    </p>
+                    <p className="text-white/50 mt-1 text-sm max-w-xl">{BUSINESS_UNITS_STANDFIRST}</p>
                 </div>
                 <button
                     type="button"
@@ -216,8 +213,9 @@ export default function BusinessUnitsPage() {
                 </button>
             </div>
 
+            {/* The same rows the route's loading file draws, under the real heading. */}
             {loading ? (
-                <p className="text-white/40 text-sm py-8 text-center">Loading silos...</p>
+                <BusinessUnitRowsSkeleton />
             ) : (
                 <div className="space-y-2">
                     {ordered.map((unit, index) => {

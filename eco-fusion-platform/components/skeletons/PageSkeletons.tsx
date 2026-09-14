@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import {
     Brain, Sparkles, Calendar, Bot, Clock, AlertCircle, UserPlus, Download, Plus,
-    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, Loader2, Tag, KeyRound, type LucideIcon,
+    HelpCircle, Search, GraduationCap, ShoppingCart, Users, Building2, ScrollText, Loader2, Tag, KeyRound,
+    DollarSign, Layers, ArrowLeft, type LucideIcon,
 } from "lucide-react";
+import KpiCard from "@/components/widgets/KpiCard";
 
 /**
  * One waiting state per destination in the sidebar, shaped like the page it
@@ -141,6 +143,144 @@ export function PhasesSkeleton() {
                         </div>
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+/*
+ * A business unit's own page waits on four things at once: which unit it is,
+ * its revenue, its efficiency and its tasks. Each piece below stands in for one
+ * of them at the size it arrives at, and the page uses the same pieces for
+ * whichever is still out, so nothing shifts as they land one by one.
+ */
+
+/** The month's revenue total, beside the Revenue Performance title. */
+export function UnitRevenueTotalSkeleton() {
+    return <div className="h-8 w-40 rounded bg-white/10 animate-pulse" />;
+}
+
+/** The weekly revenue chart, filling the 250px box the chart draws in. */
+export function UnitRevenueChartSkeleton() {
+    return <div className="h-full w-full rounded-xl bg-white/5 animate-pulse" />;
+}
+
+/** The efficiency ring, as an empty ring of the same size. */
+export function UnitEfficiencySkeleton() {
+    return <div className="w-32 h-32 rounded-full border-8 border-white/10 animate-pulse" />;
+}
+
+/** The unit's tasks, as rows the height a task row is. */
+export function UnitTaskRowsSkeleton({ rows = 3 }: { rows?: number }) {
+    return (
+        <div className="space-y-3" aria-busy="true" aria-label="Loading tasks">
+            {Array.from({ length: rows }).map((_, row) => (
+                <div
+                    key={row}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 animate-pulse"
+                >
+                    <div className="w-5 h-5 rounded border border-white/15 shrink-0" />
+                    <div className="h-3.5 w-48 max-w-full rounded bg-white/10" />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** The team beside the tasks: an initial in a circle, a name and a role. */
+export function UnitTeamSkeleton({ rows = 3 }: { rows?: number }) {
+    return (
+        <div className="space-y-4" aria-busy="true" aria-label="Loading team members">
+            {Array.from({ length: rows }).map((_, row) => (
+                <div key={row} className="flex items-center gap-3 animate-pulse">
+                    <div className="w-8 h-8 rounded-full bg-white/10 shrink-0" />
+                    <div className="space-y-1.5">
+                        <div className="h-3.5 w-28 rounded bg-white/10" />
+                        <div className="h-3 w-20 rounded bg-white/5" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * The whole of a business unit's page, before it is known which unit it is.
+ *
+ * Every title, the Phase Settings button, the operating cost card and the
+ * task form are the page's own static markup, so they are drawn as they are.
+ * Only the unit's name, icon and description wait, along with the figures.
+ */
+export function PhaseDetailSkeleton() {
+    return (
+        <div className="space-y-6" aria-busy="true" aria-label="Loading business unit">
+            <div className="flex justify-between items-center">
+                <div>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white/10 animate-pulse" />
+                        <div className="h-9 w-56 rounded bg-white/10 animate-pulse" />
+                    </div>
+                    <div className="h-4 w-72 max-w-full rounded bg-white/5 mt-2 ml-11 animate-pulse" />
+                </div>
+                <div className="px-4 py-2 border border-white/10 rounded-lg text-sm text-white/70">
+                    Phase Settings
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 glass-card p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <DollarSign size={18} className="text-accent" />
+                            Revenue Performance
+                        </h3>
+                        <UnitRevenueTotalSkeleton />
+                    </div>
+                    <div className="h-[250px] w-full">
+                        <UnitRevenueChartSkeleton />
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <KpiCard title="Monthly OpEx" value="$4,200" change="-2.1%" trend="up" icon={DollarSign} />
+                    <div className="glass-card p-6">
+                        <h3 className="text-sm font-bold text-white/70 uppercase mb-4">Phase Efficiency</h3>
+                        <div className="flex items-center justify-center py-4">
+                            <UnitEfficiencySkeleton />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="glass-panel p-6 rounded-2xl">
+                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <AlertCircle className="text-secondary" />
+                    Phase Tasks & Assignments
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <div className="space-y-4 mb-6">
+                            <div className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white/40">
+                                Add new task...
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white/70 flex-1">
+                                    Assign to Employee...
+                                </div>
+                                <div className="px-4 py-2 bg-secondary/20 text-secondary rounded-xl">
+                                    <Plus size={20} />
+                                </div>
+                            </div>
+                        </div>
+                        <UnitTaskRowsSkeleton />
+                    </div>
+
+                    <div className="border-l border-white/10 pl-8">
+                        <h3 className="text-sm font-bold text-white/50 uppercase mb-4">Assigned Team Members</h3>
+                        <UnitTeamSkeleton />
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -1128,6 +1268,69 @@ export function SettingsFormSkeleton({ title, fields = 4 }: { title: string; fie
                 ))}
                 <div className="h-10 w-36 rounded-lg bg-white/5" />
             </div>
+        </div>
+    );
+}
+
+/**
+ * Settings → Business Units' rows: the silo's coloured tile, its name and what
+ * it covers, then its five small buttons (up, down, edit, retire, delete).
+ * Used alone by the page while the list is out, under its real heading.
+ */
+export function BusinessUnitRowsSkeleton({ rows = 7 }: { rows?: number }) {
+    return (
+        <div className="space-y-2" aria-busy="true" aria-label="Loading silos">
+            {Array.from({ length: rows }).map((_, row) => (
+                <div
+                    key={row}
+                    className="flex items-center gap-4 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] animate-pulse"
+                >
+                    <div className="w-9 h-9 rounded-lg bg-white/10 shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="h-3.5 w-36 max-w-full rounded bg-white/10" />
+                        <div className="h-3 w-56 max-w-full rounded bg-white/5" />
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {Array.from({ length: 5 }).map((_, button) => (
+                            <div key={button} className="w-[26px] h-[26px] rounded-lg bg-white/5" />
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** The standfirst Settings → Business Units opens with, shared so the two agree. */
+export const BUSINESS_UNITS_STANDFIRST =
+    "The silos this business runs. Sales, tasks and targets are attributed to these, and the keywords decide which silo a sale lands in when nobody picked one.";
+
+/**
+ * The whole of Settings → Business Units: the way back, the heading with its
+ * icon, the standfirst and the Add silo button are all static, so drawn as
+ * they are, and only the silos wait.
+ */
+export function BusinessUnitsSettingsSkeleton() {
+    return (
+        <div className="max-w-3xl" aria-busy="true" aria-label="Loading business units">
+            <div className="inline-flex items-center gap-2 text-sm text-white/40 mb-6">
+                <ArrowLeft size={15} />
+                Settings
+            </div>
+            <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Layers size={22} className="text-accent" />
+                        Business Units
+                    </h1>
+                    <p className="text-white/50 mt-1 text-sm max-w-xl">{BUSINESS_UNITS_STANDFIRST}</p>
+                </div>
+                <div className="shrink-0 text-sm flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-primary font-bold">
+                    <Plus size={15} />
+                    Add silo
+                </div>
+            </div>
+            <BusinessUnitRowsSkeleton />
         </div>
     );
 }

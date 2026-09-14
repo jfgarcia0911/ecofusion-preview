@@ -1,7 +1,15 @@
 "use client";
 import { useParams } from "next/navigation";
 import { iconFor, type BusinessUnitView } from "@/lib/business-units";
-import { DollarSign, AlertCircle, Plus, Trash2, Check, Loader2 } from "lucide-react";
+import { DollarSign, AlertCircle, Plus, Trash2, Check } from "lucide-react";
+import {
+    PhaseDetailSkeleton,
+    UnitEfficiencySkeleton,
+    UnitRevenueChartSkeleton,
+    UnitRevenueTotalSkeleton,
+    UnitTaskRowsSkeleton,
+    UnitTeamSkeleton,
+} from "@/components/skeletons/PageSkeletons";
 import KpiCard from "@/components/widgets/KpiCard";
 import PhaseSettingsModal from "@/components/modals/PhaseSettingsModal";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -35,6 +43,7 @@ export default function PhaseDetailPage() {
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
+    const [employeesLoading, setEmployeesLoading] = useState(true);
     const [newTask, setNewTask] = useState("");
     const [assignee, setAssignee] = useState("");
     const [loading, setLoading] = useState(true);
@@ -76,6 +85,8 @@ export default function PhaseDetailPage() {
             }
         } catch (err) {
             console.error("Error fetching employees:", err);
+        } finally {
+            setEmployeesLoading(false);
         }
     }, []);
 
@@ -117,7 +128,9 @@ export default function PhaseDetailPage() {
         fetchMetrics();
     }, [fetchTasks, fetchEmployees, fetchRevenue, fetchMetrics]);
 
-    if (units === null) return <div className="text-white/50">Loading…</div>;
+    // The same component the route's loading file renders, so the handover
+    // from one to the other is invisible.
+    if (units === null) return <PhaseDetailSkeleton />;
     if (!phase) return <div className="text-white">Business unit not found</div>;
 
     const PhaseIcon = iconFor(phase.icon);
@@ -205,7 +218,7 @@ export default function PhaseDetailPage() {
                             Revenue Performance
                         </h3>
                         {revenueLoading ? (
-                            <Loader2 className="animate-spin text-white/50" size={24} />
+                            <UnitRevenueTotalSkeleton />
                         ) : (
                             <span className="text-2xl font-bold text-white">
                                 ${totalRevenue.toLocaleString()} <span className="text-xs text-white/50 font-normal">this month</span>
@@ -214,9 +227,7 @@ export default function PhaseDetailPage() {
                     </div>
                     <div className="h-[250px] w-full">
                         {revenueLoading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <Loader2 className="animate-spin text-accent" size={32} />
-                            </div>
+                            <UnitRevenueChartSkeleton />
                         ) : revenueData.length === 0 ? (
                             <div className="flex items-center justify-center h-full text-white/50">
                                 No revenue data for this period
@@ -247,7 +258,7 @@ export default function PhaseDetailPage() {
                         <h3 className="text-sm font-bold text-white/70 uppercase mb-4">Phase Efficiency</h3>
                         <div className="flex items-center justify-center py-4">
                             {metricsLoading ? (
-                                <Loader2 className="animate-spin text-accent" size={32} />
+                                <UnitEfficiencySkeleton />
                             ) : (
                                 <div className="relative w-32 h-32">
                                     <svg className="w-full h-full transform -rotate-90">
@@ -314,11 +325,7 @@ export default function PhaseDetailPage() {
 
                         <div className="space-y-3">
                             {loading ? (
-                                <div className="space-y-3">
-                                    {[1, 2].map(i => (
-                                        <div key={i} className="p-3 rounded-xl bg-white/5 animate-pulse h-12" />
-                                    ))}
-                                </div>
+                                <UnitTaskRowsSkeleton />
                             ) : tasks.length === 0 ? (
                                 <div className="text-center py-8 text-white/50">
                                     <p className="text-sm">No tasks yet. Add your first task above.</p>
@@ -360,6 +367,10 @@ export default function PhaseDetailPage() {
                     {/* Roster / Status */}
                     <div className="border-l border-white/10 pl-8">
                         <h3 className="text-sm font-bold text-white/50 uppercase mb-4">Assigned Team Members</h3>
+                        {/* Until the list arrives, "No employees found" would be a false claim. */}
+                        {employeesLoading ? (
+                            <UnitTeamSkeleton />
+                        ) : (
                         <div className="space-y-4">
                             {employees.filter(e => e.status === "Active").slice(0, 5).map((emp) => (
                                 <div key={emp.id} className="flex items-center gap-3">
@@ -376,6 +387,7 @@ export default function PhaseDetailPage() {
                                 <p className="text-sm text-white/50">No employees found</p>
                             )}
                         </div>
+                        )}
                     </div>
                 </div>
             </div>
