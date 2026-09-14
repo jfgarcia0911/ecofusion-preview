@@ -185,9 +185,9 @@ export async function PUT(request: Request) {
             const lines = [
                 ...changedPackages.map(
                     ([level, cents]) =>
-                        `${level} package ${show(existingPackages.get(level) ?? null)} to ${show(cents)}`
+                        `${level} package from ${show(existingPackages.get(level) ?? null)} to ${show(cents)}`
                 ),
-                ...changed.map((c) => `${c.code} ${show(c.priceCents)} to ${show(wanted.get(c.id) ?? null)}`),
+                ...changed.map((c) => `${c.code} from ${show(c.priceCents)} to ${show(wanted.get(c.id) ?? null)}`),
             ];
             const count = changed.length + changedPackages.length;
             await logStaffAccess(session.user.id, null, 'write', {
