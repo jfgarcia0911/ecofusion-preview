@@ -1,15 +1,27 @@
 import { NextResponse } from 'next/server';
-import { activeOrg } from '@/lib/api-access';
+import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+
+// Notifications belong to a person, not to a business, so these routes ask
+// only who is signed in - the same question the bell's unread count asks in
+// components/layout/Header. Asking for an active business as well refused
+// support accounts, which belong to none, and anyone whose business had
+// lapsed, leaving the bell counting notifications its list would not show.
+async function signedInUserId(): Promise<string | null> {
+    const session = await auth();
+    return session?.user?.id ?? null;
+}
+
+const unauthorized = () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
 // GET - Fetch user's notifications
 export async function GET() {
     try {
-        const { ctx, refusal } = await activeOrg();
-        if (refusal) return refusal;
+        const userId = await signedInUserId();
+        if (!userId) return unauthorized();
 
         const notifications = await prisma.notification.findMany({
-            where: { userId: ctx.userId },
+            where: { userId },
             orderBy: { createdAt: 'desc' },
             take: 50, // Limit to 50 most recent
         });
@@ -24,22 +36,22 @@ export async function GET() {
 // PATCH - Mark notifications as read
 export async function PATCH(request: Request) {
     try {
-        const { ctx, refusal } = await activeOrg();
-        if (refusal) return refusal;
+        const userId = await signedInUserId();
+        if (!userId) return unauthorized();
 
         const data = await request.json();
         const { notificationIds, markAllRead } = data;
 
         if (markAllRead) {
             await prisma.notification.updateMany({
-                where: { userId: ctx.userId, read: false },
+                where: { userId, read: false },
                 data: { read: true },
             });
         } else if (notificationIds?.length) {
             await prisma.notification.updateMany({
                 where: {
                     id: { in: notificationIds },
-                    userId: ctx.userId,
+                    userId,
                 },
                 data: { read: true },
             });
@@ -55,8 +67,8 @@ export async function PATCH(request: Request) {
 // DELETE - Delete a notification
 export async function DELETE(request: Request) {
     try {
-        const { ctx, refusal } = await activeOrg();
-        if (refusal) return refusal;
+        const userId = await signedInUserId();
+        if (!userId) return unauthorized();
 
         const { searchParams } = new URL(request.url);
         const notificationId = searchParams.get('id');
@@ -68,7 +80,7 @@ export async function DELETE(request: Request) {
         await prisma.notification.delete({
             where: {
                 id: notificationId,
-                userId: ctx.userId,
+                userId,
             },
         });
 
