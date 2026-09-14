@@ -47,7 +47,7 @@ export const ACCOUNT_SECTIONS: SettingsSection[] = [
         icon: SlidersHorizontal,
     },
     {
-        href: '/billing',
+        href: '/settings/billing',
         name: 'Billing',
         description: 'One subscription, covering every business you run.',
         icon: CreditCard,

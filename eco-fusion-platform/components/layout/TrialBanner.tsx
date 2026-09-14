@@ -24,7 +24,7 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
     if (access.reason === "past_due") {
         return (
             <Link
-                href="/billing"
+                href="/settings/billing"
                 className="flex items-center gap-3 px-4 py-3 rounded-xl border border-red-400/25 bg-red-400/10 hover:bg-red-400/15 transition-colors group"
             >
                 <AlertTriangle size={17} className="text-red-300 shrink-0" />
@@ -47,7 +47,7 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
 
     return (
         <Link
-            href="/billing"
+            href="/settings/billing"
             className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors group ${
                 urgent
                     ? "border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/15"

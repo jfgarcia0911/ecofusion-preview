@@ -54,7 +54,7 @@ export async function POST() {
       customer: customerId,
       line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
       success_url: `${appUrl()}/billing?checkout=success`,
-      cancel_url: `${appUrl()}/billing?checkout=cancelled`,
+      cancel_url: `${appUrl()}/settings/billing`,
       // Read back on the webhook, which is the only thing that grants access.
       subscription_data: { metadata: { organizationId: org.id } },
       metadata: { organizationId: org.id },
