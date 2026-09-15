@@ -79,7 +79,7 @@ export default async function ConnectPaymentsPanel({
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
                 {canManage && state !== "ready" && (
-                    <ConnectPaymentsButton label={state === "pending" ? "Finish Stripe setup" : "Connect Stripe"} />
+                    <ConnectPaymentsButton label={state === "pending" ? "Finish Stripe setup" : "Connect with Stripe"} />
                 )}
                 {state === "ready" && (
                     <a

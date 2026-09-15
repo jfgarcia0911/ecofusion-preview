@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CreditCard } from "lucide-react";
+import { CreditCard, AlertTriangle } from "lucide-react";
 import BillingPanel from "@/components/billing/BillingPanel";
 import ConnectPaymentsPanel from "@/components/billing/ConnectPaymentsPanel";
 import { resolveScope } from "@/lib/agency";
@@ -21,10 +21,24 @@ export default async function AgencyBillingPage({
     if (!scope || scope.kind !== "agency") redirect("/agency/sub-accounts");
     if (!scope.admin) redirect("/agency/sub-accounts");
 
-    // Back from Stripe's onboarding: read whether the account can take
-    // payments now, rather than waiting for Stripe to say so.
+    // Back from Stripe: read whether the account can take payments now,
+    // rather than waiting for Stripe to say so.
     const { connect } = await searchParams;
     if (connect === "return") await refreshConnectedAccount(scope.agencyId);
+
+    // Anything other than a finished sign-in is said plainly. A page that
+    // simply shows "Not connected" again leaves somebody pressing the same
+    // button wondering what they did wrong.
+    const trouble =
+        connect === "cancelled"
+            ? "Stripe was closed before the account was connected. Nothing has changed."
+            : connect === "mismatch"
+              ? "That sign-in could not be matched to this agency. Start again from the button below."
+              : connect === "refused"
+                ? "Only the agency's master account, signed in as itself, can connect Stripe."
+                : connect === "failed"
+                  ? "Stripe could not be reached to finish connecting. Nothing was changed; try again."
+                  : null;
 
     const role =
         scope.via === "platform"
@@ -43,6 +57,12 @@ export default async function AgencyBillingPage({
                     The agency&apos;s plan, which EcoFusion charges, and the payments your sub-accounts make to you.
                 </p>
             </div>
+            {trouble && (
+                <p className="px-4 py-3 rounded-xl border border-amber-400/25 bg-amber-400/10 text-sm text-amber-100 flex items-center gap-2">
+                    <AlertTriangle size={15} className="shrink-0" />
+                    {trouble}
+                </p>
+            )}
             <BillingPanel agencyId={scope.agencyId} canManage={canManage} role={role} embedded />
             <ConnectPaymentsPanel agencyId={scope.agencyId} canManage={canManage} />
         </div>

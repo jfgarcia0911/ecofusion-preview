@@ -147,6 +147,56 @@ export async function syncClientCheckout(organizationId: string, sessionId: stri
 }
 
 /**
+ * EcoFusion's Connect client id, from the Stripe dashboard's Connect
+ * settings. Set: an agency signs in to the Stripe account it already has and
+ * grants EcoFusion access, which is one screen. Unset: the agency is taken
+ * through Stripe's onboarding for a brand new account instead.
+ */
+export function connectClientId(): string | null {
+    return process.env.STRIPE_CONNECT_CLIENT_ID?.trim() || null;
+}
+
+/** Where Stripe returns the agency to once it has signed in. */
+export function connectCallbackUrl(): string {
+    return `${appUrl()}/api/billing/connect/callback`;
+}
+
+/**
+ * Stripe's "sign in to connect" page for an agency, which is the flow a
+ * HighLevel user knows: log in to your Stripe account, press Connect, come
+ * back connected. `state` comes back with the agency so the answer can be
+ * matched to the request that started it and nobody else's.
+ */
+export function connectSignInUrl(state: string): string {
+    const clientId = connectClientId();
+    if (!clientId) throw new Error('Stripe Connect is not set up for EcoFusion');
+    const query = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        scope: 'read_write',
+        redirect_uri: connectCallbackUrl(),
+        state,
+    });
+    return `https://connect.stripe.com/oauth/authorize?${query}`;
+}
+
+/**
+ * Finish a sign-in: swap Stripe's code for the account it belongs to, keep it
+ * against the agency, and read whether that account can take payments yet.
+ */
+export async function completeConnectSignIn(agencyId: string, code: string): Promise<boolean> {
+    const stripe = getStripe();
+    if (!stripe) throw new Error('Stripe is not configured');
+
+    const token = await stripe.oauth.token({ grant_type: 'authorization_code', code });
+    const account = token.stripe_user_id;
+    if (!account) throw new Error('Stripe returned no account');
+
+    await prisma.agency.update({ where: { id: agencyId }, data: { stripeAccountId: account } });
+    return refreshConnectedAccount(agencyId);
+}
+
+/**
  * Start (or continue) connecting an agency's Stripe account, and return the
  * address of Stripe's onboarding for it.
  *

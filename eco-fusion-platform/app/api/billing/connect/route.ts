@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+import { cookies } from 'next/headers';
 import { resolveScope } from '@/lib/agency';
 import { getStripe } from '@/lib/stripe';
 import { logStaffAccess } from '@/lib/staff';
-import { connectOnboardingUrl } from '@/lib/sub-account-billing';
+import { connectClientId, connectOnboardingUrl, connectSignInUrl } from '@/lib/sub-account-billing';
+
+/** Names the request Stripe answers, so only the agency that asked is connected. */
+export const CONNECT_STATE_COOKIE = 'ecofusion_connect_state';
 
 // POST - Connect (or finish connecting) the agency's own Stripe account, on
 // which its sub-accounts pay it. Returns the address of Stripe's onboarding.
@@ -22,7 +27,23 @@ export async function POST() {
             return NextResponse.json({ error: 'Billing is not set up yet.' }, { status: 503 });
         }
 
-        const url = await connectOnboardingUrl(scope.agencyId);
+        // With a Connect client id the agency signs in to the Stripe account
+        // it already has, which is one screen; without one, Stripe's onboarding
+        // for a new account, which is several.
+        let url: string;
+        if (connectClientId()) {
+            const state = `${scope.agencyId}.${randomUUID()}`;
+            (await cookies()).set(CONNECT_STATE_COOKIE, state, {
+                httpOnly: true,
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
+                path: '/',
+                maxAge: 60 * 30,
+            });
+            url = connectSignInUrl(state);
+        } else {
+            url = await connectOnboardingUrl(scope.agencyId);
+        }
         await logStaffAccess(scope.userId, null, 'write', {
             method: 'POST',
             path: '/api/billing/connect',
