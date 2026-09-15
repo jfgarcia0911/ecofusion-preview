@@ -3,26 +3,21 @@
 import { useEffect, useState } from "react";
 import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe, Ban, ShieldAlert, KeyRound } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { isPlatformAdminRole, isPlatformRole, standingLabel } from "@/lib/roles";
 import { AccessLogRowsSkeleton, AgencyAccessLogSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useScopedApi } from "@/components/admin/useScopedApi";
 import { ACCESS_LOG_STANDFIRST, CONSOLE_ACCESS_LOG_STANDFIRST } from "./standfirst";
 
 interface Person {
-    id: string;
+    /** Null once the account has been deleted; its lines stay. */
+    id: string | null;
     name: string | null;
     email: string;
-    role: string;
-    /** Whether they are an agency's master account. */
-    agencyAdmin: boolean;
-}
-
-/** What somebody is, in the words the rest of the app uses. */
-function labelOf(person: Person): string {
-    if (isPlatformRole(person.role)) {
-        return standingLabel({ platform: isPlatformAdminRole(person.role) ? "admin" : "staff" });
-    }
-    return standingLabel({ agency: person.agencyAdmin ? "admin" : "user" });
+    /** What they are, named as the rest of the app names it: "Master account" and so on. */
+    standing: string;
+    /** An admin of either kind, which has no limits. */
+    admin: boolean;
+    /** Their account has since been deleted. */
+    removed?: boolean;
 }
 
 interface Entry {
@@ -143,8 +138,8 @@ export default function AccessLogPage() {
                 >
                     <option value="" className="bg-neutral-900">Everyone</option>
                     {people.map((person) => (
-                        <option key={person.id} value={person.id} className="bg-neutral-900">
-                            {person.name ?? person.email} ({labelOf(person)})
+                        <option key={person.id} value={person.id ?? ""} className="bg-neutral-900">
+                            {person.name ?? person.email} ({person.standing})
                         </option>
                     ))}
                 </select>
@@ -172,11 +167,8 @@ export default function AccessLogPage() {
                     {entries.map((entry) => {
                         const kind = ACTION_STYLES[entry.action] ?? ACTION_STYLES.write;
                         const Icon = kind.icon;
-                        const fromEcoFusion = isPlatformRole(entry.staffUser.role);
                         // Admins are marked, since they are the ones with no limits.
-                        const admin = fromEcoFusion
-                            ? isPlatformAdminRole(entry.staffUser.role)
-                            : entry.staffUser.agencyAdmin;
+                        const admin = entry.staffUser.admin;
                         return (
                             <div
                                 key={entry.id}
@@ -202,8 +194,13 @@ export default function AccessLogPage() {
                                             }`}
                                         >
                                             {admin && <Crown size={10} />}
-                                            {labelOf(entry.staffUser)}
+                                            {entry.staffUser.standing}
                                         </span>
+                                        {entry.staffUser.removed && (
+                                            <span className="px-1.5 py-0.5 rounded border border-dashed border-white/20 text-white/40 text-[10px] shrink-0">
+                                                Account deleted
+                                            </span>
+                                        )}
                                         <span className="text-white/40"> &middot; </span>
                                         {entry.organization ? (
                                             <span className="truncate">

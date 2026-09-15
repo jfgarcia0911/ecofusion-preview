@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { PERMISSIONS } from '@/lib/staff-permissions';
-import { AGENCY_ROLES, PLATFORM_ROLE_VALUES } from '@/lib/roles';
+import { PLATFORM_ROLE_VALUES, isAdminStanding, standingOfRoles } from '@/lib/roles';
 import { preferOf, reachableOrganizationIds, requireScope, scopeReaches } from '@/lib/agency';
 import type { Prisma } from '@prisma/client';
 
@@ -66,6 +66,9 @@ export async function GET(request: Request) {
                     path: true,
                     detail: true,
                     createdAt: true,
+                    staffName: true,
+                    staffEmail: true,
+                    staffStanding: true,
                     staffUser: {
                         select: {
                             id: true,
@@ -95,17 +98,28 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             scope: scope.kind,
-            entries: entries.map((entry) => ({
-                ...entry,
-                staffUser: {
-                    ...entry.staffUser,
-                    agencyAdmin: entry.staffUser.agencyMembership?.role === AGENCY_ROLES.ADMIN,
-                },
-            })),
-            people: people.map((person) => ({
-                ...person,
-                agencyAdmin: person.agencyMembership?.role === AGENCY_ROLES.ADMIN,
-            })),
+            entries: entries.map(({ staffName, staffEmail, staffStanding, staffUser, ...entry }) => {
+                // A deleted account's lines stay, with who they were written
+                // onto them as the account went.
+                const standing = staffUser
+                    ? standingOfRoles(staffUser.role, staffUser.agencyMembership?.role)
+                    : staffStanding ?? 'Member';
+                return {
+                    ...entry,
+                    staffUser: {
+                        id: staffUser?.id ?? null,
+                        name: staffUser ? staffUser.name : staffName,
+                        email: staffUser ? staffUser.email : staffEmail ?? 'Deleted account',
+                        standing,
+                        admin: isAdminStanding(standing),
+                        removed: !staffUser,
+                    },
+                };
+            }),
+            people: people.map((person) => {
+                const standing = standingOfRoles(person.role, person.agencyMembership?.role);
+                return { id: person.id, name: person.name, email: person.email, standing, admin: isAdminStanding(standing) };
+            }),
         });
     } catch (error) {
         console.error('Failed to read the access trail:', error);

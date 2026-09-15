@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { activeOrg } from '@/lib/api-access';
-import { isPlatformAdminRole, isPlatformRole } from '@/lib/roles';
+import { standingOfRoles } from '@/lib/roles';
+
+/** How each standing reads to a business owner looking at who has been in. */
+const STAFF_LABELS: Record<string, string> = {
+  'EcoFusion admin': 'EcoFusion admin',
+  'EcoFusion staff': 'EcoFusion',
+  'Master account': 'Your agency (master account)',
+  'Agency staff': 'Your agency',
+};
 
 /**
  * The record of EcoFusion staff working inside this business.
@@ -44,6 +52,9 @@ export async function GET() {
           path: true,
           detail: true,
           createdAt: true,
+          staffName: true,
+          staffEmail: true,
+          staffStanding: true,
           staffUser: { select: { name: true, email: true, role: true, agencyMembership: { select: { role: true } } } },
         },
         orderBy: { createdAt: 'desc' },
@@ -68,25 +79,28 @@ export async function GET() {
     // people working. `by` says which, because "made a change" means something
     // different depending on who did it.
     const entries = [
-      ...staff.map((e) => ({
-        id: `s_${e.id}`,
-        by: 'staff' as const,
-        action: e.action,
-        method: e.method,
-        path: e.path,
-        detail: e.detail,
-        createdAt: e.createdAt,
-        who: { name: e.staffUser.name, email: e.staffUser.email },
-        // Whose visit it was, said plainly: EcoFusion, or this business's own
-        // agency. The two are different kinds of people to have been in.
-        label: isPlatformAdminRole(e.staffUser.role)
-          ? 'EcoFusion admin'
-          : isPlatformRole(e.staffUser.role)
-            ? 'EcoFusion'
-            : e.staffUser.agencyMembership?.role === 'admin'
-              ? 'Your agency (master account)'
-              : 'Your agency',
-      })),
+      ...staff.map((e) => {
+        // A deleted account's lines stay, with who they were written onto
+        // them as the account went.
+        const standing = e.staffUser
+          ? standingOfRoles(e.staffUser.role, e.staffUser.agencyMembership?.role)
+          : e.staffStanding ?? 'Member';
+        return {
+          id: `s_${e.id}`,
+          by: 'staff' as const,
+          action: e.action,
+          method: e.method,
+          path: e.path,
+          detail: e.detail,
+          createdAt: e.createdAt,
+          who: e.staffUser
+            ? { name: e.staffUser.name, email: e.staffUser.email }
+            : { name: e.staffName, email: `${e.staffEmail ?? 'Unknown'} (account deleted)` },
+          // Whose visit it was, said plainly: EcoFusion, or this business's own
+          // agency. The two are different kinds of people to have been in.
+          label: STAFF_LABELS[standing] ?? 'Your agency',
+        };
+      }),
       ...members.map((e) => ({
         id: `m_${e.id}`,
         by: 'member' as const,

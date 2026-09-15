@@ -84,6 +84,24 @@ export function isPlatformAdminRole(role: string | null | undefined): boolean {
   return role === PLATFORM_ROLES.ADMIN || LEGACY_ADMIN_ROLES.includes(role ?? '');
 }
 
+/**
+ * Somebody's standing, named, from their User.role and AgencyMember.role (null
+ * when on no agency's team). The same names the database writes onto an
+ * Access Log line when an account is deleted.
+ */
+export function standingOfRoles(userRole: string | null | undefined, agencyRole: string | null | undefined): string {
+  if (isPlatformRole(userRole)) {
+    return standingLabel({ platform: isPlatformAdminRole(userRole) ? 'admin' : 'staff' });
+  }
+  if (agencyRole) return standingLabel({ agency: agencyRole === AGENCY_ROLES.ADMIN ? 'admin' : 'user' });
+  return standingLabel({});
+}
+
+/** Whether a named standing is an admin's, which has no limits. */
+export function isAdminStanding(standing: string): boolean {
+  return standing === 'EcoFusion admin' || standing === 'Master account';
+}
+
 /** How each standing is named on screen. */
 export function standingLabel(standing: {
   platform?: 'admin' | 'staff' | null;

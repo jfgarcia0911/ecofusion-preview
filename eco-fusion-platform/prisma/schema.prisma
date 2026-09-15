@@ -1016,7 +1016,17 @@ model StaffAccessLog {
   agencyId       String?
   agency         Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   id             String   @id @default(cuid())
-  staffUserId    String
+  /// Null once the person's account has been deleted. The line stays: who they
+  /// were is kept in the three fields below, written as the account goes.
+  staffUserId    String?
+  /// Filled in by a database trigger when the account is deleted (see
+  /// migration 20260917100000_keep_access_log). Null while it exists, when
+  /// staffUser says who they are.
+  staffName      String?
+  staffEmail     String?
+  /// Their standing when they went: "EcoFusion admin", "EcoFusion staff",
+  /// "Master account", "Agency staff" or "Member".
+  staffStanding  String?
   /// The business it happened in. Null for a change to the platform itself,
   /// such as taking on staff or editing a snapshot, which belongs to no one
   /// business but is still a change somebody made.
@@ -1030,7 +1040,7 @@ model StaffAccessLog {
   detail         String?
   createdAt      DateTime @default(now())
 
-  staffUser    User          @relation("StaffAccess", fields: [staffUserId], references: [id], onDelete: Cascade)
+  staffUser    User?         @relation("StaffAccess", fields: [staffUserId], references: [id], onDelete: SetNull)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
