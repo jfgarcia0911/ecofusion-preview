@@ -51,6 +51,17 @@ export const PLANS: Plan[] = [
 /** Days a new agency may use the platform before it has to subscribe. */
 export const AGENCY_TRIAL_DAYS = 14;
 
+/**
+ * What each sub-account pays its agency, as HighLevel's SaaS mode does: the
+ * agency pays EcoFusion for its plan, and each business it runs pays the agency.
+ * Charged on the agency's own Stripe account, through Stripe Connect.
+ */
+export const SUB_ACCOUNT_PRICE_CENTS = 9900;
+export const SUB_ACCOUNT_PRICE_LABEL = '$99 / month';
+
+/** Days a new sub-account may be used before its $99 is due. */
+export const SUB_ACCOUNT_TRIAL_DAYS = 30;
+
 export function planFor(key: string | null | undefined): Plan {
     return PLANS.find((plan) => plan.key === key) ?? PLANS[0];
 }

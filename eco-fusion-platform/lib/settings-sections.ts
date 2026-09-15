@@ -49,7 +49,7 @@ export const ACCOUNT_SECTIONS: SettingsSection[] = [
     {
         href: '/settings/billing',
         name: 'Billing',
-        description: 'One subscription, covering every business you run.',
+        description: 'What this business pays its agency each month.',
         icon: CreditCard,
         ownerOnly: true,
     },

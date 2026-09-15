@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { logStaffAccess } from '@/lib/staff';
 import { PERMISSIONS } from '@/lib/staff-permissions';
-import { evaluateAccess, provisionOrganization } from '@/lib/tenancy';
+import { provisionOrganization } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
 import {
     limitMessage,
@@ -17,6 +17,27 @@ import {
     type Scope,
 } from '@/lib/agency';
 import { planFor, usageLabel } from '@/lib/plans';
+import { CLIENT_BILLING_SELECT, evaluateClientAccess, type ClientAccess } from '@/lib/sub-account-billing';
+
+/**
+ * How a sub-account stands with its agency, in the words of the list: paying,
+ * in its free period, unpaid, the agency's own, or not charged because the
+ * agency has not connected Stripe.
+ */
+function standingOf(client: ClientAccess) {
+    switch (client.reason) {
+        case 'active':
+            return 'active' as const;
+        case 'trialing':
+            return 'trial' as const;
+        case 'exempt':
+            return 'own' as const;
+        case 'not_set_up':
+            return 'not_charged' as const;
+        default:
+            return 'inactive' as const;
+    }
+}
 
 /**
  * The businesses (sub-accounts) a caller works with from above them.
@@ -66,6 +87,7 @@ export async function GET(request: Request) {
                     slug: true,
                     location: true,
                     createdAt: true,
+                    ...CLIENT_BILLING_SELECT,
                     agency: {
                         select: {
                             id: true,
@@ -74,6 +96,7 @@ export async function GET(request: Request) {
                             subscriptionStatus: true,
                             trialEndsAt: true,
                             currentPeriodEnd: true,
+                            stripeChargesEnabled: true,
                         },
                     },
                     memberships: {
@@ -102,9 +125,9 @@ export async function GET(request: Request) {
                   }
                 : null,
             organizations: organizations.map((org) => {
-                // The agency pays for every business it holds, so the agency's
-                // subscription is what decides each one's standing.
-                const access = evaluateAccess(org.agency);
+                // What each business pays its agency, not the agency's own plan,
+                // which is the same for every row.
+                const client = evaluateClientAccess(org, org.agency);
                 return {
                     id: org.id,
                     name: org.name,
@@ -117,16 +140,8 @@ export async function GET(request: Request) {
                     createdAt: org.createdAt,
                     memberCount: org._count.memberships,
                     owner: org.memberships[0]?.user ?? null,
-                    // Three standings, not Stripe's five: paying, trying, or
-                    // neither. A lapsed trial and a stopped subscription look
-                    // the same from outside - nobody is paying.
-                    standing:
-                        access.reason === 'active'
-                            ? ('active' as const)
-                            : access.reason === 'trialing'
-                              ? ('trial' as const)
-                              : ('inactive' as const),
-                    trialDaysLeft: access.reason === 'trialing' ? access.daysLeft : null,
+                    standing: standingOf(client),
+                    trialDaysLeft: client.reason === 'trialing' ? client.daysLeft : null,
                 };
             }),
         });
@@ -226,10 +241,23 @@ export async function POST(request: Request) {
             });
         }
 
-        const organization = await prisma.organization.findUniqueOrThrow({
-            where: { id: organizationId },
-            select: { id: true, name: true, slug: true, location: true, createdAt: true },
-        });
+        const { agency, clientBillingExempt, clientStatus, clientTrialEndsAt, clientPeriodEnd, ...organization } =
+            await prisma.organization.findUniqueOrThrow({
+                where: { id: organizationId },
+                select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    location: true,
+                    createdAt: true,
+                    ...CLIENT_BILLING_SELECT,
+                    agency: { select: { stripeChargesEnabled: true } },
+                },
+            });
+        const client = evaluateClientAccess(
+            { clientBillingExempt, clientStatus, clientTrialEndsAt, clientPeriodEnd },
+            agency
+        );
 
         return NextResponse.json(
             {
@@ -240,14 +268,8 @@ export async function POST(request: Request) {
                     trialEndsAt: scope.agency.trialEndsAt,
                     memberCount: 1,
                     owner: { name: owner.name, email: owner.email },
-                    ...(() => {
-                        const access = evaluateAccess(scope.agency);
-                        return {
-                            standing:
-                                access.reason === 'active' ? 'active' : access.reason === 'trialing' ? 'trial' : 'inactive',
-                            trialDaysLeft: access.reason === 'trialing' ? access.daysLeft : null,
-                        };
-                    })(),
+                    standing: standingOf(client),
+                    trialDaysLeft: client.reason === 'trialing' ? client.daysLeft : null,
                 },
             },
             { status: 201 }

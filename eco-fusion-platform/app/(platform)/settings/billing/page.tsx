@@ -1,17 +1,39 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import BillingPanel, { billingViewerOf } from "@/components/billing/BillingPanel";
+import SubAccountBillingPanel from "@/components/billing/SubAccountBillingPanel";
 import { BILLING_STANDFIRST } from "@/components/skeletons/PageSkeletons";
 import { getOrgContext } from "@/lib/tenancy";
+import { prisma } from "@/lib/prisma";
+import { agencyStanding } from "@/lib/agency";
+import { syncClientCheckout } from "@/lib/sub-account-billing";
 
-// Billing inside the app, beside the sidebar. A lapsed business never reaches
-// this: the (platform) layout sends it to /billing, which stands on its own.
-// The subscription is the agency's, so this shows the agency's plan.
-export default async function SettingsBillingPage() {
+// A sub-account's billing: what this business pays its agency. The agency's
+// own plan is not here; it is bought in the agency view.
+//
+// Stays open when the business has not paid, since this is where it pays.
+export default async function SettingsBillingPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ checkout?: string; session_id?: string }>;
+}) {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
-    const viewer = await billingViewerOf(ctx);
+
+    // Back from Stripe: apply the payment straight away rather than waiting
+    // on the webhook, then open the dashboard it paid for.
+    const { checkout, session_id } = await searchParams;
+    if (checkout === "success" && session_id) {
+        if (await syncClientCheckout(ctx.organizationId, session_id)) redirect("/dashboard/executive");
+    }
+
+    const [organization, standing] = await Promise.all([
+        prisma.organization.findUnique({
+            where: { id: ctx.organizationId },
+            select: { clientPeriodEnd: true, agency: { select: { name: true } } },
+        }),
+        agencyStanding(ctx.userId),
+    ]);
 
     return (
         <div className="space-y-8 pb-10">
@@ -27,12 +49,11 @@ export default async function SettingsBillingPage() {
                 </h1>
                 <p className="text-white/50 mt-1">{BILLING_STANDFIRST}</p>
             </div>
-            <BillingPanel
-                agencyId={ctx.agencyId}
-                canManage={viewer.canManage}
-                role={viewer.role}
-                businessName={ctx.business.name}
-                embedded
+            <SubAccountBillingPanel
+                ctx={ctx}
+                agencyName={organization?.agency.name ?? "Your agency"}
+                periodEnd={organization?.clientPeriodEnd ?? null}
+                ownAgencyAdmin={Boolean(standing?.admin && standing.agencyId === ctx.agencyId)}
             />
         </div>
     );

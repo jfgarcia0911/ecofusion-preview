@@ -844,7 +844,7 @@ For anything else - a full copy of your data, or deleting it - email support@lla
 
 ## Everything says access is paused
 
-The trial has ended or a payment failed. The subscription belongs to your agency and covers every business in it, so its master account can subscribe under **Settings → Billing**; nothing has been deleted.
+Either this business's 30-day free period has ended, in which case the owner can subscribe for $99 a month under **Settings → Billing**, or your agency's own subscription has lapsed, which its master account renews. Nothing has been deleted.
 
 ## A screen in this guide is not in my sidebar
 
@@ -908,7 +908,7 @@ Accounts sit at three levels.
 
 - **EcoFusion** - the company that builds the platform. Its admin sees every agency, handles support and manages plans, from the **EcoFusion console**
 - **Agency** - EcoFusion's customer. It has one 14-day trial and one subscription, and its **master account** runs it. A farm that signs up on its own is an agency with one business
-- **Sub account** - one business inside an agency, with its own owner and team. It has no trial or billing of its own
+- **Sub account** - one business inside an agency, with its own owner and team. It pays its agency **$99 a month** after a **30-day** free period. Once that ends unpaid, its people can open only Settings until the owner subscribes under **Settings → Billing**. The agency's own business pays nothing
 
 Each agency sees only its own sub accounts, staff and Access Log, never another agency's.
 
@@ -945,7 +945,7 @@ Your agency's sign-ins, and everything done inside its businesses from above - b
 
 ## Billing
 
-The master account's: choose a plan and subscribe. One subscription covers every business in the agency.
+The master account's: choose the agency's plan and subscribe, and connect the agency's own Stripe account so sub accounts can pay it $99 a month. Until Stripe is connected, sub accounts are not charged and are never locked.
                 `,
             },
             {

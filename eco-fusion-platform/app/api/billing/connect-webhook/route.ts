@@ -1,0 +1,70 @@
+import { NextResponse } from 'next/server';
+import type Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
+import { applyAccountUpdate, applyClientSubscription } from '@/lib/sub-account-billing';
+
+// Events from agencies' connected Stripe accounts: sub-accounts paying their
+// agency, and an agency's account becoming able to take payments.
+//
+// A separate endpoint from /api/billing/webhook because Stripe sends
+// connected-account events to a Connect endpoint, signed with its own secret
+// (STRIPE_CONNECT_WEBHOOK_SECRET).
+export const runtime = 'nodejs';
+
+export async function POST(request: Request) {
+    const stripe = getStripe();
+    const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+    if (!stripe || !secret) {
+        console.error(
+            'Stripe Connect webhook rejected: %s is not set. Sub-account payments rely on the return from checkout until it is.',
+            !stripe ? 'STRIPE_SECRET_KEY' : 'STRIPE_CONNECT_WEBHOOK_SECRET'
+        );
+        return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
+    }
+
+    const signature = request.headers.get('stripe-signature');
+    if (!signature) return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+
+    let event: Stripe.Event;
+    try {
+        event = stripe.webhooks.constructEvent(await request.text(), signature, secret);
+    } catch (error) {
+        console.error('Stripe Connect signature verification failed:', error);
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    }
+
+    try {
+        const account = event.account;
+        switch (event.type) {
+            case 'account.updated':
+                await applyAccountUpdate(event.data.object as Stripe.Account);
+                break;
+
+            case 'checkout.session.completed': {
+                const session = event.data.object as Stripe.Checkout.Session;
+                if (session.metadata?.kind === 'sub_account' && session.subscription && account) {
+                    const subscription = await stripe.subscriptions.retrieve(
+                        typeof session.subscription === 'string' ? session.subscription : session.subscription.id,
+                        {},
+                        { stripeAccount: account }
+                    );
+                    await applyClientSubscription(subscription);
+                }
+                break;
+            }
+
+            case 'customer.subscription.created':
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+                await applyClientSubscription(event.data.object as Stripe.Subscription);
+                break;
+
+            default:
+                break;
+        }
+        return NextResponse.json({ received: true });
+    } catch (error) {
+        console.error('Failed to handle Stripe Connect event:', event.type, error);
+        return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
+    }
+}

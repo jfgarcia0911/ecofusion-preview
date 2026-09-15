@@ -18,7 +18,8 @@ import {
   logStaffWriteIfAny,
 } from '@/lib/staff';
 import { decideBusinessReach, loadReachFacts } from '@/lib/agency';
-import { AGENCY_TRIAL_DAYS } from '@/lib/plans';
+import { AGENCY_TRIAL_DAYS, SUB_ACCOUNT_TRIAL_DAYS } from '@/lib/plans';
+import { CLIENT_BILLING_SELECT, evaluateClientAccess, type ClientAccess } from '@/lib/sub-account-billing';
 import {
   askWhom,
   permissionForBusinessRequest,
@@ -63,6 +64,12 @@ export interface OrgContext {
   /** Role within this organization: owner | admin | manager | member. */
   role: string;
   access: OrgAccess;
+  /**
+   * What this business owes its agency: $99 a month after 30 days. Shuts its
+   * own people out of everything but Settings when unpaid; never anybody who
+   * stepped in from above.
+   */
+  client: ClientAccess;
   /**
    * True when this is EcoFusion (its admin or staff) working inside a business
    * it is not a member of. The interface says so while it lasts, and a lapsed
@@ -211,8 +218,14 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
           name: true,
           location: true,
           agencyId: true,
+          ...CLIENT_BILLING_SELECT,
           agency: {
-            select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+            select: {
+              subscriptionStatus: true,
+              trialEndsAt: true,
+              currentPeriodEnd: true,
+              stripeChargesEnabled: true,
+            },
           },
         },
       },
@@ -237,6 +250,7 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
     role: membership.role,
     // The agency pays for every business it holds, so the agency is asked.
     access: evaluateAccess(membership.organization.agency),
+    client: evaluateClientAccess(membership.organization, membership.organization.agency),
     isStaff: false,
     isPlatformAdmin: false,
     isAgency: false,
@@ -281,7 +295,10 @@ async function resolveEnteredContext(userId: string): Promise<OrgContext | null>
         name: true,
         location: true,
         agencyId: true,
-        agency: { select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true } },
+        ...CLIENT_BILLING_SELECT,
+        agency: {
+          select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true, stripeChargesEnabled: true },
+        },
       },
     }),
     loadReachFacts(userId, organizationId),
@@ -326,6 +343,7 @@ async function resolveEnteredContext(userId: string): Promise<OrgContext | null>
     agencyId: organization.agencyId,
     role: reach.admin ? 'owner' : 'supervisor',
     access: evaluateAccess(organization.agency),
+    client: evaluateClientAccess(organization, organization.agency),
     isStaff: reach.via === 'platform',
     isPlatformAdmin: reach.via === 'platform' && reach.admin,
     isAgency: reach.via === 'agency',
@@ -427,8 +445,14 @@ export async function provisionOrganization(options: {
 
   // Read before the transaction, so the business's opening configuration is
   // settled by the time anything is written.
-  const template = await defaultSnapshot(options.agencyId);
-  const businessUnits = await startingBusinessUnits();
+  const [template, businessUnits, ownerStanding] = await Promise.all([
+    defaultSnapshot(options.agencyId),
+    startingBusinessUnits(),
+    prisma.agencyMember.findUnique({ where: { userId: ownerUserId }, select: { agencyId: true, role: true } }),
+  ]);
+  // The agency's own business - owned by its master account - is covered by
+  // the agency's plan. Every other business pays the agency, after 30 days.
+  const exempt = ownerStanding?.agencyId === options.agencyId && ownerStanding.role === 'admin';
 
   await prisma.$transaction([
     prisma.organization.create({
@@ -438,6 +462,8 @@ export async function provisionOrganization(options: {
         slug: slugify(name, organizationId),
         location: options.location ?? null,
         agencyId: options.agencyId,
+        clientBillingExempt: exempt,
+        clientTrialEndsAt: new Date(Date.now() + SUB_ACCOUNT_TRIAL_DAYS * 86_400_000),
       },
     }),
     prisma.membership.create({

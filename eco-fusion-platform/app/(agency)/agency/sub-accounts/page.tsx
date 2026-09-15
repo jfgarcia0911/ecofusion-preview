@@ -24,26 +24,32 @@ export interface SubAccount {
     createdAt: string;
     memberCount: number;
     owner: { name: string | null; email: string } | null;
-    /** active = paying, trial = trying, inactive = neither. */
-    standing: "active" | "trial" | "inactive";
+    /**
+     * What the business pays the agency: active = paying, trial = in its free
+     * 30 days, inactive = unpaid (its people are locked out), own = the
+     * agency's own business, not_charged = the agency has not connected Stripe.
+     */
+    standing: "active" | "trial" | "inactive" | "own" | "not_charged";
     trialDaysLeft: number | null;
 }
 
 /**
- * How a business's standing is shown.
+ * How each business stands with the agency's $99 a month.
  *
- * Three words rather than Stripe's vocabulary, because the person reading this
- * list is asking whether a customer is paying, still deciding, or gone - not
- * which webhook last fired. "Inactive" covers a trial that lapsed and a
- * subscription that stopped, which look the same from here.
+ * Plain words rather than Stripe's vocabulary, because the person reading this
+ * list is asking whether a customer is paying, still in its free period, or
+ * not - not which webhook last fired. "Unpaid" covers a free period that ran
+ * out and a subscription that stopped, which look the same from here.
  */
 const STANDING: Record<
     SubAccount["standing"],
     { label: string; className: string }
 > = {
-    active: { label: "Active", className: "border-accent/30 bg-accent/10 text-accent" },
-    trial: { label: "Trial", className: "border-info/30 bg-info/10 text-info" },
-    inactive: { label: "Inactive", className: "border-white/15 bg-white/5 text-white/40" },
+    active: { label: "Paid", className: "border-accent/30 bg-accent/10 text-accent" },
+    trial: { label: "Free period", className: "border-info/30 bg-info/10 text-info" },
+    inactive: { label: "Unpaid", className: "border-amber-400/30 bg-amber-400/10 text-amber-200" },
+    own: { label: "Agency's own", className: "border-white/15 bg-white/5 text-white/60" },
+    not_charged: { label: "Not charged", className: "border-white/15 bg-white/5 text-white/40" },
 };
 
 /**

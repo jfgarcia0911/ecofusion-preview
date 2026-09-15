@@ -14,7 +14,9 @@
  */
 
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { getOrgContext, type OrgContext } from '@/lib/tenancy';
+import { openWhileLocked } from '@/lib/sub-account-paths';
 
 /**
  * The caller's business, or the answer to send them instead.
@@ -64,6 +66,25 @@ export async function activeOrg(): Promise<
                 { status: 402 }
             ),
         };
+    }
+
+    // A sub-account whose 30 days are over and has not paid its agency keeps
+    // Settings, and the way to pay, and nothing else. Its own people only:
+    // the agency's team and EcoFusion still work in it.
+    if (!ctx.client.allowed && !ctx.entered) {
+        const path = (await headers()).get('x-request-path');
+        if (!openWhileLocked(path)) {
+            return {
+                ctx: null,
+                refusal: NextResponse.json(
+                    {
+                        error: 'This business’s subscription is unpaid. The owner can pay under Settings → Billing.',
+                        reason: 'sub_account_unpaid',
+                    },
+                    { status: 402 }
+                ),
+            };
+        }
     }
 
     return { ctx, refusal: null };

@@ -9,7 +9,7 @@ import { Eye } from "lucide-react";
 import Sidebar, { type AboveLink } from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
-import TrialBanner from "@/components/layout/TrialBanner";
+import SubAccountLock from "@/components/billing/SubAccountLock";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
@@ -111,12 +111,15 @@ export default async function DashboardLayout({
                                 View only. Your access lets you look around this business but not change anything. Ask {askWho} if you need to.
                             </p>
                         )}
-                        {ctx && !ctx.isStaff && (
-                            <div className="mb-6">
-                                <TrialBanner access={ctx.access} />
-                            </div>
-                        )}
-                        {children}
+                        {/* No trial banner in a sub-account: the agency's trial is
+                            the agency's business, shown in its own view, and the
+                            sub-account's 30 days count down on its Billing page. */}
+                        <SubAccountLock
+                            locked={Boolean(ctx && !ctx.entered && !ctx.client.allowed)}
+                            isOwner={isOwner}
+                        >
+                            {children}
+                        </SubAccountLock>
                     </main>
                 </div>
             </div>

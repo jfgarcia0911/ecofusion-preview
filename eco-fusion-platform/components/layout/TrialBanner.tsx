@@ -6,7 +6,8 @@ import type { OrgAccess } from "@/lib/tenancy";
 import { formatClock, useTrialCountdown } from "@/components/billing/trial-countdown";
 
 /**
- * Standing notice of where a business is in its trial.
+ * Standing notice of where an agency is in its trial, shown in the agency view
+ * to its master account. Sub-accounts never see it: the plan is not theirs.
  *
  * A trial that expires without warning reads as the product breaking, so the
  * banner is always present while trialing and grows more insistent as the end
@@ -16,7 +17,14 @@ import { formatClock, useTrialCountdown } from "@/components/billing/trial-count
  * days left" is the same sentence for twenty-four hours, which reads as a label
  * instead of a deadline.
  */
-export default function TrialBanner({ access }: { access: OrgAccess }) {
+export default function TrialBanner({
+    access,
+    href = "/settings/billing",
+}: {
+    access: OrgAccess;
+    /** Where the agency pays: its own Billing screen. */
+    href?: string;
+}) {
     const left = useTrialCountdown(access.trialEndsAt);
 
     if (access.reason === "active") return null;
@@ -24,13 +32,13 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
     if (access.reason === "past_due") {
         return (
             <Link
-                href="/settings/billing"
+                href={href}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl border border-red-400/25 bg-red-400/10 hover:bg-red-400/15 transition-colors group"
             >
                 <AlertTriangle size={17} className="text-red-300 shrink-0" />
                 <span className="text-sm text-red-100 flex-1">
                     <span className="font-semibold">Payment is overdue.</span> Update your billing
-                    details to keep access to this business.
+                    details to keep access to your agency and its businesses.
                 </span>
                 <span className="text-xs text-red-200/70 flex items-center gap-1 shrink-0">
                     Fix now
@@ -47,7 +55,7 @@ export default function TrialBanner({ access }: { access: OrgAccess }) {
 
     return (
         <Link
-            href="/settings/billing"
+            href={href}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors group ${
                 urgent
                     ? "border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/15"

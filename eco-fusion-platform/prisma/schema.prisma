@@ -812,6 +812,12 @@ model Agency {
   canceledAt           DateTime?
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
+  /// The agency's own Stripe account, connected through Stripe Connect, on
+  /// which its sub-accounts pay it. Null until the master account connects one.
+  stripeAccountId      String?   @unique
+  /// Whether that account can take payments yet. Until it can, sub-accounts
+  /// have nowhere to pay and are not shut out for not paying.
+  stripeChargesEnabled Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -871,6 +877,23 @@ model Organization {
   /// One Stripe customer per farm, reused across renewals.
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
+
+  /// What this business pays its agency (lib/sub-account-billing): $99 a
+  /// month after a 30-day trial, on the agency's connected Stripe account.
+  /// Separate from the fields above, which are from before agencies and no
+  /// longer decide anything.
+  ///
+  /// The agency's own business - the one its master account owns - pays
+  /// nothing, since the agency's plan already covers it.
+  clientBillingExempt  Boolean   @default(false)
+  /// trialing | active | past_due | canceled
+  clientStatus         String    @default("trialing")
+  clientTrialEndsAt    DateTime?
+  clientPeriodEnd      DateTime?
+  clientCanceledAt     DateTime?
+  /// The customer and subscription on the agency's Stripe account.
+  clientCustomerId     String?
+  clientSubscriptionId String?   @unique
 
   /// The business whose subscription pays for this one.
   ///

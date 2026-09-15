@@ -1058,7 +1058,7 @@ export function CheckoutSkeleton() {
 }
 
 /** The Sub Accounts table's columns, shared by the page and its skeleton. */
-export const SUB_ACCOUNT_COLUMNS = ["Business", "Status", "Owner", "Location", "People", ""];
+export const SUB_ACCOUNT_COLUMNS = ["Business", "Billing", "Owner", "Location", "People", ""];
 
 /**
  * The Sub Accounts table while its rows are on their way: the real header,
@@ -1471,7 +1471,7 @@ export function IntegrationsSkeleton() {
     );
 }
 
-export const BILLING_STANDFIRST = "One subscription, covering every business you run.";
+export const BILLING_STANDFIRST = "What this business pays its agency each month.";
 
 /**
  * Settings → Billing: the subscription card at full width. What the trial or

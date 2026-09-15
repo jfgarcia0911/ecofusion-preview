@@ -9,6 +9,7 @@ import AgencySidebar from "@/components/layout/AgencySidebar";
 import Header from "@/components/layout/Header";
 import OpenSessionNotice from "@/components/layout/OpenSessionNotice";
 import SupportAgencyNotice from "@/components/layout/SupportAgencyNotice";
+import TrialBanner from "@/components/layout/TrialBanner";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
@@ -96,6 +97,11 @@ export default async function AgencyLayout({ children }: { children: React.React
                                 {scope.via === "platform" && (
                                     <div className="mb-6">
                                         <SupportAgencyNotice agencyName={scope.agency.name} />
+                                    </div>
+                                )}
+                                {scope.via === "member" && scope.admin && (
+                                    <div className="mb-6 empty:hidden">
+                                        <TrialBanner access={evaluateAccess(scope.agency)} href="/agency/billing" />
                                     </div>
                                 )}
                                 {openSession && sessionReachable && (
