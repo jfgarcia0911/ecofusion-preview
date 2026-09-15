@@ -94,10 +94,20 @@ export async function logSignIn(userId: string): Promise<void> {
     // Access Log as a platform line, beside everything else it does. Written
     // here rather than through lib/staff, which imports auth and would loop.
     if (!membership) {
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-      if (isPlatformRole(user?.role)) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true, agencyMembership: { select: { agencyId: true } } },
+      });
+      // Somebody on an agency's team who owns no business of their own: the
+      // sign-in goes on that agency's Access Log.
+      if (isPlatformRole(user?.role) || user?.agencyMembership) {
         await prisma.staffAccessLog.create({
-          data: { staffUserId: userId, organizationId: null, action: 'signin' },
+          data: {
+            staffUserId: userId,
+            organizationId: null,
+            agencyId: user?.agencyMembership?.agencyId ?? null,
+            action: 'signin',
+          },
         });
       }
       return;

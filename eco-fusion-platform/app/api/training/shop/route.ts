@@ -25,8 +25,8 @@ export async function GET() {
         if (refusal) return refusal;
         // The owner buys. EcoFusion staff allowed to give or take back classes
         // see the shop too, to do that; they cannot buy.
-        const canGive = ctx.isMaster || (ctx.isStaff && ctx.staffPermissions.includes(PERMISSIONS.GIVE_CLASSES));
-        const canTake = ctx.isMaster || (ctx.isStaff && ctx.staffPermissions.includes(PERMISSIONS.TAKE_CLASSES));
+        const canGive = ctx.isStaff && (ctx.isPlatformAdmin || ctx.staffPermissions.includes(PERMISSIONS.GIVE_CLASSES));
+        const canTake = ctx.isStaff && (ctx.isPlatformAdmin || ctx.staffPermissions.includes(PERMISSIONS.TAKE_CLASSES));
         const canBuy = ctx.role === 'owner';
         if (!canBuy && !canGive && !canTake) {
             return NextResponse.json({ error: 'Only the owner buys courses' }, { status: 403 });
@@ -101,7 +101,7 @@ export async function GET() {
             /** Whether paying can happen inside EcoFusion rather than on Stripe's page. */
             embeddedCheckout: getStripe() !== null && stripePublishableKey() !== null,
             /** The master account may give courses and take them back. */
-            isMaster: ctx.isMaster,
+            isPlatformAdmin: ctx.isPlatformAdmin,
             /** What this reader may do here. */
             canBuy,
             canGive,

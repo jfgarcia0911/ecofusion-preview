@@ -7,6 +7,7 @@
  */
 
 import Stripe from 'stripe';
+import type { PlanKey } from '@/lib/plans';
 
 let client: Stripe | null = null;
 
@@ -22,8 +23,32 @@ export function getStripe(): Stripe | null {
 }
 
 /** Whether billing is configured well enough to start a checkout. */
-export function isBillingConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID);
+export function isBillingConfigured(plan?: PlanKey): boolean {
+  return Boolean(process.env.STRIPE_SECRET_KEY && (plan ? stripePriceFor(plan) : stripePriceFor('starter')));
+}
+
+/**
+ * The Stripe Price an agency pays for a plan: one Price per plan, set in the
+ * Stripe dashboard and named here by environment variable.
+ *
+ * STRIPE_PRICE_ID, the single price from before plans existed, stands in for
+ * Starter until STRIPE_PRICE_STARTER is set, so billing keeps working through
+ * the change.
+ */
+export function stripePriceFor(plan: PlanKey): string | null {
+  const byPlan: Record<PlanKey, string | undefined> = {
+    starter: process.env.STRIPE_PRICE_STARTER || process.env.STRIPE_PRICE_ID,
+    growth: process.env.STRIPE_PRICE_GROWTH,
+    pro: process.env.STRIPE_PRICE_PRO,
+  };
+  return byPlan[plan]?.trim() || null;
+}
+
+/** The plan a Stripe Price is, when it is one of ours. */
+export function planForStripePrice(priceId: string | null | undefined): PlanKey | null {
+  if (!priceId) return null;
+  const plans: PlanKey[] = ['starter', 'growth', 'pro'];
+  return plans.find((plan) => stripePriceFor(plan) === priceId) ?? null;
 }
 
 /** True while the configured key is a Stripe test key. */

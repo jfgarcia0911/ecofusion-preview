@@ -1,73 +1,80 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { currentStaffOrganizationId, platformStanding, staffMayReach } from "@/lib/staff";
+import { currentStaffOrganizationId } from "@/lib/staff";
+import { businessReach, resolveScope } from "@/lib/agency";
+import { evaluateAccess } from "@/lib/tenancy";
+import { standingLabel } from "@/lib/roles";
 import AgencySidebar from "@/components/layout/AgencySidebar";
 import Header from "@/components/layout/Header";
 import OpenSessionNotice from "@/components/layout/OpenSessionNotice";
+import SupportAgencyNotice from "@/components/layout/SupportAgencyNotice";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
 /**
- * The agency view: EcoFusion looking at its customers.
+ * The agency view: one agency's own screens, above its businesses.
+ *
+ * Its team sees its own agency here and never another. EcoFusion sees an
+ * agency here only after opening it from the console, with a notice saying
+ * so; otherwise EcoFusion accounts belong in the console.
  *
  * A separate shell from (platform) rather than a section inside it, because
- * everything under here is about other people's businesses and nothing under
- * here is scoped to one. There is no organization context to speak of, so the
- * business sidebar, the trial banner and the onboarding tour have no meaning
- * and are absent.
- *
- * Staff is checked here, once, on the server. Every page below inherits it and
- * none of them has to be trusted to check for itself.
+ * nothing under here is scoped to one business. Who may be here is checked
+ * once, on the server; every page below inherits it.
  */
 export default async function AgencyLayout({ children }: { children: React.ReactNode }) {
     const session = await auth();
     if (!session?.user?.id) redirect("/login");
+    const userId = session.user.id;
 
-    // The staff check and the open session lookup have nothing to say to each
-    // other, so they are asked for together rather than one after the other.
-    // Both cross the Pacific; doing so twice in sequence is what the shell was
-    // waiting on before it could render at all.
-    //
-    // The check still gates everything below. Starting a query before knowing
-    // whether the caller may be here is not a leak: its result is thrown away
-    // on the redirect, and the id it reads came from the caller's own cookie.
-    const openSessionId = await currentStaffOrganizationId();
-    const [staff, openSession, sessionReachable, ownBusiness] = await Promise.all([
-        platformStanding(session.user.id),
+    const [scope, openSessionId] = await Promise.all([resolveScope(), currentStaffOrganizationId()]);
+
+    // Read from the database, not the token, so taking somebody off a team
+    // shuts this view at once instead of whenever a session happens to refresh.
+    if (!scope) redirect("/dashboard/executive");
+    if (scope.kind === "platform") redirect("/console");
+
+    // A lapsed agency is shut for its own team, like its businesses. /billing
+    // stands outside every shell, and is where it subscribes again.
+    if (scope.via === "member" && !evaluateAccess(scope.agency).allowed) {
+        redirect("/billing");
+    }
+
+    const [openSession, ownBusiness] = await Promise.all([
         openSessionId
             ? prisma.organization.findUnique({
                   where: { id: openSessionId },
-                  select: { name: true },
+                  select: { id: true, name: true, agencyId: true },
               })
             : Promise.resolve(null),
-        // A cookie naming a business this account may no longer open is not a
-        // session; the business screens would ignore it, so this does too.
-        openSessionId ? staffMayReach(session.user.id, openSessionId) : Promise.resolve(false),
         // A business the account belongs to in its own right, if it has one.
-        // The master account usually has none.
         prisma.membership.findFirst({
-            where: { userId: session.user.id },
+            where: { userId },
             orderBy: { createdAt: "asc" },
             select: { organization: { select: { name: true } } },
         }),
     ]);
+    // A cookie naming a business this account may no longer open is not a
+    // session; the business screens would ignore it, so this does too.
+    const sessionReachable = openSession
+        ? (await businessReach(userId, openSession.id, openSession.agencyId)) !== null
+        : false;
 
-    // Read from the database, not the token, so withdrawing staff access shuts
-    // this view at once instead of whenever a session happens to refresh.
-    if (!staff) {
-        redirect("/dashboard/executive");
-    }
-
-    // Where "back to the business screens" actually leads: the business open in
-    // a support session, else the account's own, else nowhere. The business
-    // screens resolve in the same order, so the name shown is the one that
-    // opens. With neither there is nothing to go back to, and a link there only
-    // bounced back to this view.
+    // Where "back to the business screens" actually leads: the business open
+    // from above, else the account's own, else nowhere. The business screens
+    // resolve in the same order, so the name shown is the one that opens.
     const backTo =
         openSession && sessionReachable
             ? openSession.name
-            : ownBusiness?.organization.name ?? null;
+            : scope.via === "member"
+              ? ownBusiness?.organization.name ?? null
+              : null;
+
+    const standing =
+        scope.via === "platform"
+            ? standingLabel({ platform: scope.platformAdmin ? "admin" : "staff" })
+            : standingLabel({ agency: scope.admin ? "admin" : "user" });
 
     return (
         <ToastProvider>
@@ -76,14 +83,22 @@ export default async function AgencyLayout({ children }: { children: React.React
                     <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
                     <div className="relative z-10 flex w-full h-full">
                         <AgencySidebar
+                            variant="agency"
+                            title={scope.agency.name}
                             user={session.user}
-                            access={{ master: staff.master, permissions: staff.permissions }}
+                            access={{ admin: scope.admin, permissions: scope.permissions }}
+                            standing={standing}
                             backTo={backTo}
                         />
                         <div className="flex flex-col flex-1 overflow-hidden">
                             <Header />
                             <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-                                {openSession && (
+                                {scope.via === "platform" && (
+                                    <div className="mb-6">
+                                        <SupportAgencyNotice agencyName={scope.agency.name} />
+                                    </div>
+                                )}
+                                {openSession && sessionReachable && (
                                     <div className="mb-6">
                                         <OpenSessionNotice businessName={openSession.name} />
                                     </div>

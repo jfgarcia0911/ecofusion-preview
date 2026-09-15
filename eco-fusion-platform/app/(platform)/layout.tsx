@@ -2,10 +2,11 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrgContext } from "@/lib/tenancy";
-import { isPlatformAdmin } from "@/lib/staff";
+import { platformStanding } from "@/lib/staff";
+import { agencyStanding } from "@/lib/agency";
 import { PERMISSIONS } from "@/lib/staff-permissions";
 import { Eye } from "lucide-react";
-import Sidebar from "@/components/layout/Sidebar";
+import Sidebar, { type AboveLink } from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
 import TrialBanner from "@/components/layout/TrialBanner";
@@ -18,33 +19,44 @@ export default async function DashboardLayout({
     children: React.ReactNode;
 }) {
     const session = await auth();
+    const userId = session?.user?.id;
 
-    // Access belongs to the business, so one check here covers every page for
-    // every member, including accounts an owner created for staff.
+    // Access belongs to the agency, so one check here covers every page for
+    // every member of every business it holds.
     //
-    // Whether to show the onboarding tour depends on nothing but who is
-    // signed in, so it is asked alongside the business rather than after it.
-    const [ctx, user] = await Promise.all([
+    // Whether to show the onboarding tour, and whether this person works above
+    // businesses, depend on nothing but who is signed in, so they are asked
+    // alongside the business rather than after it. Both standings are cached
+    // for the request and shared with the business lookup.
+    const [ctx, user, platform, agency] = await Promise.all([
         getOrgContext(),
-        session?.user?.id
+        userId
             ? prisma.user.findUnique({
-                  where: { id: session.user.id },
+                  where: { id: userId },
                   select: { onboardingComplete: true },
               })
             : Promise.resolve(null),
+        userId ? platformStanding(userId) : Promise.resolve(null),
+        userId ? agencyStanding(userId) : Promise.resolve(null),
     ]);
-    // A lapsed business is often why staff were called in, so it opens for them.
+    // A lapsed business is often why EcoFusion was called in, so it opens for
+    // EcoFusion. It stays shut for the agency's own people, who are the customer.
     if (ctx && !ctx.access.allowed && !ctx.isStaff) {
         redirect("/billing");
     }
 
-    // A support account belongs to no business, which is the point of it: it is
-    // not somebody's employee and holds nothing of its own. These screens are
-    // all scoped to a business, so without one there is nothing here to show -
-    // the agency view is where that account actually works.
-    if (!ctx && session?.user?.id && (await isPlatformAdmin(session.user.id))) {
-        redirect("/agency");
-    }
+    // An account above businesses may have no business of its own open. These
+    // screens are all scoped to one, so without one there is nothing here to
+    // show: EcoFusion works from its console, an agency's team from its view.
+    if (!ctx && platform) redirect("/console");
+    if (!ctx && agency) redirect("/agency/sub-accounts");
+
+    // The way up, for whoever has one.
+    const above: AboveLink | null = platform
+        ? { href: "/console", label: "EcoFusion console" }
+        : agency
+          ? { href: "/agency/sub-accounts", label: "Agency view" }
+          : null;
 
     // Named rather than left as an id so the sidebar and the banner can both
     // say whose business this is; the switcher shows it at all times, which is
@@ -52,33 +64,30 @@ export default async function DashboardLayout({
     // with the business lookup itself, so saying so costs no query.
     const business = ctx?.business ?? null;
 
-    const showOnboarding = Boolean(session?.user?.id) && !user?.onboardingComplete;
+    const showOnboarding = Boolean(userId) && !user?.onboardingComplete;
 
-
-    // An owner gets the panel even with a single business, because that panel
-    // is where another one is added. Staff have their own, and a member with
-    // one business has nowhere to go and nothing to create.
     // The settings the sidebar offers depend on this, and the session's own
-    // orgRole is the wrong answer while staff are inside somebody else's
-    // business: it still names their own membership somewhere else.
-    // Staff enter as supervisors, so this is false for them; the master
-    // account enters as the owner, and is shown everything an owner is.
+    // orgRole is the wrong answer while somebody is inside a business they
+    // stepped into: it still names their own membership somewhere else.
+    // Admins of either kind enter as the owner and are shown everything an
+    // owner is; staff enter as supervisors.
     const isOwner = ctx?.role === "owner";
 
     // What a staff member's permissions leave them, shown rather than left for
-    // them to find out one refusal at a time. The master account is never
-    // limited, so neither applies to it.
-    const limitedStaff = Boolean(ctx?.isStaff && !ctx.isMaster);
+    // them to find out one refusal at a time. Admins are never limited.
+    const limitedStaff = Boolean(ctx?.entered && !ctx.fullControl);
     const viewOnly =
         limitedStaff && !ctx!.staffPermissions.includes(PERMISSIONS.WORK_IN_BUSINESS);
-    // Staff allowed to give or take back classes get the Classes screen to do
-    // it from; an owner has it anyway, to buy.
+    // EcoFusion staff allowed to give or take back classes get the Classes
+    // screen to do it from; an owner has it anyway, to buy.
     const showClasses =
         isOwner ||
         (limitedStaff &&
+            ctx!.isStaff &&
             (ctx!.staffPermissions.includes(PERMISSIONS.GIVE_CLASSES) ||
                 ctx!.staffPermissions.includes(PERMISSIONS.TAKE_CLASSES)));
 
+    const askWho = ctx?.isStaff ? "an EcoFusion admin" : "your agency's master account";
 
     return (
         <ToastProvider>
@@ -86,14 +95,20 @@ export default async function DashboardLayout({
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
-                <Sidebar user={session?.user} business={business} isOwner={isOwner} showClasses={showClasses} />
+                <Sidebar
+                    user={session?.user ? { ...session.user, orgRole: ctx?.role ?? session.user.orgRole } : undefined}
+                    business={business}
+                    isOwner={isOwner}
+                    showClasses={showClasses}
+                    above={above}
+                />
                 <div className="flex flex-col flex-1 overflow-hidden">
                     <Header />
                     <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
                         {viewOnly && (
                             <p className="mb-6 px-4 py-3 rounded-xl border border-info/25 bg-info/10 text-sm text-info flex items-center gap-2">
                                 <Eye size={15} className="shrink-0" />
-                                View only. Your EcoFusion access lets you look around this business but not change anything. Ask the master account if you need to.
+                                View only. Your access lets you look around this business but not change anything. Ask {askWho} if you need to.
                             </p>
                         )}
                         {ctx && !ctx.isStaff && (

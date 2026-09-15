@@ -76,20 +76,17 @@ const userNavItems = [
  * carries a single line instead of five.
  */
 /**
- * The way into the agency view, for EcoFusion staff only.
+ * The way up out of the business: to the agency view for an agency's team, or
+ * to the EcoFusion console for EcoFusion's.
  *
- * That view has its own shell and its own sidebar, so nothing here reaches it
- * once you are inside. Without this line it could only be reached by typing
- * the address, which is how the sub account list, the snapshot library and the
- * class loader all sat finished and unreachable.
+ * Those views have their own shells and sidebars, so nothing here reaches them
+ * once you are inside. Without this line they could only be reached by typing
+ * the address.
  */
-// Only EcoFusion sees these, and only while inside a customer's business.
-const staffNavItems = [
-    // Straight to the list rather than to /agency, which only redirects here.
-    // That redirect is a whole server round trip spent rendering nothing, and
-    // it happened before the view could even begin to load.
-    { name: "Agency", href: "/agency/sub-accounts", icon: Building2, tourId: undefined },
-];
+export interface AboveLink {
+    href: string;
+    label: string;
+}
 
 const commonNavItems = [
     { name: "Tasks", href: "/business/tasks", icon: ClipboardList, tourId: "nav-tasks" },
@@ -107,7 +104,10 @@ export default function Sidebar({
     business,
     isOwner = false,
     showClasses,
+    above = null,
 }: {
+    /** Where the way up leads, for anybody who works above businesses. Null for everybody else. */
+    above?: AboveLink | null;
     user?: User;
     /** The business these screens are showing, named at the top of the sidebar. */
     business?: { name: string; location: string | null } | null;
@@ -130,7 +130,9 @@ export default function Sidebar({
     const role = user?.orgRole ?? user?.role;
     // Staff is a fact about the account itself, so it is read from the global
     // role rather than from `role` above, which resolves to the business.
-    const isStaff = isPlatformRole(user?.role);
+    // Anybody with a view above the business - EcoFusion, or the agency's team -
+    // counts, since they step in rather than belong.
+    const isStaff = isPlatformRole(user?.role) || above !== null;
 
     // Staff hold a supervisor's powers inside a business they have entered, but
     // their standing comes from the platform rather than from a membership, so
@@ -148,7 +150,7 @@ export default function Sidebar({
         ...(isStaff || isOwner ? trainingNavItems : []),
         ...((showClasses ?? isOwner) ? ownerNavItems : []),
         ...commonNavItems,
-        ...(isStaff ? staffNavItems : []),
+        ...(above ? [{ name: above.label, href: above.href, icon: Building2, tourId: undefined }] : []),
     ];
 
     // Inside settings the column becomes settings, rather than settings
@@ -173,7 +175,7 @@ export default function Sidebar({
              */}
             <SubAccountSwitcher
                 business={business ?? null}
-                isStaff={isStaff}
+                above={above}
             />
 
             {inSettings ? (

@@ -38,7 +38,7 @@ interface Section {
     id: string;
     title: string;
     icon: typeof Play;
-    /** Shown to EcoFusion's own accounts only. Customers have no agency view. */
+    /** Shown only to people who work above businesses: an agency's team, and EcoFusion's. */
     staffOnly?: boolean;
     articles: Article[];
 }
@@ -792,10 +792,10 @@ Remove it at any time. Your key is stored encrypted.
 ## What it lists
 
 - Your own people signing in and making changes
-- EcoFusion staff **opening** and **leaving** your business
-- Every change EcoFusion staff made, and anything they tried that was refused
+- Your agency's team and EcoFusion support **opening** and **leaving** your business
+- Every change they made, and anything they tried that was refused
 
-Each line says who, what and when, and is marked **Your team** or **EcoFusion**.
+Each line says who, what and when, and is marked **Your team**, **Your agency** or **EcoFusion**.
 
 ## Good to know
 
@@ -844,7 +844,7 @@ For anything else - a full copy of your data, or deleting it - email support@lla
 
 ## Everything says access is paused
 
-The trial has ended or a payment failed. The owner can subscribe under **Settings → Billing**; nothing has been deleted.
+The trial has ended or a payment failed. The subscription belongs to your agency and covers every business in it, so its master account can subscribe under **Settings → Billing**; nothing has been deleted.
 
 ## A screen in this guide is not in my sidebar
 
@@ -896,39 +896,56 @@ EcoFusion support may open your business to look into it. Every visit is written
     },
     {
         id: 'staff',
-        title: 'For EcoFusion Staff',
+        title: 'For Agencies',
         icon: Shield,
         staffOnly: true,
         articles: [
             {
+                id: 'accounts',
+                title: 'EcoFusion, Agencies and Sub Accounts',
+                content: `
+Accounts sit at three levels.
+
+- **EcoFusion** - the company that builds the platform. Its admin sees every agency, handles support and manages plans, from the **EcoFusion console**
+- **Agency** - EcoFusion's customer. It has one 14-day trial and one subscription, and its **master account** runs it. A farm that signs up on its own is an agency with one business
+- **Sub account** - one business inside an agency, with its own owner and team. It has no trial or billing of its own
+
+Each agency sees only its own sub accounts, staff and Access Log, never another agency's.
+
+## Plans
+
+The plan decides how many businesses an agency may hold: **Starter** up to 3, **Growth** up to 10, **Pro** with no limit.
+                `,
+            },
+            {
                 id: 'agency-view',
                 title: 'The Agency View',
                 content: `
-The agency view is EcoFusion's own side of the platform. Reach it from **Agency** in the sidebar, or **Switch to Agency View** in the business switcher.
+The agency view is your agency's side of the platform. Reach it from **Agency view** in the sidebar, or from the business switcher.
 
 What you can do in it depends on the permissions the master account has given you. Screens and buttons you cannot use are not shown.
 
 ## Sub Accounts
 
-Every business you can reach - all of them for the master account, the ones granted to you otherwise. Each row shows its **Status** (Active, Trial with days left, or Inactive), owner, location and how many people it has, with:
+Every business you can reach - all of the agency's for the master account, the ones granted to you otherwise. The line above the table shows how many of the plan's businesses are used. Each row shows its **Status** (Active, Trial with days left, or Inactive), owner, location and how many people it has, with:
 
 - **Edit** - rename the business
 - **Capture** - save its setup as a snapshot
 - **Enter** - open it
 
-**Create Sub Account** makes a new business: its name and location, and its owner's name and email.
-
-## Course Prices
-
-The price of each course and each level's package. An empty price means not for sale; 0 means free.
+**Create Sub Account** makes a new business: its name and location, and its owner's name and email. Once the plan is full, the plan has to be upgraded first.
 
 ## Snapshots
 
-Saved setups - business units, zones with their limits, and growing parameters. Mark one as the default for new businesses, or apply one to an existing business. Applying adds to its setup; it does not copy stock, sales, readings, training or people.
+Saved setups - business units, zones with their limits, and growing parameters. Your agency's own snapshots are seen by nobody else; EcoFusion's templates are marked and can be applied but not changed. Applying adds to a business's setup; it does not copy stock, sales, readings, training or people.
 
 ## Access Log
 
-Everything EcoFusion staff have done, across every business.
+Your agency's sign-ins, and everything done inside its businesses from above - by your team or by EcoFusion support.
+
+## Billing
+
+The master account's: choose a plan and subscribe. One subscription covers every business in the agency.
                 `,
             },
             {
@@ -947,14 +964,14 @@ Click **Enter** on Sub Accounts and confirm, or pick the business from the switc
 
 ## Leaving
 
-Open the switcher and choose **Leave**, or **Switch to Agency View**.
+Open the switcher and choose **Leave**, or switch back to the agency view.
                 `,
             },
             {
                 id: 'team-access',
                 title: 'Team Access',
                 content: `
-**Team Access** lists EcoFusion's staff: what each one can do, and which sub accounts each one can open.
+**Team Access** lists your agency's staff: what each one can do, and which of the agency's sub accounts each one can open.
 
 ## For the master account
 
@@ -962,7 +979,7 @@ Open the switcher and choose **Leave**, or **Switch to Agency View**.
 - **Can do** - tick exactly what they may do, or start from a preset: **Support (view only)**, **Support** or **Account manager**
 - **Sub Accounts** - choose the businesses they can open. A new staff account opens none until you give it some
 
-Some things are never handed to staff, including billing, buying courses, and taking on other staff.
+Some things are never handed to staff, including the agency's plan and billing, buying courses, and taking on other staff.
 
 ## For other staff
 

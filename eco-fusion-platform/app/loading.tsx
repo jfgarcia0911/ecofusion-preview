@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { ArrowLeft, Building2, Camera, KeyRound, ScrollText, Tag } from "lucide-react";
+import { ArrowLeft, Briefcase, Building2, Camera, CreditCard, KeyRound, ScrollText, Tag } from "lucide-react";
 import { SkeletonPage, SkeletonHeading, SkeletonRows } from "@/components/ui/Skeleton";
 import {
     AgencyAccessLogSkeleton,
@@ -13,8 +13,9 @@ import {
 } from "@/components/skeletons/PageSkeletons";
 import { ExecutiveSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { SUB_ACCOUNTS_STANDFIRST } from "./(agency)/agency/sub-accounts/standfirst";
-import { COURSE_PRICES_STANDFIRST } from "./(agency)/agency/course-prices/standfirst";
-import { ACCESS_LOG_STANDFIRST } from "./(agency)/agency/access-log/standfirst";
+import { COURSE_PRICES_STANDFIRST } from "./(console)/console/course-prices/standfirst";
+import { ACCESS_LOG_STANDFIRST, CONSOLE_ACCESS_LOG_STANDFIRST } from "./(agency)/agency/access-log/standfirst";
+import { AGENCIES_STANDFIRST } from "./(console)/console/agencies/standfirst";
 
 /**
  * What shows while a whole section is being swapped.
@@ -37,18 +38,55 @@ const AGENCY_ITEMS = [
     { name: "Sub Accounts", href: "/agency/sub-accounts", icon: Building2 },
     { name: "Team Access", href: "/agency/team", icon: KeyRound },
     { name: "Snapshots", href: "/agency/snapshots", icon: Camera },
-    { name: "Course Prices", href: "/agency/course-prices", icon: Tag },
     { name: "Access Log", href: "/agency/access-log", icon: ScrollText },
+    { name: "Billing", href: "/agency/billing", icon: CreditCard },
 ];
+
+const CONSOLE_ITEMS = [
+    { name: "Agencies", href: "/console/agencies", icon: Briefcase },
+    { name: "Team Access", href: "/console/team", icon: KeyRound },
+    { name: "Templates", href: "/console/templates", icon: Camera },
+    { name: "Access Log", href: "/console/access-log", icon: ScrollText },
+    { name: "Course Prices", href: "/console/course-prices", icon: Tag },
+];
+
+/** The page being opened inside the EcoFusion console, as its own skeleton. */
+function consolePage(pathname: string) {
+    if (pathname.startsWith("/console/team")) return <TeamAccessSkeleton />;
+    if (pathname.startsWith("/console/course-prices")) {
+        return <AgencyCoursePricesSkeleton standfirst={COURSE_PRICES_STANDFIRST} />;
+    }
+    if (pathname.startsWith("/console/access-log")) {
+        return <AgencyAccessLogSkeleton standfirst={CONSOLE_ACCESS_LOG_STANDFIRST} />;
+    }
+    if (pathname.startsWith("/console/templates")) {
+        return (
+            <AgencyListSkeleton
+                title="Templates"
+                standfirst="EcoFusion's own templates, which every agency may apply."
+                icon={Camera}
+                rows={3}
+                search={false}
+            />
+        );
+    }
+    // /console itself only redirects here.
+    return <AgencyListSkeleton title="Agencies" standfirst={AGENCIES_STANDFIRST} icon={Briefcase} rows={6} search />;
+}
 
 /** The page being opened inside the agency view, as its own skeleton. */
 function agencyPage(pathname: string) {
     if (pathname.startsWith("/agency/team")) return <TeamAccessSkeleton />;
-    if (pathname.startsWith("/agency/course-prices")) {
-        return <AgencyCoursePricesSkeleton standfirst={COURSE_PRICES_STANDFIRST} />;
-    }
     if (pathname.startsWith("/agency/access-log")) {
         return <AgencyAccessLogSkeleton standfirst={ACCESS_LOG_STANDFIRST} />;
+    }
+    if (pathname.startsWith("/agency/billing")) {
+        return (
+            <SkeletonPage>
+                <SkeletonHeading />
+                <SkeletonRows rows={5} />
+            </SkeletonPage>
+        );
     }
     if (pathname.startsWith("/agency/snapshots")) {
         return (
@@ -66,18 +104,25 @@ function agencyPage(pathname: string) {
 }
 
 /** The agency sidebar as it is drawn, with the section being opened marked. */
-function AgencySidebarSkeleton({ pathname }: { pathname: string }) {
-    const active = pathname === "/agency" ? "/agency/sub-accounts" : pathname;
+function AgencySidebarSkeleton({ pathname, inConsole }: { pathname: string; inConsole: boolean }) {
+    const active =
+        pathname === "/agency" ? "/agency/sub-accounts" : pathname === "/console" ? "/console/agencies" : pathname;
+    const items = inConsole ? CONSOLE_ITEMS : AGENCY_ITEMS;
     return (
         <aside className="w-64 border-r border-white/10 glass-panel flex-col z-20 shrink-0 hidden md:flex">
             <div className="p-6">
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
                     EcoFusion
                 </h1>
-                <p className="text-xs text-amber-300/80 tracking-wider mt-1">AGENCY VIEW</p>
+                {inConsole ? (
+                    <p className="text-xs text-amber-300/80 tracking-wider mt-1">ECOFUSION CONSOLE</p>
+                ) : (
+                    // The agency's name, not yet known.
+                    <div className="h-3 w-28 mt-1.5 rounded bg-amber-300/10 animate-pulse" />
+                )}
             </div>
             <nav className="flex-1 px-4 space-y-2 mt-4">
-                {AGENCY_ITEMS.map((item) => {
+                {items.map((item) => {
                     const isActive = active.startsWith(item.href);
                     return (
                         <div
@@ -128,14 +173,15 @@ function HeaderSkeleton() {
 
 export default function RootLoading() {
     const pathname = usePathname() ?? "";
-    const agency = pathname === "/agency" || pathname.startsWith("/agency/");
+    const inConsole = pathname === "/console" || pathname.startsWith("/console/");
+    const agency = inConsole || pathname === "/agency" || pathname.startsWith("/agency/");
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
                 {agency ? (
-                    <AgencySidebarSkeleton pathname={pathname} />
+                    <AgencySidebarSkeleton pathname={pathname} inConsole={inConsole} />
                 ) : (
                     // Where a business sidebar is about to be, so the page does
                     // not lurch sideways.
@@ -155,7 +201,9 @@ export default function RootLoading() {
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                     <HeaderSkeleton />
                     <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-                        {agency ? (
+                        {inConsole ? (
+                            consolePage(pathname)
+                        ) : agency ? (
                             agencyPage(pathname)
                         ) : pathname.startsWith("/dashboard/executive") ? (
                             // Where "My business" leads back to.

@@ -1,10 +1,12 @@
 /**
- * EcoFusion staff working inside a customer's farm.
+ * EcoFusion's own accounts: the EcoFusion admin and EcoFusion staff.
  *
- * Everyone else reaches exactly one organization, the one their membership
- * names. Staff reach any of them, which is a different kind of access and is
- * treated as one: it is opt-in per farm, it is announced in the interface
- * while it lasts, and it is written down.
+ * These stand above every agency, the way HighLevel's own team stands above
+ * its agencies. Customers reach their businesses through an agency or a
+ * membership (lib/agency, lib/tenancy); EcoFusion reaches them through this
+ * file, which is a different kind of access and is treated as one: staff reach
+ * only the businesses they are given, it is announced in the interface while
+ * it lasts, and it is written down.
  */
 
 import { cache } from 'react';
@@ -12,15 +14,19 @@ import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformRole, isMasterRole } from '@/lib/roles';
+import { isPlatformRole, isPlatformAdminRole } from '@/lib/roles';
 import { SUMMARY_HEADER, readSummaryHeader } from '@/lib/audit-summary';
 import { cleanPermissions, type StaffPermission } from '@/lib/staff-permissions';
 
-/** The farm a staff member is currently working inside. */
+/**
+ * The business somebody has stepped into from above it: EcoFusion support, or
+ * an agency's own team opening one of its sub-accounts. Checked against the
+ * database on every request that presents it (lib/tenancy).
+ */
 export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
 
 /**
- * Whether an account is EcoFusion staff.
+ * Whether an account is one of EcoFusion's own: the admin or staff.
  *
  * Read from the database rather than the session token: the token is only
  * refreshed when something asks it to, and revoking staff access should not
@@ -31,36 +37,36 @@ export const STAFF_ORG_COOKIE = 'ecofusion-staff-org';
  * this, and asking a database in another hemisphere the same question twice in
  * a row is a round trip spent on an answer already held.
  */
-export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> => {
+export const isPlatformAccount = cache(async (userId: string): Promise<boolean> => {
     return (await platformStanding(userId)) !== null;
 });
 
 /**
  * How an account stands on the platform: null for anybody who is not EcoFusion,
- * otherwise whether it is the master account and what it has been allowed.
+ * otherwise whether it is the EcoFusion admin and what it has been allowed.
  *
- * One read answers "is this staff", "is this the master" and "may they do this"
+ * One read answers "is this staff", "is this the admin" and "may they do this"
  * together, cached for the request, since a layout and the route under it both
  * ask. Read from the database every request rather than the token, so a
  * permission taken away is gone on the next click.
  */
 export const platformStanding = cache(
-    async (userId: string): Promise<{ master: boolean; permissions: StaffPermission[] } | null> => {
+    async (userId: string): Promise<{ admin: boolean; permissions: StaffPermission[] } | null> => {
         const user = await prisma.user.findUnique({
             where: { id: userId },
             select: { role: true, staffPermissions: true },
         });
         if (!isPlatformRole(user?.role)) return null;
-        if (isMasterRole(user?.role)) return { master: true, permissions: [] };
-        return { master: false, permissions: cleanPermissions(user?.staffPermissions) };
+        if (isPlatformAdminRole(user?.role)) return { admin: true, permissions: [] };
+        return { admin: false, permissions: cleanPermissions(user?.staffPermissions) };
     }
 );
 
-/** Whether a platform account may do this. The master account may do anything. */
+/** Whether an EcoFusion account may do this. The EcoFusion admin may do anything. */
 export async function staffCan(userId: string, permission: StaffPermission): Promise<boolean> {
     const standing = await platformStanding(userId);
     if (!standing) return false;
-    return standing.master || standing.permissions.includes(permission);
+    return standing.admin || standing.permissions.includes(permission);
 }
 
 /**
@@ -72,7 +78,7 @@ export async function staffCan(userId: string, permission: StaffPermission): Pro
  */
 export async function requireStaffPermission(
     ...permissions: StaffPermission[]
-): Promise<{ userId: string; master: boolean } | NextResponse> {
+): Promise<{ userId: string; admin: boolean } | NextResponse> {
     const session = await auth();
     if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -81,29 +87,30 @@ export async function requireStaffPermission(
     if (!standing) {
         return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
-    if (!standing.master && !permissions.some((p) => standing.permissions.includes(p))) {
+    if (!standing.admin && !permissions.some((p) => standing.permissions.includes(p))) {
         return NextResponse.json(
-            { error: 'Your EcoFusion access does not include this. Ask the master account.' },
+            { error: 'Your EcoFusion access does not include this. Ask an EcoFusion admin.' },
             { status: 403 }
         );
     }
-    return { userId: session.user.id, master: standing.master };
+    return { userId: session.user.id, admin: standing.admin };
 }
 
 /**
- * Whether an account is the master account, rather than somebody working for it.
+ * Whether an account is the EcoFusion admin, rather than somebody working for it.
  *
- * The master account holds the platform: it reaches every business, and decides
- * who else on the team reaches which. Staff are its assistants and can do neither.
+ * The EcoFusion admin holds the platform: it reaches every agency and business,
+ * and decides who else on EcoFusion's team reaches which. Staff are its
+ * assistants and can do neither.
  */
-export async function isPlatformOwner(userId: string): Promise<boolean> {
-    return (await platformStanding(userId))?.master ?? false;
+export async function isEcoFusionAdmin(userId: string): Promise<boolean> {
+    return (await platformStanding(userId))?.admin ?? false;
 }
 
 /**
  * Whether this platform account may work inside this particular business.
  *
- * The owner may work in any: the platform is theirs. Staff may work only in the
+ * The EcoFusion admin may work in any. Staff may work only in the
  * ones handed to them, so somebody brought in to look after three customers
  * cannot open the other forty. Read from the database rather than a token, so
  * taking a business back takes effect on the next request.
@@ -114,7 +121,7 @@ export async function staffMayReach(userId: string, organizationId: string): Pro
 
 /**
  * How a platform account stands in this business: null when it may not enter,
- * otherwise whether it enters as the master account.
+ * otherwise whether it enters as the EcoFusion admin.
  *
  * One read answers both, because the tenancy check needs both on every request
  * a support session makes, and the role is what decides each.
@@ -122,10 +129,10 @@ export async function staffMayReach(userId: string, organizationId: string): Pro
 export async function platformReach(
     userId: string,
     organizationId: string
-): Promise<{ master: boolean; permissions: StaffPermission[] } | null> {
+): Promise<{ admin: boolean; permissions: StaffPermission[] } | null> {
     // Asked together: the grant does not depend on the answer to "who is
     // this", and one after the other they were two round trips to Tokyo on
-    // every request a support session made. For the master and for anybody
+    // every request a support session made. For the admin and for anybody
     // who is not staff the grant is simply not looked at.
     const [standing, granted] = await Promise.all([
         platformStanding(userId),
@@ -135,7 +142,7 @@ export async function platformReach(
         }),
     ]);
     if (!standing) return null;
-    if (standing.master) return standing;
+    if (standing.admin) return standing;
     return granted ? standing : null;
 }
 
@@ -150,7 +157,7 @@ export async function staffReachableOrganizationIds(
     userId: string
 ): Promise<string[] | null> {
     const standing = await platformStanding(userId);
-    if (standing?.master) return null;
+    if (standing?.admin) return null;
     if (!standing) return [];
 
     const rows = await prisma.staffBusinessAccess.findMany({
@@ -202,16 +209,38 @@ export async function logStaffAccess(
     staffUserId: string,
     organizationId: string | null,
     action: StaffAction,
-    detail?: { method?: string | null; path?: string | null; summary?: string | null }
+    detail?: {
+        method?: string | null;
+        path?: string | null;
+        summary?: string | null;
+        /**
+         * The agency the line belongs to. Worked out from the business when
+         * left out, so every line naming a business lands in that business's
+         * agency's trail; pass it for an agency-wide change that names none.
+         */
+        agencyId?: string | null;
+    }
 ): Promise<void> {
     try {
         const summary =
             detail?.summary ?? (action === 'write' ? await summaryFromRequest() : null);
 
+        let agencyId = detail?.agencyId ?? null;
+        if (!agencyId && organizationId) {
+            agencyId =
+                (
+                    await prisma.organization.findUnique({
+                        where: { id: organizationId },
+                        select: { agencyId: true },
+                    })
+                )?.agencyId ?? null;
+        }
+
         await prisma.staffAccessLog.create({
             data: {
                 staffUserId,
                 organizationId,
+                agencyId,
                 action,
                 method: detail?.method ?? null,
                 path: detail?.path ?? null,
@@ -242,7 +271,8 @@ const SELF_DESCRIBED = new Set(['/api/training/gifts']);
  */
 export async function logStaffWriteIfAny(
     staffUserId: string,
-    organizationId: string | null
+    organizationId: string | null,
+    agencyId?: string | null
 ): Promise<void> {
     const head = await headers();
     const method = head.get('x-request-method');
@@ -254,5 +284,6 @@ export async function logStaffWriteIfAny(
     await logStaffAccess(staffUserId, organizationId, 'write', {
         method: method.toUpperCase(),
         path,
+        agencyId,
     });
 }

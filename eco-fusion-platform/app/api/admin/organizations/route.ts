@@ -1,103 +1,125 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
-import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformAdmin, isPlatformOwner, logStaffAccess, staffMayReach, staffReachableOrganizationIds, platformStanding, staffCan } from '@/lib/staff';
+import { logStaffAccess } from '@/lib/staff';
 import { PERMISSIONS } from '@/lib/staff-permissions';
 import { evaluateAccess, provisionOrganization } from '@/lib/tenancy';
 import { validatePassword } from '@/lib/validation/password';
+import {
+    limitMessage,
+    organizationWhere,
+    preferOf,
+    requireScope,
+    scopeCan,
+    scopeReaches,
+    subAccountUsage,
+    type Scope,
+} from '@/lib/agency';
+import { planFor, usageLabel } from '@/lib/plans';
 
-// GET - Every business on the platform, for EcoFusion staff.
-//
-// The only route in the app that reads across organizations. It returns what
-// is needed to find a business and judge its state, and no business data: staff
-// who want to see inside one have to step into it, which is recorded.
+/**
+ * The businesses (sub-accounts) a caller works with from above them.
+ *
+ * Answers for the caller's scope (lib/agency): an agency's own team sees its
+ * agency's businesses; EcoFusion sees every agency's from the console, or one
+ * agency's while supporting it. Staff of either kind see only the businesses
+ * they were given. It returns what is needed to find a business and judge its
+ * state, and no business data: seeing inside one means stepping into it,
+ * which is recorded.
+ */
+
+/** What the reader may do here, so the page offers only that. */
+function viewerOf(scope: Scope) {
+    return {
+        scope: scope.kind,
+        admin: scope.admin,
+        permissions: scope.permissions,
+        canCreate: scope.kind === 'agency' && scopeCan(scope, PERMISSIONS.CREATE_BUSINESS),
+    };
+}
+
+// GET - The businesses this caller reaches.
 export async function GET(request: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!(await isPlatformAdmin(session.user.id))) {
-            return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
-        }
+        const scope = await requireScope({ prefer: preferOf(request) });
+        if (scope instanceof NextResponse) return scope;
 
         const search = new URL(request.url).searchParams.get('q')?.trim();
 
-        const reachable = await staffReachableOrganizationIds(session.user.id);
-
-        const organizations = await prisma.organization.findMany({
-            where: {
-                // The owner sees the whole platform; staff see the businesses
-                // they were handed and nothing else.
-                ...(reachable === null ? {} : { id: { in: reachable } }),
-                ...(search
-                    ? {
-                          OR: [
-                              { name: { contains: search, mode: 'insensitive' as const } },
-                              { slug: { contains: search, mode: 'insensitive' as const } },
-                          ],
-                      }
-                    : {}),
-            },
-            select: {
-                id: true,
-                name: true,
-                slug: true,
-                location: true,
-                plan: true,
-                subscriptionStatus: true,
-                trialEndsAt: true,
-                currentPeriodEnd: true,
-                createdAt: true,
-                // A business an owner added is paid for by the one that owns
-                // the subscription, so its standing is decided there. Asking
-                // its own row would report a trial nobody is on.
-                billingParent: {
-                    select: {
-                        subscriptionStatus: true,
-                        trialEndsAt: true,
-                        currentPeriodEnd: true,
+        const [organizations, usage] = await Promise.all([
+            prisma.organization.findMany({
+                where: {
+                    ...(await organizationWhere(scope)),
+                    ...(search
+                        ? {
+                              OR: [
+                                  { name: { contains: search, mode: 'insensitive' as const } },
+                                  { slug: { contains: search, mode: 'insensitive' as const } },
+                              ],
+                          }
+                        : {}),
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    location: true,
+                    createdAt: true,
+                    agency: {
+                        select: {
+                            id: true,
+                            name: true,
+                            plan: true,
+                            subscriptionStatus: true,
+                            trialEndsAt: true,
+                            currentPeriodEnd: true,
+                        },
                     },
+                    memberships: {
+                        where: { role: 'owner' },
+                        select: { user: { select: { name: true, email: true } } },
+                        take: 1,
+                    },
+                    _count: { select: { memberships: true } },
                 },
-                memberships: {
-                    where: { role: 'owner' },
-                    select: { user: { select: { name: true, email: true } } },
-                    take: 1,
-                },
-                _count: { select: { memberships: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 100,
-        });
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+            }),
+            scope.kind === 'agency' ? subAccountUsage(scope.agencyId) : Promise.resolve(null),
+        ]);
 
-        const standing = await platformStanding(session.user.id);
         return NextResponse.json({
-            /** What the reader may do on this screen, so the page offers only that. */
-            viewer: {
-                master: standing?.master ?? false,
-                permissions: standing?.permissions ?? [],
-            },
+            viewer: viewerOf(scope),
+            /** The agency's plan and how much of it is used, in an agency scope. */
+            usage: usage
+                ? {
+                      used: usage.used,
+                      limit: Number.isFinite(usage.plan.subAccountLimit) ? usage.plan.subAccountLimit : null,
+                      plan: usage.plan.name,
+                      label: usageLabel(usage.used, usage.plan),
+                      canAdd: usage.canAdd,
+                  }
+                : null,
             organizations: organizations.map((org) => {
-                const access = evaluateAccess(org.billingParent ?? org);
+                // The agency pays for every business it holds, so the agency's
+                // subscription is what decides each one's standing.
+                const access = evaluateAccess(org.agency);
                 return {
                     id: org.id,
                     name: org.name,
                     slug: org.slug,
                     location: org.location,
-                    plan: org.plan,
-                    subscriptionStatus: org.subscriptionStatus,
-                    trialEndsAt: org.trialEndsAt,
+                    agency: { id: org.agency.id, name: org.agency.name, plan: planFor(org.agency.plan).name },
+                    plan: org.agency.plan,
+                    subscriptionStatus: org.agency.subscriptionStatus,
+                    trialEndsAt: org.agency.trialEndsAt,
                     createdAt: org.createdAt,
                     memberCount: org._count.memberships,
                     owner: org.memberships[0]?.user ?? null,
-                    // Three standings, not Stripe's five. A business is paying,
-                    // trying, or neither, and the third covers a trial that ran
-                    // out as well as a subscription that stopped - from the
-                    // outside they are the same thing: nobody is paying and
-                    // nobody is inside.
+                    // Three standings, not Stripe's five: paying, trying, or
+                    // neither. A lapsed trial and a stopped subscription look
+                    // the same from outside - nobody is paying.
                     standing:
                         access.reason === 'active'
                             ? ('active' as const)
@@ -114,30 +136,22 @@ export async function GET(request: Request) {
     }
 }
 
-// POST - Set a business up on behalf of a customer.
+// POST - Add a business to the agency, with its owner's login.
 //
-// The other way a business comes into existence is somebody signing themselves
-// up. This is the same act performed by staff: the owner gets a real login they
-// can use immediately, and the business gets the same trial and the same
-// starting configuration as any other. Nothing here is a lesser kind of
-// business, and staff hold no standing membership in it - reaching inside still
-// means stepping in, which is recorded.
-
+// The same act as somebody signing up: the owner gets a real login they can
+// use at once, and the business the same starting configuration as any other.
+// It is covered by the agency's plan, which is why the plan's limit is checked
+// first. Only ever inside an agency: EcoFusion adds a business by supporting
+// the agency, or sets up a new agency from the console.
 export async function POST(request: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const scope = await requireScope({ kind: 'agency', anyOf: [PERMISSIONS.CREATE_BUSINESS] });
+        if (scope instanceof NextResponse) return scope;
+        if (scope.kind !== 'agency') return NextResponse.json({ error: 'Open an agency first.' }, { status: 403 });
 
-        // A new business comes with a subscription, a trial and an owner
-        // account. Taking a customer on is the master account's decision, which
-        // it can hand to somebody with the "Create sub accounts" permission.
-        if (!(await staffCan(session.user.id, PERMISSIONS.CREATE_BUSINESS))) {
-            return NextResponse.json(
-                { error: 'Your EcoFusion access does not include creating sub accounts. Ask the master account.' },
-                { status: 403 }
-            );
+        const usage = await subAccountUsage(scope.agencyId);
+        if (!usage.canAdd) {
+            return NextResponse.json({ error: limitMessage(usage.plan), limitReached: true }, { status: 402 });
         }
 
         const body = await request.json();
@@ -158,7 +172,7 @@ export async function POST(request: Request) {
         }
 
         // Held to the same standard as a password someone chooses for
-        // themselves. A business set up by staff is not a place for a weaker one.
+        // themselves. A business set up for somebody is not a place for a weaker one.
         const strength = validatePassword(ownerPassword);
         if (!strength.isValid) {
             return NextResponse.json(
@@ -175,8 +189,8 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 {
                     error:
-                        'That email already has an account. It already owns a business, ' +
-                        'so adding it here would leave the person with two.',
+                        'That email already has an account. A person owns one business, ' +
+                        'so use a different email for this one.',
                 },
                 { status: 409 }
             );
@@ -191,47 +205,49 @@ export async function POST(request: Request) {
         });
 
         const organizationId = await provisionOrganization({
+            agencyId: scope.agencyId,
             ownerUserId: owner.id,
             name,
             location: location || null,
         });
 
-        // Written to the same trail as any other staff act on a business, so
-        // the record of who created it sits beside the record of who entered it.
-        await logStaffAccess(session.user.id, organizationId, 'write', {
+        await logStaffAccess(scope.userId, organizationId, 'write', {
             method: 'POST',
             path: '/api/admin/organizations',
-            summary: `Created the business "${name}" with ${ownerEmail} as its owner`,
+            summary: `Added the business "${name}" to the agency, with ${ownerEmail} as its owner`,
+            agencyId: scope.agencyId,
         });
 
-        // Staff who set a business up are given it, or they could not open
-        // what they had just made. The master account opens everything already.
-        if (!(await isPlatformOwner(session.user.id))) {
+        // Staff who add a business are given it, or they could not open what
+        // they had just made. Admins open every business already.
+        if (!scope.admin) {
             await prisma.staffBusinessAccess.create({
-                data: { userId: session.user.id, organizationId, grantedById: session.user.id },
+                data: { userId: scope.userId, organizationId, grantedById: scope.userId },
             });
         }
 
         const organization = await prisma.organization.findUniqueOrThrow({
             where: { id: organizationId },
-            select: {
-                id: true,
-                name: true,
-                slug: true,
-                location: true,
-                plan: true,
-                subscriptionStatus: true,
-                trialEndsAt: true,
-                createdAt: true,
-            },
+            select: { id: true, name: true, slug: true, location: true, createdAt: true },
         });
 
         return NextResponse.json(
             {
                 organization: {
                     ...organization,
+                    plan: scope.agency.plan,
+                    subscriptionStatus: scope.agency.subscriptionStatus,
+                    trialEndsAt: scope.agency.trialEndsAt,
                     memberCount: 1,
                     owner: { name: owner.name, email: owner.email },
+                    ...(() => {
+                        const access = evaluateAccess(scope.agency);
+                        return {
+                            standing:
+                                access.reason === 'active' ? 'active' : access.reason === 'trialing' ? 'trial' : 'inactive',
+                            trialDaysLeft: access.reason === 'trialing' ? access.daysLeft : null,
+                        };
+                    })(),
                 },
             },
             { status: 201 }
@@ -241,36 +257,22 @@ export async function POST(request: Request) {
         // index, and the caller gets the answer it would have got a moment
         // earlier rather than a 500 carrying Prisma's internals.
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            return NextResponse.json(
-                { error: 'That email already has an account' },
-                { status: 409 }
-            );
+            return NextResponse.json({ error: 'That email already has an account' }, { status: 409 });
         }
         console.error('Failed to create business:', error);
         return NextResponse.json({ error: 'Failed to create the business' }, { status: 500 });
     }
 }
 
-// PATCH - Correct a business's name or where it is.
+// PATCH - Rename a business.
 //
-// Staff only, and deliberately limited to the two fields that exist to
-// identify a business in a list. Nothing here touches a subscription, a
-// membership, or anything the business itself owns: changing those means
-// stepping inside, which is recorded.
-
+// The name and nothing else. Who owns a business is what its team, its
+// billing and its access record hang from, and moving it is a decision for
+// the people involved rather than a field on a form.
 export async function PATCH(request: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!(await staffCan(session.user.id, PERMISSIONS.RENAME_BUSINESS))) {
-            return NextResponse.json(
-                { error: 'Your EcoFusion access does not include renaming sub accounts. Ask the master account.' },
-                { status: 403 }
-            );
-        }
+        const scope = await requireScope({ anyOf: [PERMISSIONS.RENAME_BUSINESS] });
+        if (scope instanceof NextResponse) return scope;
 
         const body = await request.json();
         const organizationId = String(body.organizationId ?? '').trim();
@@ -279,18 +281,11 @@ export async function PATCH(request: Request) {
         }
 
         // Renaming somebody's business is a change to it, so it needs the same
-        // grant as opening it.
-        if (!(await staffMayReach(session.user.id, organizationId))) {
+        // reach as opening it.
+        if (!(await scopeReaches(scope, organizationId))) {
             return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
-        // The name and nothing else.
-        //
-        // A typo in a business's name is worth a support account fixing. Who
-        // owns it is not: ownership is what the subscription, the team and the
-        // whole of Team Access hang from, and moving it is a decision for the
-        // people involved rather than a field on a staff form. Location goes
-        // the same way - it is the business's to state.
         const name = String(body.name ?? '').trim();
         if (!name) {
             return NextResponse.json({ error: 'A business name is required' }, { status: 400 });
@@ -302,14 +297,6 @@ export async function PATCH(request: Request) {
             );
         }
 
-        const existing = await prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: { id: true },
-        });
-        if (!existing) {
-            return NextResponse.json({ error: 'No such business' }, { status: 404 });
-        }
-
         const organization = await prisma.organization.update({
             where: { id: organizationId },
             data: { name },
@@ -317,8 +304,8 @@ export async function PATCH(request: Request) {
         });
 
         // Renaming somebody's business is a change to it, so it lands in the
-        // record the owner reads alongside every other thing staff did.
-        await logStaffAccess(session.user.id, organizationId, 'write', {
+        // record the owner reads alongside everything else done from above.
+        await logStaffAccess(scope.userId, organizationId, 'write', {
             method: 'PATCH',
             path: '/api/admin/organizations',
             summary: `Renamed the business to "${name}"`,

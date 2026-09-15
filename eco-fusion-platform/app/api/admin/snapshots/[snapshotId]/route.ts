@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { logStaffAccess, requireStaffPermission } from '@/lib/staff';
+import { logStaffAccess } from '@/lib/staff';
+import { preferOf, requireScope, type Scope } from '@/lib/agency';
 import { PERMISSIONS } from '@/lib/staff-permissions';
 
-/** The staff account making the request, if it may edit and delete snapshots. */
-async function requireManager(): Promise<string | NextResponse> {
-  const guard = await requireStaffPermission(PERMISSIONS.MANAGE_SNAPSHOTS);
-  return guard instanceof NextResponse ? guard : guard.userId;
+/** The caller, if they may edit and delete snapshots. */
+async function requireManager(request: Request): Promise<Scope | NextResponse> {
+  return requireScope({ anyOf: [PERMISSIONS.MANAGE_SNAPSHOTS], prefer: preferOf(request) });
+}
+
+/** The library a scope manages: its agency's, or EcoFusion's templates. */
+function ownAgencyId(scope: Scope): string | null {
+  return scope.kind === 'agency' ? scope.agencyId : null;
 }
 
 // PATCH - Rename a snapshot, or make it the one new businesses start from.
@@ -15,14 +20,15 @@ export async function PATCH(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    const staffUserId = await requireManager();
-    if (staffUserId instanceof NextResponse) return staffUserId;
+    const scope = await requireManager(request);
+    if (scope instanceof NextResponse) return scope;
+    const staffUserId = scope.userId;
 
     const { snapshotId } = await params;
     const { name, description, isDefault } = await request.json();
 
-    const existing = await prisma.snapshot.findUnique({
-      where: { id: snapshotId },
+    const existing = await prisma.snapshot.findFirst({
+      where: { id: snapshotId, agencyId: ownAgencyId(scope) },
       select: { id: true },
     });
     if (!existing) {
@@ -34,7 +40,7 @@ export async function PATCH(
       // window where two claim it is inside the transaction and invisible.
       if (isDefault === true) {
         await tx.snapshot.updateMany({
-          where: { isDefault: true, id: { not: snapshotId } },
+          where: { isDefault: true, id: { not: snapshotId }, agencyId: ownAgencyId(scope) },
           data: { isDefault: false },
         });
       }
@@ -80,13 +86,14 @@ export async function DELETE(
   { params }: { params: Promise<{ snapshotId: string }> }
 ) {
   try {
-    const staffUserId = await requireManager();
-    if (staffUserId instanceof NextResponse) return staffUserId;
+    const scope = await requireManager(request);
+    if (scope instanceof NextResponse) return scope;
+    const staffUserId = scope.userId;
 
     const { snapshotId } = await params;
 
-    const existing = await prisma.snapshot.findUnique({
-      where: { id: snapshotId },
+    const existing = await prisma.snapshot.findFirst({
+      where: { id: snapshotId, agencyId: ownAgencyId(scope) },
       select: { isDefault: true, name: true },
     });
     if (!existing) {

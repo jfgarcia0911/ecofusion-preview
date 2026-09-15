@@ -3,15 +3,26 @@
 import { useEffect, useState } from "react";
 import { ScrollText, LogIn, LogOut, Pencil, Crown, Globe, Ban, ShieldAlert, KeyRound } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { isMasterRole } from "@/lib/roles";
+import { isPlatformAdminRole, isPlatformRole, standingLabel } from "@/lib/roles";
 import { AccessLogRowsSkeleton, AgencyAccessLogSkeleton } from "@/components/skeletons/PageSkeletons";
-import { ACCESS_LOG_STANDFIRST } from "./standfirst";
+import { useScopedApi } from "@/components/admin/useScopedApi";
+import { ACCESS_LOG_STANDFIRST, CONSOLE_ACCESS_LOG_STANDFIRST } from "./standfirst";
 
 interface Person {
     id: string;
     name: string | null;
     email: string;
     role: string;
+    /** Whether they are an agency's master account. */
+    agencyAdmin: boolean;
+}
+
+/** What somebody is, in the words the rest of the app uses. */
+function labelOf(person: Person): string {
+    if (isPlatformRole(person.role)) {
+        return standingLabel({ platform: isPlatformAdminRole(person.role) ? "admin" : "staff" });
+    }
+    return standingLabel({ agency: person.agencyAdmin ? "admin" : "user" });
 }
 
 interface Entry {
@@ -25,6 +36,8 @@ interface Entry {
     staffUser: Person;
     /** Null for a change to the platform itself rather than to one business. */
     organization: { id: string; name: string } | null;
+    /** The agency the line belongs to. Null for a change to the platform itself. */
+    agency: { id: string; name: string } | null;
 }
 
 const ACTION_STYLES: Record<string, { style: string; icon: typeof LogIn; label: string }> = {
@@ -37,16 +50,18 @@ const ACTION_STYLES: Record<string, { style: string; icon: typeof LogIn; label: 
 };
 
 /**
- * What EcoFusion staff have done inside customers' businesses, and to the
- * platform itself.
+ * What people above the businesses have done inside them.
  *
- * The point of the trail is that it can be read, not merely that it is
- * written. A support session that nobody ever looks at is the same as no
- * record at all, so this is a page rather than a table somebody has to know
- * how to query. The master account has no limits anywhere in the app, and
- * this is where that is answered for: every change it makes lands here.
+ * In an agency's view, that agency's own trail and nobody else's; in
+ * EcoFusion's console, every agency's. The point of the trail is that it can
+ * be read, not merely that it is written. A support session that nobody ever
+ * looks at is the same as no record at all, so this is a page rather than a
+ * table somebody has to know how to query. Admins have no limits inside the
+ * businesses they reach, and this is where that is answered for.
  */
 export default function AccessLogPage() {
+    const { api, inConsole } = useScopedApi();
+    const standfirst = inConsole ? CONSOLE_ACCESS_LOG_STANDFIRST : ACCESS_LOG_STANDFIRST;
     const [entries, setEntries] = useState<Entry[]>([]);
     const [people, setPeople] = useState<Person[]>([]);
     const [loading, setLoading] = useState(true);
@@ -66,7 +81,7 @@ export default function AccessLogPage() {
                 const query = new URLSearchParams();
                 if (who) query.set("staffUserId", who);
                 if (changesOnly) query.set("changesOnly", "1");
-                const res = await fetch(`/api/admin/access-log?${query}`);
+                const res = await fetch(api(`/api/admin/access-log?${query}`));
                 if (res.status === 403) {
                     if (!cancelled) setDenied((await res.json()).error ?? "You cannot read the Access Log.");
                     return;
@@ -91,7 +106,7 @@ export default function AccessLogPage() {
         return () => {
             cancelled = true;
         };
-    }, [toast, who, changesOnly]);
+    }, [toast, who, changesOnly, api]);
 
     if (denied) {
         return (
@@ -108,7 +123,7 @@ export default function AccessLogPage() {
         );
     }
 
-    if (!loadedOnce) return <AgencyAccessLogSkeleton standfirst={ACCESS_LOG_STANDFIRST} />;
+    if (!loadedOnce) return <AgencyAccessLogSkeleton standfirst={standfirst} />;
 
     return (
         <div>
@@ -117,7 +132,7 @@ export default function AccessLogPage() {
                     <ScrollText size={22} className="text-accent" />
                     Access Log
                 </h1>
-                <p className="text-white/50 mt-1 max-w-2xl text-sm">{ACCESS_LOG_STANDFIRST}</p>
+                <p className="text-white/50 mt-1 max-w-2xl text-sm">{standfirst}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -129,8 +144,7 @@ export default function AccessLogPage() {
                     <option value="" className="bg-neutral-900">Everyone</option>
                     {people.map((person) => (
                         <option key={person.id} value={person.id} className="bg-neutral-900">
-                            {person.name ?? person.email}
-                            {isMasterRole(person.role) ? " (Master)" : ""}
+                            {person.name ?? person.email} ({labelOf(person)})
                         </option>
                     ))}
                 </select>
@@ -151,14 +165,18 @@ export default function AccessLogPage() {
                 <p className="text-white/40 text-sm py-8 text-center">
                     {who || changesOnly
                         ? "Nothing recorded that matches."
-                        : "Nobody has entered a customer's business yet."}
+                        : "Nothing recorded yet."}
                 </p>
             ) : (
                 <div className="space-y-2">
                     {entries.map((entry) => {
                         const kind = ACTION_STYLES[entry.action] ?? ACTION_STYLES.write;
                         const Icon = kind.icon;
-                        const master = isMasterRole(entry.staffUser.role);
+                        const fromEcoFusion = isPlatformRole(entry.staffUser.role);
+                        // Admins are marked, since they are the ones with no limits.
+                        const admin = fromEcoFusion
+                            ? isPlatformAdminRole(entry.staffUser.role)
+                            : entry.staffUser.agencyAdmin;
                         return (
                             <div
                                 key={entry.id}
@@ -176,15 +194,26 @@ export default function AccessLogPage() {
                                         <span className="font-medium truncate">
                                             {entry.staffUser.name ?? entry.staffUser.email}
                                         </span>
-                                        {master && (
-                                            <span className="px-1.5 py-0.5 rounded border border-accent/30 bg-accent/10 text-accent text-[10px] flex items-center gap-1 shrink-0">
-                                                <Crown size={10} />
-                                                Master
-                                            </span>
-                                        )}
+                                        <span
+                                            className={`px-1.5 py-0.5 rounded border text-[10px] flex items-center gap-1 shrink-0 ${
+                                                admin
+                                                    ? "border-accent/30 bg-accent/10 text-accent"
+                                                    : "border-white/15 bg-white/5 text-white/50"
+                                            }`}
+                                        >
+                                            {admin && <Crown size={10} />}
+                                            {labelOf(entry.staffUser)}
+                                        </span>
                                         <span className="text-white/40"> &middot; </span>
                                         {entry.organization ? (
-                                            <span className="truncate">{entry.organization.name}</span>
+                                            <span className="truncate">
+                                                {entry.organization.name}
+                                                {inConsole && entry.agency && (
+                                                    <span className="text-white/40"> ({entry.agency.name})</span>
+                                                )}
+                                            </span>
+                                        ) : inConsole && entry.agency ? (
+                                            <span className="truncate text-white/60">Agency: {entry.agency.name}</span>
                                         ) : (
                                             <span className="text-white/60 flex items-center gap-1 shrink-0">
                                                 <Globe size={12} />

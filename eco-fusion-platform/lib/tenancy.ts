@@ -14,11 +14,13 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import {
   currentStaffOrganizationId,
-  platformReach,
   logStaffAccess,
   logStaffWriteIfAny,
 } from '@/lib/staff';
+import { decideBusinessReach, loadReachFacts } from '@/lib/agency';
+import { AGENCY_TRIAL_DAYS } from '@/lib/plans';
 import {
+  askWhom,
   permissionForBusinessRequest,
   permissionLabel,
   type StaffPermission,
@@ -26,8 +28,8 @@ import {
 import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
 import { logMemberWriteIfAny } from '@/lib/activity';
 
-/** Days a new farm may use the platform before it has to subscribe. */
-export const TRIAL_DAYS = 15;
+/** Days a new agency may use the platform before it has to subscribe. See lib/plans. */
+export const TRIAL_DAYS = AGENCY_TRIAL_DAYS;
 
 /**
  * Which of their own businesses a member is currently looking at.
@@ -56,23 +58,35 @@ export interface OrgAccess {
 export interface OrgContext {
   userId: string;
   organizationId: string;
+  /** The agency this business is a sub-account of, whose plan and subscription decide access. */
+  agencyId: string;
   /** Role within this organization: owner | admin | manager | member. */
   role: string;
   access: OrgAccess;
   /**
-   * True when this is EcoFusion staff working inside a farm they are not a
-   * member of. The interface says so while it lasts, and a lapsed farm still
-   * opens, since needing repair is usually why staff are there.
+   * True when this is EcoFusion (its admin or staff) working inside a business
+   * it is not a member of. The interface says so while it lasts, and a lapsed
+   * business still opens, since needing repair is usually why EcoFusion is there.
    */
   isStaff: boolean;
+  /** True when that EcoFusion account is the EcoFusion admin. */
+  isPlatformAdmin: boolean;
   /**
-   * True when that staff member is the master account. It enters as the
-   * business's owner rather than as a supervisor: nothing inside the business
-   * is closed to it. Always alongside `isStaff`, so every change it makes is
-   * written to the same trail as any other EcoFusion visit.
+   * True when this is the business's own agency's team - its master account or
+   * agency staff - working inside one of its sub-accounts. Unlike EcoFusion,
+   * they are the customer, so a lapsed agency stays shut for them too.
    */
-  isMaster: boolean;
-  /** What a staff member was allowed by the master account. Empty for everyone else. */
+  isAgency: boolean;
+  /** Stepped in from above - EcoFusion or the agency - rather than a member of the business. */
+  entered: boolean;
+  /**
+   * Stepped in with full control: the EcoFusion admin, or the agency's master
+   * account. Enters as the business's owner, and may do what only the owner
+   * could, down to resetting the owner's password. Every change is written to
+   * the access trail.
+   */
+  fullControl: boolean;
+  /** What the person who stepped in was allowed. Empty for everyone else. */
   staffPermissions: StaffPermission[];
   /**
    * Why this request is refused, when it is a staff member doing something
@@ -131,40 +145,6 @@ export function evaluateAccess(org: {
   };
 }
 
-/** The subscription fields access is decided from. */
-interface BillingFacts {
-  subscriptionStatus: string;
-  trialEndsAt: Date | null;
-  currentPeriodEnd: Date | null;
-}
-
-/**
- * The business whose subscription decides whether `organizationId` may be used.
- *
- * Usually itself. When an owner has added a business it points at the one that
- * pays, and that one answers for both, so a second site is covered by the
- * subscription already being paid rather than starting a trial of its own.
- *
- * Only one hop is followed. A billing account is by definition the end of the
- * chain, so a longer one would be a bug, and walking it would turn a cycle into
- * a hang.
- */
-export async function billingFactsFor(organizationId: string): Promise<BillingFacts | null> {
-  const org = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: {
-      subscriptionStatus: true,
-      trialEndsAt: true,
-      currentPeriodEnd: true,
-      billingParent: {
-        select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
-      },
-    },
-  });
-  if (!org) return null;
-  return org.billingParent ?? org;
-}
-
 /** Roles allowed to administer an organization rather than just work in it. */
 export function canAdminister(ctx: OrgContext): boolean {
   return ctx.role === 'owner' || ctx.role === 'supervisor' || ctx.role === 'manager';
@@ -199,10 +179,11 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  // Staff work inside a farm chosen deliberately, not one they belong to, so
-  // that choice is resolved before membership is consulted at all.
-  const staffContext = await resolveStaffContext(session.user.id);
-  if (staffContext) return staffContext;
+  // Somebody who stepped into a business from above - EcoFusion, or the
+  // business's own agency - works in the one they chose, not one they belong
+  // to, so that choice is resolved before membership is consulted at all.
+  const enteredContext = await resolveEnteredContext(session.user.id);
+  if (enteredContext) return enteredContext;
 
   // What the person last switched to, then what the token remembers, then the
   // one they have had longest. Each candidate is looked up as a membership, so
@@ -229,10 +210,8 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
         select: {
           name: true,
           location: true,
-          subscriptionStatus: true,
-          trialEndsAt: true,
-          currentPeriodEnd: true,
-          billingParent: {
+          agencyId: true,
+          agency: {
             select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
           },
         },
@@ -254,12 +233,15 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
   return {
     userId: session.user.id,
     organizationId: membership.organizationId,
+    agencyId: membership.organization.agencyId,
     role: membership.role,
-    // A business added by its owner is paid for by the one that owns the
-    // subscription, so that is the one asked.
-    access: evaluateAccess(membership.organization.billingParent ?? membership.organization),
+    // The agency pays for every business it holds, so the agency is asked.
+    access: evaluateAccess(membership.organization.agency),
     isStaff: false,
-    isMaster: false,
+    isPlatformAdmin: false,
+    isAgency: false,
+    entered: false,
+    fullControl: false,
     staffPermissions: [],
     staffRefusal: null,
     business: {
@@ -270,60 +252,57 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
 });
 
 /**
- * The farm a staff member has stepped into, or null.
+ * The business somebody has stepped into from above it, or null.
  *
- * Returns null for everyone else, including an account that presents the
- * cookie without the role to back it: the claim is checked against the
- * database on every request that makes it, so withdrawing staff access takes
- * effect at once rather than whenever a token happens to be refreshed.
+ * Two kinds of people step in, and both are checked against the database on
+ * every request that makes the claim, so taking access away takes effect at
+ * once rather than whenever a token happens to be refreshed:
  *
- * Staff act with a supervisor's powers. Not an owner's - ownership and billing
- * stay with the person who pays, and the guards in the member routes already
- * turn away anyone who is not them.
+ *   - EcoFusion: its admin reaches every business, its staff the ones they
+ *     were given. A lapsed business still opens for them.
+ *   - The business's own agency: its master account reaches every business
+ *     the agency holds, its staff the ones they were given. They are the
+ *     customer, so a lapsed agency stays shut for them as for anybody.
  *
- * The master account is the exception. It holds the platform, so it enters
- * every business with the owner's powers and no less: whatever a customer can
- * get stuck on, it can undo. What it gives up in exchange is privacy - every
- * change it makes, like any staff member's, is written to the trail below, and
- * that trail is one the business's own owner can read.
+ * Admins of either kind enter with the owner's powers; staff of either kind
+ * enter as supervisors, limited further by their permissions. Every change
+ * any of them makes is written to the access trail, which the business's
+ * owner and its agency can read.
  */
-async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
+async function resolveEnteredContext(userId: string): Promise<OrgContext | null> {
   const organizationId = await currentStaffOrganizationId();
   if (!organizationId) return null;
 
-  // Not merely staff, but staff who were handed this business. The master
-  // reaches every one; an assistant reaches what they were given.
-  //
-  // The business is read alongside rather than after, since neither answer
-  // depends on the other. Reading it for somebody who turns out not to reach
-  // it gives nothing away: the result is thrown away with the refusal, and
-  // the id came from their own cookie.
-  const [reach, organization] = await Promise.all([
-    platformReach(userId, organizationId),
+  // The business and who the caller is, together: neither waits on the other.
+  const [organization, facts] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
         name: true,
         location: true,
-        subscriptionStatus: true,
-        trialEndsAt: true,
-        currentPeriodEnd: true,
+        agencyId: true,
+        agency: { select: { subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true } },
       },
     }),
+    loadReachFacts(userId, organizationId),
   ]);
-  if (!reach || !organization) return null;
+  if (!organization) return null;
 
-  // What this request needs, against what this staff member was given. The
-  // master account needs nothing. Worked out from the method and path that
-  // middleware forwards, so one list in lib/staff-permissions governs every
-  // route in a business rather than each route remembering to ask.
+  const reach = decideBusinessReach(facts, organization.agencyId);
+  if (!reach) return null;
+
+  // What this request needs, against what this person was given. Admins need
+  // nothing. Worked out from the method and path that middleware forwards, so
+  // one list in lib/staff-permissions governs every route in a business
+  // rather than each route remembering to ask.
   const head = await headers();
   const method = head.get('x-request-method');
   const path = head.get('x-request-path');
-  const needed = reach.master ? null : permissionForBusinessRequest(method, path);
+  const needed = reach.admin ? null : permissionForBusinessRequest(method, path);
+  const scope = reach.via === 'platform' ? 'platform' : 'agency';
   const staffRefusal =
     needed && !reach.permissions.includes(needed)
-      ? `Your EcoFusion access does not include "${permissionLabel(needed)}" in this business. Ask the master account.`
+      ? `Your access does not include "${permissionLabel(needed)}" in this business. Ask ${askWhom(scope)}.`
       : null;
 
   if (staffRefusal && needed) {
@@ -333,21 +312,25 @@ async function resolveStaffContext(userId: string): Promise<OrgContext | null> {
       method: method?.toUpperCase() ?? null,
       path,
       summary: `Refused: needs "${permissionLabel(needed)}"`,
+      agencyId: organization.agencyId,
     });
   } else {
-    // Every write, by every platform account, before the route has done
-    // anything with it. The master's unlimited reach is only acceptable
-    // because of this line.
-    await logStaffWriteIfAny(userId, organizationId);
+    // Every write by anybody who stepped in, before the route has done
+    // anything with it. Unlimited reach is only acceptable because of this.
+    await logStaffWriteIfAny(userId, organizationId, organization.agencyId);
   }
 
   return {
     userId,
     organizationId,
-    role: reach.master ? 'owner' : 'supervisor',
-    access: evaluateAccess(organization),
-    isStaff: true,
-    isMaster: reach.master,
+    agencyId: organization.agencyId,
+    role: reach.admin ? 'owner' : 'supervisor',
+    access: evaluateAccess(organization.agency),
+    isStaff: reach.via === 'platform',
+    isPlatformAdmin: reach.via === 'platform' && reach.admin,
+    isAgency: reach.via === 'agency',
+    entered: true,
+    fullControl: reach.admin,
     staffPermissions: reach.permissions,
     staffRefusal,
     business: { name: organization.name, location: organization.location },
@@ -383,7 +366,8 @@ export async function isSameOrganization(ctx: OrgContext, userId: string): Promi
   // owner's sites is the owner's to train from either. This widens for owners
   // only, and only as far as businesses they own: a manager still reaches the
   // one business they were added to, which is the previous behaviour exactly.
-  if (ctx.isStaff) return false;
+  // Somebody who stepped in holds no membership here to widen from.
+  if (ctx.entered) return false;
 
   const shared = await prisma.membership.findFirst({
     where: {
@@ -419,11 +403,13 @@ function slugify(name: string, seed: string): string {
  * Create a business and hand it to its owner.
  *
  * The single place a business comes into existence, whether someone signed
- * themselves up or EcoFusion staff set them up. Both routes must produce the
- * same thing: a trial, an owner, the starting business units, and whatever
- * the default snapshot carries.
+ * themselves up or an agency added one. Both must produce the same thing: an
+ * owner, the starting business units, and whatever the default snapshot
+ * carries. The trial is not the business's: it belongs to the agency.
  */
 export async function provisionOrganization(options: {
+  /** The agency the business is a sub-account of. Its plan and trial cover it. */
+  agencyId: string;
   ownerUserId: string;
   /** Shown everywhere. Defaults to the owner's name or email. */
   name: string;
@@ -431,12 +417,6 @@ export async function provisionOrganization(options: {
   location?: string | null;
   /** Fixed id, for the personal business whose id is derived from the user. */
   organizationId?: string;
-  /**
-   * The business whose subscription pays for this one. Set when an owner adds
-   * a second business; left null for one that bills for itself, which is what
-   * signup and the agency screen both create.
-   */
-  billingParentId?: string | null;
 }): Promise<string> {
   const { ownerUserId, name } = options;
   // Only the personal business derives its id from its owner, and it asks for
@@ -447,7 +427,7 @@ export async function provisionOrganization(options: {
 
   // Read before the transaction, so the business's opening configuration is
   // settled by the time anything is written.
-  const template = await defaultSnapshot();
+  const template = await defaultSnapshot(options.agencyId);
   const businessUnits = await startingBusinessUnits();
 
   await prisma.$transaction([
@@ -457,9 +437,7 @@ export async function provisionOrganization(options: {
         name,
         slug: slugify(name, organizationId),
         location: options.location ?? null,
-        billingParentId: options.billingParentId ?? null,
-        subscriptionStatus: 'trialing',
-        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+        agencyId: options.agencyId,
       },
     }),
     prisma.membership.create({
@@ -486,7 +464,7 @@ export async function provisionOrganization(options: {
 }
 
 /**
- * Give a new account its own business.
+ * Give a new account its own agency and its first business.
  *
  * Every user needs an organization or nothing they do has an owner and every
  * request fails authorization. Called when an account is first created, by
@@ -498,13 +476,18 @@ export async function ensurePersonalOrganization(
   name?: string | null,
   email?: string | null,
   companyName?: string | null
-): Promise<string> {
+): Promise<string | null> {
   const existing = await prisma.membership.findFirst({
     where: { userId },
     orderBy: { createdAt: 'asc' },
     select: { organizationId: true },
   });
   if (existing) return existing.organizationId;
+
+  // Somebody who is already on an agency's team (staff it added) does not get
+  // an agency of their own.
+  const onTeam = await prisma.agencyMember.findUnique({ where: { userId }, select: { id: true } });
+  if (onTeam) return null;
 
   // A company name given at signup is the business's real name and is used as
   // it was typed. Only when there is none - an OAuth sign-in, which never asks
@@ -513,9 +496,16 @@ export async function ensurePersonalOrganization(
   const company = companyName?.trim();
   const label = name?.trim() || email?.split('@')[0] || 'My';
 
+  // Everybody who signs up is an agency - a farm on its own is an agency with
+  // one business - and they are its master account and that business's owner.
+  const businessName = company || `${label} Business`;
+  const { provisionAgency } = await import('@/lib/agency');
+  const agencyId = await provisionAgency({ name: businessName, adminUserId: userId });
+
   return provisionOrganization({
+    agencyId,
     ownerUserId: userId,
-    name: company || `${label} Business`,
+    name: businessName,
     // Derived from the user, so a second attempt collides rather than
     // quietly producing a second business for the same person.
     organizationId: `org_${userId}`,

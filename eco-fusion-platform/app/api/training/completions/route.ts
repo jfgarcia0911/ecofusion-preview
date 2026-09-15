@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 
         // A support account is not a trainee. It has no training record of its
         // own, so there is nothing here for it to complete.
-        if (ctx.isStaff) {
+        if (ctx.entered) {
             return NextResponse.json(
                 { error: 'An EcoFusion account has no training record' },
                 { status: 403 }

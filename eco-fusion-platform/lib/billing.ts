@@ -1,5 +1,7 @@
 /**
- * Turning a Stripe subscription into a farm's access.
+ * Turning a Stripe subscription into an agency's access.
+ *
+ * The subscription belongs to the agency, and covers every business it holds.
  *
  * The webhook is the intended path, but it is the single point of failure in
  * the whole flow: an unset STRIPE_WEBHOOK_SECRET, a tunnel that is not running
@@ -14,7 +16,8 @@
 
 import type Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, planForStripePrice } from '@/lib/stripe';
+import { isPlanKey } from '@/lib/plans';
 
 /**
  * A subscription's period end, across API versions.
@@ -36,70 +39,89 @@ export function subscriptionPeriodEnd(subscription: Stripe.Subscription): Date |
   return null;
 }
 
-/** Map Stripe's status onto the business's, which has fewer states. */
-function statusFor(subscription: Stripe.Subscription): { status: string; plan: string } {
-  // Stripe reports several states; only these two admit a farm.
-  if (subscription.status === 'active' || subscription.status === 'trialing') {
-    return { status: 'active', plan: 'pro' };
-  }
-  if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
-    return { status: 'past_due', plan: 'trial' };
-  }
-  return { status: 'canceled', plan: 'trial' };
+/** Map Stripe's status onto the agency's, which has fewer states. */
+function statusFor(subscription: Stripe.Subscription): string {
+  // Stripe reports several states; only these two admit an agency.
+  if (subscription.status === 'active' || subscription.status === 'trialing') return 'active';
+  if (subscription.status === 'past_due' || subscription.status === 'unpaid') return 'past_due';
+  return 'canceled';
 }
 
 /**
- * Apply a subscription's current state to the farm it belongs to.
+ * Which plan a subscription is for: the Price it charges, which is what
+ * actually decides what the agency pays, and failing that what checkout wrote
+ * into its metadata. Null when neither says, so the stored plan is left alone.
+ */
+function planOf(subscription: Stripe.Subscription): string | null {
+  const price = subscription.items?.data?.[0]?.price?.id;
+  const fromPrice = planForStripePrice(price);
+  if (fromPrice) return fromPrice;
+  const fromMetadata = subscription.metadata?.plan;
+  return isPlanKey(fromMetadata) ? fromMetadata : null;
+}
+
+/**
+ * Apply a subscription's current state to the agency it belongs to.
  *
- * `organizationId` is passed when the caller already knows it; otherwise it
- * comes from the metadata set at checkout.
+ * `agencyId` is passed when the caller already knows it; otherwise it comes
+ * from the metadata set at checkout. A subscription from before agencies,
+ * which names a business, is applied to that business's agency.
  */
 export async function applySubscription(
   subscription: Stripe.Subscription,
-  organizationId?: string
+  agencyId?: string
 ): Promise<string | null> {
-  const orgId = organizationId ?? subscription.metadata?.organizationId;
-  if (!orgId) {
-    console.warn('Stripe subscription without organizationId:', subscription.id);
+  let id: string | null = agencyId ?? subscription.metadata?.agencyId ?? null;
+  if (!id && subscription.metadata?.organizationId) {
+    id =
+      (
+        await prisma.organization.findUnique({
+          where: { id: subscription.metadata.organizationId },
+          select: { agencyId: true },
+        })
+      )?.agencyId ?? null;
+  }
+  if (!id) {
+    console.warn('Stripe subscription without an agency:', subscription.id);
     return null;
   }
 
-  const { status, plan } = statusFor(subscription);
+  const plan = planOf(subscription);
 
-  await prisma.organization.update({
-    where: { id: orgId },
+  await prisma.agency.update({
+    where: { id },
     data: {
-      plan,
-      subscriptionStatus: status,
+      ...(plan ? { plan } : {}),
+      subscriptionStatus: statusFor(subscription),
       currentPeriodEnd: subscriptionPeriodEnd(subscription),
       canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
       stripeSubscriptionId: subscription.id,
     },
   });
 
-  return orgId;
+  return id;
 }
 
 /**
- * Pull a farm's subscription state from Stripe and store it.
+ * Pull an agency's subscription state from Stripe and store it.
  *
  * Used when someone returns from checkout, so paying takes effect immediately
- * even if the webhook never arrives. Returns true when the farm now holds a
+ * even if the webhook never arrives. Returns true when the agency now holds a
  * live subscription.
  */
-export async function syncSubscriptionFromStripe(organizationId: string): Promise<boolean> {
+export async function syncSubscriptionFromStripe(agencyId: string): Promise<boolean> {
   const stripe = getStripe();
   if (!stripe) return false;
 
   try {
-    const org = await prisma.organization.findUnique({
-      where: { id: organizationId },
+    const agency = await prisma.agency.findUnique({
+      where: { id: agencyId },
       select: { stripeCustomerId: true },
     });
-    if (!org?.stripeCustomerId) return false;
+    if (!agency?.stripeCustomerId) return false;
 
     const subscriptions = await stripe.subscriptions.list({
-      customer: org.stripeCustomerId,
+      customer: agency.stripeCustomerId,
       status: 'all',
       limit: 10,
     });
@@ -113,7 +135,7 @@ export async function syncSubscriptionFromStripe(organizationId: string): Promis
     const chosen =
       live ?? [...subscriptions.data].sort((a, b) => b.created - a.created)[0];
 
-    await applySubscription(chosen, organizationId);
+    await applySubscription(chosen, agencyId);
     return Boolean(live);
   } catch (error) {
     // Reconciling is a best effort - a Stripe outage must not take the billing

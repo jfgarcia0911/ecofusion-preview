@@ -14,8 +14,8 @@ interface Entry {
     path: string | null;
     /** What an EcoFusion change said, secrets blanked out. */
     detail: string | null;
-    /** Made by EcoFusion's master account, which has no limits here. */
-    master: boolean;
+    /** Whose visit or change it was: EcoFusion, your agency, or your team. */
+    label: string;
     createdAt: string;
     who: { name: string | null; email: string } | null;
 }
@@ -134,11 +134,7 @@ export default function AuditLogPage() {
                                                     : "border-white/10 bg-white/[0.04] text-white/45"
                                             }`}
                                         >
-                                            {entry.by === "staff"
-                                                ? entry.master
-                                                    ? "EcoFusion master account"
-                                                    : "EcoFusion"
-                                                : "Your team"}
+                                            {entry.label}
                                         </span>
                                         {entry.who?.name || entry.who?.email || "A deleted account"}
                                     </p>

@@ -73,7 +73,7 @@ interface Shop {
     paymentsReady: boolean;
     /** Paying happens on EcoFusion's own checkout page rather than Stripe's. */
     embeddedCheckout: boolean;
-    isMaster: boolean;
+    isPlatformAdmin: boolean;
     /** Whether this reader may buy (the owner), give free, or take back. */
     canBuy: boolean;
     canGive: boolean;

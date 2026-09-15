@@ -1,14 +1,17 @@
 /**
- * What an EcoFusion staff account may do, one permission at a time.
+ * What a team member above a business may do, one permission at a time.
  *
- * Staff used to be a single level: everyone on the team could do the same
- * things, and the only choice was which sub accounts they opened. Now the
- * master account ticks, per person, exactly what they may do. Which sub
- * accounts they open is still chosen separately, on StaffBusinessAccess.
+ * The same list serves two teams:
  *
- * The master account holds every permission without being given any, and
- * some things are never delegable at all - see NEVER_DELEGATED. Imports
- * nothing, so the Team Access page and the server read the same list.
+ *   - EcoFusion staff, given their permissions by the EcoFusion admin.
+ *   - An agency's staff, given theirs by the agency's master account.
+ *
+ * Which sub accounts somebody opens is chosen separately, on
+ * StaffBusinessAccess. The admin of each team holds every permission without
+ * being given any, and some things are never delegable at all - see
+ * NEVER_DELEGATED. A few permissions are EcoFusion's alone (`platformOnly`):
+ * an agency does not price or give away EcoFusion's courses. Imports nothing,
+ * so the Team Access page and the server read the same list.
  */
 
 export const PERMISSIONS = {
@@ -39,6 +42,8 @@ export interface PermissionInfo {
     group: string;
     label: string;
     hint: string;
+    /** EcoFusion's own staff only; never offered to, or honoured for, an agency's staff. */
+    platformOnly?: boolean;
 }
 
 /** Every permission, in the order and groups the Team Access page shows them. */
@@ -84,18 +89,21 @@ export const PERMISSION_LIST: PermissionInfo[] = [
         group: 'Classes',
         label: 'Give free classes',
         hint: 'Give a business courses without it paying.',
+        platformOnly: true,
     },
     {
         key: PERMISSIONS.TAKE_CLASSES,
         group: 'Classes',
         label: 'Take classes back',
         hint: 'Remove a course from a business, including one it bought. This does not refund it.',
+        platformOnly: true,
     },
     {
         key: PERMISSIONS.SET_PRICES,
         group: 'Classes',
         label: 'Set prices',
         hint: 'Change what courses and level packages cost every business.',
+        platformOnly: true,
     },
     {
         key: PERMISSIONS.CAPTURE_SNAPSHOTS,
@@ -125,16 +133,25 @@ export const PERMISSION_LIST: PermissionInfo[] = [
         key: PERMISSIONS.SEE_TEAM,
         group: 'Oversight',
         label: 'See the team',
-        hint: 'See who else is on the EcoFusion team and what each of them can do.',
+        hint: 'See who else is on the team and what each of them can do.',
     },
 ];
 
 const KNOWN = new Set<string>(PERMISSION_LIST.map((p) => p.key));
 
+/** Which team a permission list is for. */
+export type PermissionScope = 'platform' | 'agency';
+
+/** The permissions a team may be given: everything for EcoFusion, less its own for an agency. */
+export function permissionsFor(scope: PermissionScope): PermissionInfo[] {
+    return scope === 'platform' ? PERMISSION_LIST : PERMISSION_LIST.filter((p) => !p.platformOnly);
+}
+
 /** Only real permissions, each once. Anything else sent is dropped. */
-export function cleanPermissions(values: unknown): StaffPermission[] {
+export function cleanPermissions(values: unknown, scope: PermissionScope = 'platform'): StaffPermission[] {
     if (!Array.isArray(values)) return [];
-    return [...new Set(values.filter((v): v is StaffPermission => typeof v === 'string' && KNOWN.has(v)))];
+    const allowed = scope === 'platform' ? KNOWN : new Set<string>(permissionsFor('agency').map((p) => p.key));
+    return [...new Set(values.filter((v): v is StaffPermission => typeof v === 'string' && allowed.has(v)))];
 }
 
 export function permissionLabel(key: string): string {
@@ -177,24 +194,45 @@ export const PRESETS: { key: string; label: string; hint: string; permissions: S
     },
 ];
 
+/** The presets for a team, with any permission that team cannot hold taken out. */
+export function presetsFor(scope: PermissionScope): typeof PRESETS {
+    if (scope === 'platform') return PRESETS;
+    const allowed = new Set<string>(permissionsFor('agency').map((p) => p.key));
+    return PRESETS.map((preset) => ({
+        ...preset,
+        hint: preset.key === 'manager'
+            ? 'Also creates sub accounts, assigns courses, and works with snapshots.'
+            : preset.hint,
+        permissions: preset.permissions.filter((p) => allowed.has(p)),
+    }));
+}
+
 /** The preset a set of permissions matches exactly, or null for a custom mix. */
-export function matchingPreset(permissions: string[]): (typeof PRESETS)[number] | null {
+export function matchingPreset(
+    permissions: string[],
+    scope: PermissionScope = 'platform'
+): (typeof PRESETS)[number] | null {
     const have = new Set(permissions);
     return (
-        PRESETS.find(
+        presetsFor(scope).find(
             (preset) =>
                 preset.permissions.length === have.size && preset.permissions.every((p) => have.has(p))
         ) ?? null
     );
 }
 
-/** What stays with the master account whatever is ticked, shown on the page. */
+/** What stays with each team's admin whatever is ticked, shown on the page. */
 export const NEVER_DELEGATED = [
     'Taking on and removing staff, and deciding what they can do',
     'Making someone an owner, removing an owner, or resetting an owner’s password',
-    'A business’s billing and subscription, and buying courses for it',
+    'The agency’s plan, billing and subscription, and buying courses',
     'Editing or deleting the Access Log (nobody can)',
 ];
+
+/** Who a refused team member should ask. */
+export function askWhom(scope: PermissionScope): string {
+    return scope === 'platform' ? 'an EcoFusion admin' : 'your agency’s master account';
+}
 
 /** Requests that only read. */
 const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);

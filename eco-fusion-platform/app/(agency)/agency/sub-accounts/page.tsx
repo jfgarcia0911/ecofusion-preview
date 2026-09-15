@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, LogIn, Building2, Camera, Plus, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -46,15 +47,17 @@ const STANDING: Record<
 };
 
 /**
- * Every business on the platform, for EcoFusion staff.
+ * The agency's businesses (sub-accounts): the master account sees all of them,
+ * agency staff the ones they were given, and EcoFusion the same while it is
+ * supporting the agency.
  *
  * Entering one is a deliberate act with a confirmation in front of it, because
  * what follows is reading and changing somebody else's data under their own
  * screens. The list itself carries no business data, only enough to find the
  * right one and see what state it is in.
  *
- * The page does not check for staff itself. The agency layout above it does,
- * on the server, before this ever renders.
+ * The page does not check who is looking itself. The agency layout above it
+ * does, on the server, before this ever renders.
  */
 export default function SubAccountsPage() {
     const [businesses, setBusinesses] = useState<SubAccount[]>([]);
@@ -72,12 +75,22 @@ export default function SubAccountsPage() {
     const [captureFrom, setCaptureFrom] = useState<{ id: string; name: string } | null>(null);
     // What the reader may do here, as the server says. Starts empty so nothing
     // is offered before the answer arrives.
-    const [viewer, setViewer] = useState<{ master: boolean; permissions: StaffPermission[] }>({
-        master: false,
+    const [viewer, setViewer] = useState<{ admin: boolean; permissions: StaffPermission[]; canCreate: boolean }>({
+        admin: false,
         permissions: [],
+        canCreate: false,
     });
+    // How much of the agency's plan is used. Adding past the limit is refused
+    // by the server; the page says so first rather than after the form.
+    const [usage, setUsage] = useState<{
+        used: number;
+        limit: number | null;
+        plan: string;
+        label: string;
+        canAdd: boolean;
+    } | null>(null);
     const can = (permission: StaffPermission) =>
-        viewer.master || viewer.permissions.includes(permission);
+        viewer.admin || viewer.permissions.includes(permission);
     const router = useRouter();
     const toast = useToast();
     const confirmAction = useConfirm();
@@ -93,6 +106,7 @@ export default function SubAccountsPage() {
             const data = await res.json();
             setBusinesses(data.organizations ?? []);
             if (data.viewer) setViewer(data.viewer);
+            setUsage(data.usage ?? null);
         } catch {
             toast.error("Could not load the sub account list");
         } finally {
@@ -158,17 +172,52 @@ export default function SubAccountsPage() {
                 {!loadedOnce && (
                     <div className="shrink-0 h-[42px] w-[182px] rounded-xl bg-accent/10 border border-accent/20 animate-pulse" />
                 )}
-                {loadedOnce && can(PERMISSIONS.CREATE_BUSINESS) && (
-                    <button
-                        type="button"
-                        onClick={() => setCreating(true)}
-                        className="shrink-0 text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors"
-                    >
-                        <Plus size={16} />
-                        Create Sub Account
-                    </button>
+                {loadedOnce && viewer.canCreate && (
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => setCreating(true)}
+                            disabled={usage ? !usage.canAdd : false}
+                            title={usage && !usage.canAdd ? `The ${usage.plan} plan is full` : undefined}
+                            className="text-sm flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <Plus size={16} />
+                            Create Sub Account
+                        </button>
+                    </div>
                 )}
             </div>
+
+            {usage && (
+                <p
+                    className={`mb-4 px-4 py-2.5 rounded-xl border text-sm flex flex-wrap items-center gap-x-2 gap-y-1 ${
+                        usage.canAdd
+                            ? "border-white/10 bg-white/[0.03] text-white/60"
+                            : "border-amber-400/25 bg-amber-400/10 text-amber-200"
+                    }`}
+                >
+                    <span>
+                        <span className="text-white font-medium">{usage.plan}</span> plan:{" "}
+                        {usage.limit === null ? `${usage.label} businesses, no limit` : `${usage.label} businesses used`}
+                    </span>
+                    {!usage.canAdd && (
+                        <>
+                            <span className="text-white/30">&middot;</span>
+                            <span>
+                                Full.{" "}
+                                {viewer.admin ? (
+                                    <Link href="/agency/billing" className="underline hover:text-white">
+                                        Upgrade the plan
+                                    </Link>
+                                ) : (
+                                    "Ask the master account to upgrade the plan"
+                                )}{" "}
+                                to add another.
+                            </span>
+                        </>
+                    )}
+                </p>
+            )}
 
             <div className="relative mb-4">
                 <Search
@@ -319,7 +368,11 @@ export default function SubAccountsPage() {
             <CreateSubAccountModal
                 open={creating}
                 onClose={() => setCreating(false)}
-                onCreated={(business) => setBusinesses((current) => [business, ...current])}
+                onCreated={(business) => {
+                    setBusinesses((current) => [business, ...current]);
+                    // The plan's count moved; the server has the new answer.
+                    load(search);
+                }}
             />
             <EditSubAccountModal
                 business={editing}

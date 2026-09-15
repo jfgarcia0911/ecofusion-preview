@@ -222,11 +222,19 @@ export async function applySnapshot(
 }
 
 /** The payload of the snapshot marked default, or null when there is none. */
-export async function defaultSnapshot(): Promise<SnapshotPayload | null> {
-  const row = await prisma.snapshot.findFirst({
-    where: { isDefault: true },
-    select: { payload: true, version: true },
-  });
+export async function defaultSnapshot(agencyId?: string | null): Promise<SnapshotPayload | null> {
+  // The agency's own default if it chose one, otherwise EcoFusion's.
+  const row =
+    (agencyId
+      ? await prisma.snapshot.findFirst({
+          where: { isDefault: true, agencyId },
+          select: { payload: true, version: true },
+        })
+      : null) ??
+    (await prisma.snapshot.findFirst({
+      where: { isDefault: true, agencyId: null },
+      select: { payload: true, version: true },
+    }));
   if (!row) return null;
 
   if (row.version !== SNAPSHOT_VERSION) {

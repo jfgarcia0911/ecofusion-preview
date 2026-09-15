@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronsUpDown, Search, Undo2, Pin, PinOff , LogOut } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import type { AboveLink } from "@/components/layout/Sidebar";
 
 interface SubAccount {
     id: string;
@@ -48,22 +49,24 @@ function writeList(key: string, value: string[]): void {
 /**
  * The account this session is looking at, and the way to another one.
  *
- * Staff reach every business on the platform, so the question "whose data am I
- * about to change" has to be answerable without reading the page. The name
- * sits at the top of the sidebar at all times, and switching is what opens a
- * support session - the same deliberate, recorded act as entering from the sub
- * account list, reached in one click instead of three.
+ * Anybody working above businesses - an agency's team, or EcoFusion's - may
+ * reach several, so the question "whose data am I about to change" has to be
+ * answerable without reading the page. The name sits at the top of the sidebar
+ * at all times, and switching is the same deliberate, recorded act as entering
+ * from the sub account list, reached in one click instead of three.
  *
  * Everyone else belongs to exactly one business. They see its name and nothing
  * to press, because there is nowhere else for them to go.
  */
 export default function SubAccountSwitcher({
     business,
-    isStaff,
+    above,
 }: {
     business: { name: string; location: string | null } | null;
-    isStaff: boolean;
+    /** The view above the business, for those who work there; null for everybody else. */
+    above: AboveLink | null;
 }) {
+    const isStaff = above !== null;
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [accounts, setAccounts] = useState<SubAccount[]>([]);
@@ -186,7 +189,7 @@ export default function SubAccountSwitcher({
         try {
             await fetch("/api/admin/session", { method: "DELETE" });
             setOpen(false);
-            router.push("/agency/sub-accounts");
+            router.push(above?.href ?? "/dashboard/executive");
             router.refresh();
         } finally {
             setLeaving(false);
@@ -256,15 +259,15 @@ export default function SubAccountSwitcher({
                         </div>
                     </div>
 
-                    {isStaff && (
+                    {above && (
                         <>
                             <Link
-                                href="/agency/sub-accounts"
+                                href={above.href}
                                 onClick={() => setOpen(false)}
                                 className="flex items-center gap-2 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
                             >
                                 <Undo2 size={15} />
-                                Switch to Agency View
+                                Switch to {above.label}
                             </Link>
                             {business && (
                                 <button

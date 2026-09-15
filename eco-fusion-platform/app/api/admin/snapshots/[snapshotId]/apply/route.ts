@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { logStaffAccess, requireStaffPermission, staffMayReach } from '@/lib/staff';
+import { logStaffAccess } from '@/lib/staff';
+import { preferOf, requireScope, scopeReaches } from '@/lib/agency';
 import { PERMISSIONS } from '@/lib/staff-permissions';
 import { SNAPSHOT_VERSION, applySnapshot, type SnapshotPayload } from '@/lib/snapshots';
 
@@ -18,21 +19,28 @@ export async function POST(
     // Applying writes a template into a customer's business from outside it,
     // so it is a permission of its own, and only ever into a business the
     // applier may open.
-    const guard = await requireStaffPermission(PERMISSIONS.APPLY_SNAPSHOTS);
-    if (guard instanceof NextResponse) return guard;
-    const staffUserId = guard.userId;
+    const scope = await requireScope({ anyOf: [PERMISSIONS.APPLY_SNAPSHOTS], prefer: preferOf(request) });
+    if (scope instanceof NextResponse) return scope;
+    const staffUserId = scope.userId;
 
     const { snapshotId } = await params;
     const { organizationId } = await request.json();
     if (!organizationId) {
       return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
     }
-    if (!(await staffMayReach(staffUserId, organizationId))) {
+    if (!(await scopeReaches(scope, organizationId))) {
       return NextResponse.json({ error: 'No such business' }, { status: 404 });
     }
 
-    const snapshot = await prisma.snapshot.findUnique({
-      where: { id: snapshotId },
+    // EcoFusion's templates, or the caller's own agency's snapshots. Never
+    // another agency's.
+    const snapshot = await prisma.snapshot.findFirst({
+      where: {
+        id: snapshotId,
+        ...(scope.kind === 'agency'
+          ? { OR: [{ agencyId: scope.agencyId }, { agencyId: null }] }
+          : { agencyId: null }),
+      },
       select: { name: true, payload: true, version: true },
     });
     if (!snapshot) {

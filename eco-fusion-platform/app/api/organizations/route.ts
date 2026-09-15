@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   getOrgContext,
-  provisionOrganization,
   evaluateAccess,
-  ACTIVE_ORG_COOKIE,
 } from '@/lib/tenancy';
 
 /**
@@ -41,14 +39,9 @@ export async function GET() {
             name: true,
             location: true,
             createdAt: true,
-            billingParentId: true,
-            subscriptionStatus: true,
-            trialEndsAt: true,
-            currentPeriodEnd: true,
-            // A business added by an owner is paid for by the one that owns the
-            // subscription, so the badge reads from there or it would show a
-            // trial nobody is on.
-            billingParent: {
+            // The agency pays for every business it holds, so the badge reads
+            // from there or it would show a trial nobody is on.
+            agency: {
               select: {
                 subscriptionStatus: true,
                 trialEndsAt: true,
@@ -65,7 +58,7 @@ export async function GET() {
       activeId: ctx.organizationId,
       businesses: memberships.map((m) => {
         const org = m.organization;
-        const access = evaluateAccess(org.billingParent ?? org);
+        const access = evaluateAccess(org.agency);
         return {
           id: org.id,
           name: org.name,
@@ -79,8 +72,6 @@ export async function GET() {
           allowed: access.allowed,
           /** Days left, when the answer is a trial. Null otherwise. */
           trialDaysLeft: access.reason === 'trialing' ? access.daysLeft : null,
-          /** False for the one that carries the subscription. */
-          billedElsewhere: org.billingParentId !== null,
           isActive: org.id === ctx.organizationId,
         };
       }),

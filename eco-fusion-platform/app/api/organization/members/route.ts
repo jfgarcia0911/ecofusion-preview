@@ -30,7 +30,7 @@ export async function GET() {
 
     // Staff enter one business and hold no membership, so theirs is the only
     // one they can be shown.
-    const scope = ctx.isStaff || owned.length === 0 ? [ctx.organizationId] : owned;
+    const scope = ctx.entered || owned.length === 0 ? [ctx.organizationId] : owned;
 
     const memberships = await prisma.membership.findMany({
       where: { organizationId: { in: scope } },
@@ -178,7 +178,7 @@ export async function POST(request: Request) {
 
     // Staff act with an admin's powers inside the business they entered, and
     // hold no membership of their own, so that one is theirs to add to.
-    if (ctx.isStaff) permittedIds.add(ctx.organizationId);
+    if (ctx.entered) permittedIds.add(ctx.organizationId);
 
     const refused = requestedOrgIds.filter((id) => !permittedIds.has(id));
     if (refused.length > 0) {
@@ -270,7 +270,7 @@ export async function DELETE(request: Request) {
     // the last one: a business with no owner has nobody to answer for it or
     // to pay for it, which no amount of reach can be allowed to produce.
     if (membership.role === 'owner') {
-      if (!ctx.isMaster) {
+      if (!ctx.fullControl) {
         return NextResponse.json({ error: 'The owner cannot be removed' }, { status: 400 });
       }
       const owners = await prisma.membership.count({
@@ -342,7 +342,7 @@ export async function PATCH(request: Request) {
     // The master account alone may reset an owner's: an owner locked out of
     // their own business is exactly the problem it is there to solve.
     if (ctx.userId !== userId) {
-      if (membership.role === 'owner' && !ctx.isMaster) {
+      if (membership.role === 'owner' && !ctx.fullControl) {
         return NextResponse.json(
           { error: "Only the owner can change the owner's password" },
           { status: 403 }

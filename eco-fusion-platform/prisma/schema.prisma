@@ -57,6 +57,8 @@ model User {
   activity            ActivityLog[]         @relation("MemberActivity")
   staffBusinesses     StaffBusinessAccess[] @relation("StaffBusinessAccess")
   staffAccessGranted  StaffBusinessAccess[] @relation("StaffAccessGrantedBy")
+  agencyMembership    AgencyMember?         @relation("AgencyMembership")
+  agencyGrantsGiven   AgencyMember[]        @relation("AgencyMemberGrantedBy")
 }
 
 model Account {
@@ -794,7 +796,58 @@ model PhaseSettings {
   @@index([organizationId])
 }
 
+/// A customer of EcoFusion: the account that subscribes, gets the trial and
+/// pays, and holds any number of businesses (sub-accounts) up to its plan's
+/// limit. Modelled on a HighLevel agency. A farm that signs up on its own is an
+/// agency with one sub-account.
+model Agency {
+  id                   String    @id @default(cuid())
+  name                 String
+  /// starter | growth | pro. See lib/plans for what each allows.
+  plan                 String    @default("starter")
+  /// trialing | active | past_due | canceled
+  subscriptionStatus   String    @default("trialing")
+  trialEndsAt          DateTime?
+  currentPeriodEnd     DateTime?
+  canceledAt           DateTime?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organizations Organization[]
+  members       AgencyMember[]
+  accessLogs    StaffAccessLog[]
+  snapshots     Snapshot[]
+}
+
+/// A person on an agency's own team, above its sub-accounts. Not a member of
+/// any one business: they reach the agency's businesses through the agency.
+/// One agency per person, as a person owns one business.
+model AgencyMember {
+  id          String   @id @default(cuid())
+  agencyId    String
+  userId      String   @unique
+  /// admin (the agency's master account) | user (agency staff)
+  role        String   @default("user")
+  /// What agency staff may do; see lib/staff-permissions. Ignored for admins.
+  permissions String[] @default([])
+  grantedById String?
+  createdAt   DateTime @default(now())
+
+  agency    Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user      User   @relation("AgencyMembership", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?  @relation("AgencyMemberGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@index([agencyId])
+}
+
 model Organization {
+  /// The agency this business is a sub-account of. The agency holds the plan,
+  /// the trial and the subscription; this business's own billing fields are no
+  /// longer what decides access.
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
@@ -855,6 +908,7 @@ model Organization {
   snapshotsTakenFrom  Snapshot[]            @relation("SnapshotSource")
 
   @@index([billingParentId])
+  @@index([agencyId])
 }
 
 /// A configured farm, captured so others can be started from it.
@@ -870,6 +924,10 @@ model Organization {
 /// grant works, and deliberately so: a starting point is meant to be departed
 /// from.
 model Snapshot {
+  /// The agency that owns this snapshot. Null for EcoFusion's own templates,
+  /// which every agency can apply but none can change.
+  agencyId       String?
+  agency         Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   id             String   @id @default(cuid())
   name           String
   description    String?
@@ -888,6 +946,7 @@ model Snapshot {
   createdBy    User?         @relation("CapturedSnapshots", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([isDefault])
+  @@index([agencyId])
 }
 
 /// Every time EcoFusion staff work inside a customer's farm.
@@ -952,6 +1011,10 @@ model StaffBusinessAccess {
 }
 
 model StaffAccessLog {
+  /// The agency the line belongs to, so each agency reads its own trail and
+  /// never another's. Null only for EcoFusion's own platform-wide changes.
+  agencyId       String?
+  agency         Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   id             String   @id @default(cuid())
   staffUserId    String
   /// The business it happened in. Null for a change to the platform itself,
@@ -972,6 +1035,7 @@ model StaffAccessLog {
 
   @@index([organizationId, createdAt])
   @@index([staffUserId, createdAt])
+  @@index([agencyId, createdAt])
 }
 
 /// A user's role is held per organization, not on the user record, so the same

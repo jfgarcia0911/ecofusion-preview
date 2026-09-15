@@ -9,8 +9,8 @@ import { PERMISSIONS, type StaffPermission } from '@/lib/staff-permissions';
 /**
  * EcoFusion giving a business courses, or taking them away.
  *
- * The master account, and staff it has given "Give free classes" or "Take
- * classes back". Never a business's own people: an owner buys.
+ * The EcoFusion admin, and EcoFusion staff given "Give free classes" or
+ * "Take classes back". Never an agency or a business's own people: they buy.
  *
  * Every use writes its own line to the access trail naming the courses,
  * which is why lib/staff leaves this path out of the automatic one - a course
@@ -20,9 +20,9 @@ import { PERMISSIONS, type StaffPermission } from '@/lib/staff-permissions';
 async function allowedTo(permission: StaffPermission) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return { ctx: null, refusal };
-    // Staff without the permission are already refused by activeOrg; this
-    // keeps out everybody who is not EcoFusion at all.
-    if (!ctx.isMaster && !(ctx.isStaff && ctx.staffPermissions.includes(permission))) {
+    // EcoFusion's alone: an agency does not give away EcoFusion's courses, and
+    // EcoFusion staff without the permission were already refused by activeOrg.
+    if (!(ctx.isStaff && (ctx.isPlatformAdmin || ctx.staffPermissions.includes(permission)))) {
         return {
             ctx: null,
             refusal: NextResponse.json(
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
 // DELETE - Take a course back from this business.
 //
-// Whichever way it came, including a purchase: the master account has no
+// Whichever way it came, including a purchase: the EcoFusion admin has no
 // limits here. Taking back a bought course does not refund it - that is done
 // in Stripe, and a full refund there takes the course back by itself - so the
 // line in the trail says plainly what was paid.

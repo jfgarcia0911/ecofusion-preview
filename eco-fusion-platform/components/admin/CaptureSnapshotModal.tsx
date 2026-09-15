@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { useScopedApi } from "@/components/admin/useScopedApi";
 
 /**
  * Captures a business's setup as a template other businesses can start from.
@@ -16,10 +17,15 @@ import { useToast } from "@/components/ui/Toast";
 export default function CaptureSnapshotModal({
     business,
     onClose,
+    onCaptured,
 }: {
     business: { id: string; name: string } | null;
     onClose: () => void;
+    onCaptured?: () => void;
 }) {
+    // Captured into the library of wherever it is pressed: the agency's own,
+    // or EcoFusion's templates from the console.
+    const { api, inConsole } = useScopedApi();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [makeDefault, setMakeDefault] = useState(false);
@@ -39,7 +45,7 @@ export default function CaptureSnapshotModal({
         if (!business || !name.trim()) return;
         setSaving(true);
         try {
-            const res = await fetch("/api/admin/snapshots", {
+            const res = await fetch(api("/api/admin/snapshots"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -58,6 +64,7 @@ export default function CaptureSnapshotModal({
                 description: `${contents.businessUnits} units, ${contents.zones} zones, ${contents.growthParameters} growing parameters`,
             });
             onClose();
+            onCaptured?.();
             router.refresh();
         } finally {
             setSaving(false);
@@ -115,7 +122,9 @@ export default function CaptureSnapshotModal({
                         className="w-4 h-4 mt-0.5 rounded bg-white/10 border-white/20"
                     />
                     <span className="text-sm text-white/70">
-                        Start every new business from this
+                        {inConsole
+                            ? "Start every new business on the platform from this"
+                            : "Start every new business in this agency from this"}
                         <span className="block text-xs text-white/40 mt-0.5">
                             Replaces whichever snapshot currently does. Businesses already created are
                             not touched.

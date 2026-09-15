@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import BillingPanel from "@/components/billing/BillingPanel";
+import BillingPanel, { billingViewerOf } from "@/components/billing/BillingPanel";
 import { BILLING_STANDFIRST } from "@/components/skeletons/PageSkeletons";
 import { getOrgContext } from "@/lib/tenancy";
 
 // Billing inside the app, beside the sidebar. A lapsed business never reaches
 // this: the (platform) layout sends it to /billing, which stands on its own.
+// The subscription is the agency's, so this shows the agency's plan.
 export default async function SettingsBillingPage() {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
+    const viewer = await billingViewerOf(ctx);
 
     return (
         <div className="space-y-8 pb-10">
@@ -25,7 +27,13 @@ export default async function SettingsBillingPage() {
                 </h1>
                 <p className="text-white/50 mt-1">{BILLING_STANDFIRST}</p>
             </div>
-            <BillingPanel ctx={ctx} embedded />
+            <BillingPanel
+                agencyId={ctx.agencyId}
+                canManage={viewer.canManage}
+                role={viewer.role}
+                businessName={ctx.business.name}
+                embedded
+            />
         </div>
     );
 }

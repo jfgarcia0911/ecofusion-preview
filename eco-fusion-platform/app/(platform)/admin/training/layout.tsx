@@ -23,7 +23,7 @@ export default async function TrainingManagementLayout({
 }) {
     const ctx = await getOrgContext();
     if (!ctx) redirect("/login");
-    if (ctx.role !== "owner" && !ctx.isStaff) redirect("/dashboard/executive");
+    if (ctx.role !== "owner" && !ctx.entered) redirect("/dashboard/executive");
 
     return <>{children}</>;
 }

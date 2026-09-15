@@ -39,7 +39,7 @@ type Filter = "all" | "unpriced" | "free" | "paid";
  * It sits in the level's own header beside what the level would cost bought a
  * course at a time, which is the comparison anyone setting it is making.
  *
- * The master account sets prices; other staff see the list and cannot change
+ * The EcoFusion admin sets prices; other staff see the list and cannot change
  * it. The route enforces that; this only avoids offering what would be refused.
  */
 export default function CoursePricesPage() {
@@ -216,7 +216,7 @@ export default function CoursePricesPage() {
             {!canEdit && (
                 <p className="mb-4 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white/60 flex items-center gap-2">
                     <ShieldAlert size={15} className="text-white/40" />
-                    Only the master account can change prices. You can see them here.
+                    Only an EcoFusion admin can change prices. You can see them here.
                 </p>
             )}
 

@@ -32,7 +32,7 @@ export async function GET() {
                 user: { role: { notIn: PLATFORM_ROLE_VALUES } },
                 OR: [
                     { organizationId: ctx.organizationId },
-                    ...(ctx.isStaff
+                    ...(ctx.entered
                         ? []
                         : [
                               {

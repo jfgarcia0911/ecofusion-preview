@@ -6,11 +6,14 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
 import { TeamAccessSkeleton } from "@/components/skeletons/PageSkeletons";
+import { useScopedApi } from "@/components/admin/useScopedApi";
 import {
     NEVER_DELEGATED,
-    PERMISSION_LIST,
-    PRESETS,
     matchingPreset,
+    permissionsFor,
+    presetsFor,
+    type PermissionInfo,
+    type PermissionScope,
     type StaffPermission,
 } from "@/lib/staff-permissions";
 
@@ -28,35 +31,46 @@ interface Staff {
     businesses: Business[];
 }
 
-/** The permission list in its groups, in the order it is written. */
-const GROUPS = PERMISSION_LIST.reduce<{ group: string; items: typeof PERMISSION_LIST }[]>((out, item) => {
-    const last = out[out.length - 1];
-    if (last && last.group === item.group) last.items.push(item);
-    else out.push({ group: item.group, items: [item] });
-    return out;
-}, []);
+/** A team's permission list in its groups, in the order it is written. */
+function groupsFor(scope: PermissionScope) {
+    return permissionsFor(scope).reduce<{ group: string; items: PermissionInfo[] }[]>((out, item) => {
+        const last = out[out.length - 1];
+        if (last && last.group === item.group) last.items.push(item);
+        else out.push({ group: item.group, items: [item] });
+        return out;
+    }, []);
+}
 
 /** How somebody's permissions read in one line of the table. */
-function accessSummary(permissions: StaffPermission[]): { label: string; muted: boolean } {
+function accessSummary(permissions: StaffPermission[], scope: PermissionScope): { label: string; muted: boolean } {
     if (permissions.length === 0) return { label: "Nothing yet", muted: true };
-    const preset = matchingPreset(permissions);
+    const preset = matchingPreset(permissions, scope);
     if (preset) return { label: preset.label, muted: false };
     return { label: `Custom · ${permissions.length} permission${permissions.length === 1 ? "" : "s"}`, muted: false };
 }
 
 /**
- * EcoFusion's own people, and exactly what each of them may do.
+ * A team above the businesses, and exactly what each person on it may do: the
+ * agency's own staff in the agency view, EcoFusion's in the console.
  *
- * Not a customer's team: nobody here is employed by a business, and nothing on
+ * Not a business's team: nobody here is employed by a business, and nothing on
  * this page touches a business's own members.
  *
  * Two separate choices per person, made together in one panel: which sub
  * accounts they open, and what they may do - inside those businesses and in
  * the agency view. Somebody new opens nothing and may do nothing until the
- * master account says otherwise. Every change is written to the Access Log,
+ * team's admin says otherwise. Every change is written to the Access Log,
  * and takes effect on the person's next click.
  */
 export default function AgencyTeamPage() {
+    const { api } = useScopedApi();
+    // Which permission list applies, and whose team this is, as the server says.
+    const [permissionScope, setPermissionScope] = useState<PermissionScope>("agency");
+    const [teamName, setTeamName] = useState("");
+    const isPlatformTeam = permissionScope === "platform";
+    const PRESETS = presetsFor(permissionScope);
+    const GROUPS = groupsFor(permissionScope);
+    const adminName = isPlatformTeam ? "an EcoFusion admin" : "the master account";
     const [staff, setStaff] = useState<Staff[]>([]);
     const [businesses, setBusinesses] = useState<Business[]>([]);
     const [loading, setLoading] = useState(true);
@@ -80,7 +94,7 @@ export default function AgencyTeamPage() {
 
     const load = useCallback(async () => {
         try {
-            const res = await fetch("/api/admin/staff");
+            const res = await fetch(api("/api/admin/staff"));
             const data = await res.json();
             if (!res.ok) {
                 setDenied(data.error ?? "Could not load the staff list.");
@@ -89,12 +103,14 @@ export default function AgencyTeamPage() {
             setStaff(data.staff ?? []);
             setBusinesses(data.businesses ?? []);
             setCanManage(Boolean(data.canManage));
+            setPermissionScope(data.permissionScope === "platform" ? "platform" : "agency");
+            setTeamName(data.team ?? "");
         } catch {
             setDenied("Could not reach the server. Try again.");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [api]);
 
     useEffect(() => {
         load();
@@ -107,7 +123,7 @@ export default function AgencyTeamPage() {
         setError(null);
         try {
             const preset = PRESETS.find((p) => p.key === draft.preset);
-            const res = await fetch("/api/admin/staff", {
+            const res = await fetch(api("/api/admin/staff"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -122,7 +138,7 @@ export default function AgencyTeamPage() {
                 setError(data.error ?? "Could not create the account.");
                 return;
             }
-            toast.success(`${data.email} can now sign in as EcoFusion staff`);
+            toast.success(`${data.email} can now sign in as ${isPlatformTeam ? "EcoFusion" : "agency"} staff`);
             setAdding(false);
             setDraft({ name: "", email: "", password: "", preset: "" });
             await load();
@@ -185,7 +201,7 @@ export default function AgencyTeamPage() {
             // Two answers, saved one after the other; each is recorded in the
             // Access Log on its own line.
             if (permissionsChanged) {
-                const res = await fetch("/api/admin/staff", {
+                const res = await fetch(api("/api/admin/staff"), {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ userId: editing.id, permissions: [...pickedPermissions] }),
@@ -196,7 +212,7 @@ export default function AgencyTeamPage() {
                 }
             }
             if (businessesChanged) {
-                const res = await fetch("/api/admin/staff", {
+                const res = await fetch(api("/api/admin/staff"), {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ userId: editing.id, organizationIds: [...pickedBusinesses] }),
@@ -224,7 +240,7 @@ export default function AgencyTeamPage() {
         });
         if (!ok) return;
 
-        const res = await fetch(`/api/admin/staff?userId=${encodeURIComponent(person.id)}`, {
+        const res = await fetch(api(`/api/admin/staff?userId=${encodeURIComponent(person.id)}`), {
             method: "DELETE",
         });
         if (!res.ok) {
@@ -251,7 +267,8 @@ export default function AgencyTeamPage() {
 
     if (loading) return <TeamAccessSkeleton />;
 
-    const selectedPreset = matchingPreset([...pickedPermissions]);
+    const selectedPreset = matchingPreset([...pickedPermissions], permissionScope);
+    const whose = isPlatformTeam ? "EcoFusion's own people" : `${teamName || "The agency"}'s own staff`;
     const term = businessSearch.trim().toLowerCase();
     const shownBusinesses = businesses.filter((b) => !term || b.name.toLowerCase().includes(term));
 
@@ -265,8 +282,8 @@ export default function AgencyTeamPage() {
                     </h1>
                     <p className="text-white/50 mt-1 text-sm max-w-2xl">
                         {canManage
-                            ? "EcoFusion's own people. For each, choose which sub accounts they open and exactly what they may do. Somebody new opens nothing and can do nothing until you say so."
-                            : "EcoFusion's own people, which sub accounts each opens, and what each may do. Only the master account changes this."}
+                            ? `${whose}. For each, choose which sub accounts they open and exactly what they may do. Somebody new opens nothing and can do nothing until you say so.`
+                            : `${whose}, which sub accounts each opens, and what each may do. Only ${adminName} changes this.`}
                     </p>
                 </div>
                 {canManage && !adding && (
@@ -365,7 +382,7 @@ export default function AgencyTeamPage() {
                     <p className="text-white font-medium">No staff yet</p>
                     <p className="text-sm text-white/40 mt-1.5 max-w-sm">
                         {canManage
-                            ? "You are the only EcoFusion account. Add somebody to help, then choose what they open and what they may do."
+                            ? "Nobody else is on this team yet. Add somebody to help, then choose what they open and what they may do."
                             : "Nobody has been taken on yet."}
                     </p>
                 </div>
@@ -387,7 +404,7 @@ export default function AgencyTeamPage() {
                         </thead>
                         <tbody>
                             {staff.map((person) => {
-                                const summary = accessSummary(person.permissions);
+                                const summary = accessSummary(person.permissions, permissionScope);
                                 return (
                                     <tr key={person.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                                         <td className="px-4 py-3.5 text-white">
@@ -458,7 +475,7 @@ export default function AgencyTeamPage() {
             <div className="mt-6 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
                 <p className="text-sm font-semibold text-white flex items-center gap-2 mb-2">
                     <Lock size={14} className="text-white/40" />
-                    Always the master account&apos;s, whatever is ticked
+                    Always {isPlatformTeam ? "the EcoFusion admin" : "the master account"}&apos;s, whatever is ticked
                 </p>
                 <ul className="space-y-1">
                     {NEVER_DELEGATED.map((line) => (
