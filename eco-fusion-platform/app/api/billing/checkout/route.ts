@@ -4,11 +4,16 @@ import { auth } from '@/auth';
 import { agencyStanding } from '@/lib/agency';
 import { isPlanKey, planFor } from '@/lib/plans';
 import { getStripe, isBillingConfigured, stripePriceFor, appUrl } from '@/lib/stripe';
+import { stripePublishableKey } from '@/lib/course-shop';
 
 // POST - Start a Stripe Checkout session for the caller's agency, on a plan.
 //
 // The subscription belongs to the agency and covers every business it holds,
-// so only the agency's master account may buy it. Body: { plan }.
+// so only the agency's master account may buy it. Body: { plan, embedded }.
+//
+// With `embedded` and a publishable key, Stripe's form is drawn inside the
+// Billing page and this returns { checkout }; otherwise { url } to send the
+// buyer to Stripe's own page.
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -72,17 +77,34 @@ export async function POST(request: Request) {
     }
 
     const metadata = { agencyId: agency.id, plan: planKey };
+    const publishableKey = body?.embedded ? stripePublishableKey() : null;
+    // /billing reconciles with Stripe on the way back, so it is where anyone
+    // who does have to leave the page for a payment method returns to.
+    const returnTo = `${appUrl()}/billing?checkout=success`;
     const checkout = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price, quantity: 1 }],
-      success_url: `${appUrl()}/billing?checkout=success`,
-      cancel_url: `${appUrl()}/agency/billing`,
+      ...(publishableKey
+        ? {
+            ui_mode: 'embedded_page' as const,
+            redirect_on_completion: 'if_required' as const,
+            return_url: returnTo,
+          }
+        : {
+            success_url: returnTo,
+            cancel_url: `${appUrl()}/agency/billing`,
+          }),
       // Read back on the webhook, which is the only thing that grants access.
       subscription_data: { metadata },
       metadata,
     });
 
+    if (publishableKey && checkout.client_secret) {
+      return NextResponse.json({
+        checkout: { clientSecret: checkout.client_secret, publishableKey, sessionId: checkout.id },
+      });
+    }
     return NextResponse.json({ url: checkout.url });
   } catch (error) {
     console.error('Failed to start checkout:', error);

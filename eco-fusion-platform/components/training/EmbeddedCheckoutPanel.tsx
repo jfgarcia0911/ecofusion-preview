@@ -27,6 +27,8 @@ export default function EmbeddedCheckoutPanel({
     onBack,
     onCancel,
     onComplete,
+    backLabel = "Back to shop",
+    cancelLabel = "Cancel purchase",
 }: {
     /** Null while the server is still preparing the payment. */
     clientSecret: string | null;
@@ -39,6 +41,9 @@ export default function EmbeddedCheckoutPanel({
     onCancel: () => void;
     /** Stripe says the payment went through without leaving the page. */
     onComplete: () => void;
+    /** What the way back is called, where it is not the course shop. */
+    backLabel?: string;
+    cancelLabel?: string;
 }) {
     const mountRef = useRef<HTMLDivElement>(null);
     const [ready, setReady] = useState(false);
@@ -94,7 +99,7 @@ export default function EmbeddedCheckoutPanel({
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
                 >
                     {leaving ? <Loader2 size={15} className="motion-safe:animate-spin" /> : <ArrowLeft size={15} />}
-                    Back to shop
+                    {backLabel}
                 </button>
                 <span className="text-xs text-white/40 flex items-center gap-1.5">
                     <Lock size={12} />
@@ -107,7 +112,7 @@ export default function EmbeddedCheckoutPanel({
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-red-300 hover:bg-red-400/10 disabled:opacity-40 transition-colors"
                 >
                     <X size={15} />
-                    Cancel purchase
+                    {cancelLabel}
                 </button>
             </div>
 
@@ -126,7 +131,7 @@ export default function EmbeddedCheckoutPanel({
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6">
                         <p className="text-neutral-800 font-medium">The checkout could not be loaded.</p>
                         <p className="text-sm text-neutral-500">
-                            Nothing was charged. Go back to the shop and try again.
+                            Nothing was charged. Go back and try again.
                         </p>
                     </div>
                 )}

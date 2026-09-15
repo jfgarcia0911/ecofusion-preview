@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Check, CreditCard, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Check, CheckCircle2, CreditCard, Loader2 } from "lucide-react";
+import EmbeddedCheckoutPanel from "@/components/training/EmbeddedCheckoutPanel";
 
 export interface PlanOption {
     key: string;
@@ -14,9 +16,20 @@ export interface PlanOption {
     unavailable: string | null;
 }
 
+interface OpenCheckout {
+    clientSecret: string;
+    publishableKey: string;
+    sessionId: string;
+}
+
 /**
  * The agency's plans, and the way to subscribe to one. Only ever shown to the
  * agency's master account.
+ *
+ * Subscribing stays on the Billing page: Stripe's form takes the place of the
+ * plans, with a way back to them. Card details go from that form straight to
+ * Stripe. Only where no publishable key is set does the buyer leave for
+ * Stripe's own page.
  */
 export default function SubscribeButton({
     plans,
@@ -34,28 +47,110 @@ export default function SubscribeButton({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const router = useRouter();
+    // Open from the moment Subscribe is pressed, so Stripe's outline is on
+    // screen while the payment is prepared rather than a spinner in a button.
+    const [checkingOut, setCheckingOut] = useState(false);
+    const [checkout, setCheckout] = useState<OpenCheckout | null>(null);
+    const [leaving, setLeaving] = useState(false);
+    const [paid, setPaid] = useState(false);
+    // Set when the buyer backs out before the payment was ready, so the
+    // session that arrives afterwards is closed instead of left payable.
+    const abandoned = useRef(false);
+
     const chosen = plans.find((p) => p.key === selected);
+
+    async function finish(sessionId: string, cancel: boolean) {
+        const res = await fetch("/api/billing/checkout/finish", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, cancel }),
+        });
+        const data = await res.json().catch(() => ({}));
+        return data.outcome === "paid";
+    }
 
     async function startCheckout() {
         setBusy(true);
         setError(null);
+        abandoned.current = false;
+        setCheckingOut(true);
         try {
             const res = await fetch("/api/billing/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan: selected }),
+                body: JSON.stringify({ plan: selected, embedded: true }),
             });
             const data = await res.json();
             if (!res.ok) {
                 setError(data.error || "Could not start checkout. Try again.");
-                setBusy(false);
+                setCheckingOut(false);
                 return;
             }
+            if (data.checkout) {
+                if (abandoned.current) {
+                    await finish(data.checkout.sessionId, true);
+                    return;
+                }
+                setCheckout(data.checkout);
+                return;
+            }
+            // No key for the form inside the page, so Stripe's own.
             window.location.href = data.url;
         } catch {
             setError("Could not reach the billing service. Check your connection and try again.");
+            setCheckingOut(false);
+        } finally {
             setBusy(false);
         }
+    }
+
+    function showPaid() {
+        setPaid(true);
+        setCheckingOut(false);
+        setCheckout(null);
+        router.refresh();
+    }
+
+    async function backToPlans() {
+        setLeaving(true);
+        abandoned.current = true;
+        try {
+            if (checkout && (await finish(checkout.sessionId, true))) {
+                showPaid();
+                return;
+            }
+            setCheckout(null);
+            setCheckingOut(false);
+        } finally {
+            setLeaving(false);
+        }
+    }
+
+    async function complete() {
+        if (!checkout) return;
+        setLeaving(true);
+        try {
+            await finish(checkout.sessionId, false);
+        } finally {
+            setLeaving(false);
+            showPaid();
+        }
+    }
+
+    if (checkingOut) {
+        return (
+            <EmbeddedCheckoutPanel
+                clientSecret={checkout?.clientSecret ?? null}
+                publishableKey={checkout?.publishableKey ?? null}
+                leaving={leaving}
+                onBack={backToPlans}
+                onCancel={backToPlans}
+                onComplete={complete}
+                backLabel="Back to plans"
+                cancelLabel="Cancel"
+            />
+        );
     }
 
     return (
@@ -93,6 +188,13 @@ export default function SubscribeButton({
                     );
                 })}
             </div>
+
+            {paid && (
+                <p className="text-sm text-accent flex items-center justify-center gap-2">
+                    <CheckCircle2 size={16} />
+                    Payment received. Your plan is being updated.
+                </p>
+            )}
 
             {chosen && !chosen.configured ? (
                 <p className="text-center text-sm text-white/40 py-3">
