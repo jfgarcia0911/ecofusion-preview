@@ -262,6 +262,53 @@ const tourSteps: Step[] = [
     },
 ];
 
+/**
+ * Bring a sidebar item into view before its step.
+ *
+ * The sidebar menu scrolls on its own inside a page that does not, and the
+ * items from Training Management down sit below its fold on most laptop
+ * screens. Rather than leave that to the tour library's general scroll logic,
+ * the menu itself is scrolled so the item sits in its middle, and the step
+ * opens once that has been painted. Only the menu moves: the page around it is
+ * never scrolled, so the header and layout stay where they are.
+ */
+function revealInSidebar(selector: string): Pick<Step, 'before' | 'skipScroll'> {
+    return {
+        skipScroll: true,
+        before: async () => {
+            const item = document.querySelector<HTMLElement>(selector);
+            const menu = item?.closest('nav');
+            if (!item || !menu) return;
+            const itemBox = item.getBoundingClientRect();
+            const menuBox = menu.getBoundingClientRect();
+            const offset = itemBox.top - menuBox.top - (menuBox.height - itemBox.height) / 2;
+            menu.scrollTop += offset;
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        },
+    };
+}
+
+/**
+ * Whether an element is on screen to point at. On a phone the sidebar is a
+ * closed drawer - hidden and moved off to the left - and a step aimed at it
+ * left the tour waiting with no tooltip and no way on.
+ */
+function isShown(element: Element | null): boolean {
+    if (!element) return false;
+    for (let node: Element | null = element; node && node !== document.body; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+    }
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && box.right > 0 && box.left < window.innerWidth;
+}
+
+const sidebarAwareSteps: Step[] = tourSteps.map((step) =>
+    typeof step.target === 'string' && step.target.startsWith('[data-tour="nav-')
+        ? { ...step, ...revealInSidebar(step.target) }
+        : step
+);
+
 export default function OnboardingTour({ showTour, onComplete }: OnboardingTourProps) {
     const [run, setRun] = useState(false);
     // Not every step applies to every reader: Employees is on the sidebar for
@@ -275,11 +322,11 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
         if (!showTour) return;
         const timer = setTimeout(() => {
             setSteps(
-                tourSteps.filter(
+                sidebarAwareSteps.filter(
                     (step) =>
                         typeof step.target !== 'string' ||
                         step.target === 'body' ||
-                        document.querySelector(step.target) !== null
+                        isShown(document.querySelector(step.target))
                 )
             );
             setRun(true);
