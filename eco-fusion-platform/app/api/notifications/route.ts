@@ -39,15 +39,18 @@ export async function PATCH(request: Request) {
         const userId = await signedInUserId();
         if (!userId) return unauthorized();
 
-        const data = await request.json();
-        const { notificationIds, markAllRead } = data;
+        const data = await request.json().catch(() => null);
+        const markAllRead = data?.markAllRead === true;
+        const notificationIds: string[] = Array.isArray(data?.notificationIds)
+            ? data.notificationIds.filter((id: unknown): id is string => typeof id === 'string').slice(0, 200)
+            : [];
 
         if (markAllRead) {
             await prisma.notification.updateMany({
                 where: { userId, read: false },
                 data: { read: true },
             });
-        } else if (notificationIds?.length) {
+        } else if (notificationIds.length) {
             await prisma.notification.updateMany({
                 where: {
                     id: { in: notificationIds },
@@ -77,12 +80,13 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Notification ID required' }, { status: 400 });
         }
 
-        await prisma.notification.delete({
-            where: {
-                id: notificationId,
-                userId,
-            },
+        // One of the caller's own, or nothing: a missing id is a 404, not a 500.
+        const { count } = await prisma.notification.deleteMany({
+            where: { id: notificationId, userId },
         });
+        if (count === 0) {
+            return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

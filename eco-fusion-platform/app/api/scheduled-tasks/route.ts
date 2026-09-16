@@ -13,7 +13,10 @@ export async function GET() {
         const isAdmin = canAdminister(ctx);
 
         const tasks = await prisma.scheduledTask.findMany({
-            where: isAdmin ? assignedWithin(ctx.organizationId) : { assigneeId: ctx.userId },
+            where: isAdmin
+                ? assignedWithin(ctx.organizationId)
+                : { assigneeId: ctx.userId, ...assignedWithin(ctx.organizationId) },
+            take: 1000,
             include: {
                 assignee: {
                     select: { id: true, name: true, email: true, image: true },
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
 
         const task = await prisma.scheduledTask.create({
             data: {
+                organizationId: ctx.organizationId,
                 creatorId: ctx.userId,
                 assigneeId,
                 title,
