@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { canAdminister } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { assignedWithin } from '@/lib/schedule-scope';
+import { visibleToOrganization } from '@/lib/training';
+
+/** Most rows of any one kind the profile lists. */
+const PROFILE_ROWS = 200;
 
 // GET - One employee, and everything this business knows about their work.
 //
@@ -71,11 +76,13 @@ export async function GET(
                     select: { createdAt: true },
                 }),
                 // Schedule carries no organizationId, so it is reached through
-                // the account, which this business has already been shown to
-                // hold a membership for.
+                // the account, and only while that account is a member here:
+                // an employee row can name a login that has since left, or
+                // never belonged, and its rota elsewhere is not ours to show.
                 prisma.schedule.findMany({
-                    where: { assigneeId: accountId },
+                    where: { assigneeId: accountId, ...assignedWithin(ctx.organizationId) },
                     orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+                    take: PROFILE_ROWS,
                     select: {
                         id: true,
                         title: true,
@@ -84,9 +91,16 @@ export async function GET(
                         endTime: true,
                     },
                 }),
+                // Only courses this business can see: another business's own
+                // courses, and its assignments, stay with that business.
                 prisma.courseAssignment.findMany({
-                    where: { assigneeId: accountId },
+                    where: {
+                        assigneeId: accountId,
+                        ...assignedWithin(ctx.organizationId),
+                        course: visibleToOrganization(ctx.organizationId),
+                    },
                     orderBy: { createdAt: 'desc' },
+                    take: PROFILE_ROWS,
                     select: {
                         id: true,
                         status: true,
@@ -95,8 +109,13 @@ export async function GET(
                     },
                 }),
                 prisma.courseCompletion.findMany({
-                    where: { userId: accountId },
+                    where: {
+                        userId: accountId,
+                        user: { memberships: { some: { organizationId: ctx.organizationId } } },
+                        course: visibleToOrganization(ctx.organizationId),
+                    },
                     orderBy: { completedAt: 'desc' },
+                    take: PROFILE_ROWS,
                     select: {
                         id: true,
                         completedAt: true,

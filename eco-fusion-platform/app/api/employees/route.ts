@@ -1,12 +1,26 @@
 import { NextResponse } from 'next/server';
-import { canManageMembers } from '@/lib/tenancy';
+import { z } from 'zod';
+import { canAdminister, canManageMembers } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import { adminOnly, optionalText, requiredText } from '@/lib/validation/fields';
+
+const EMPLOYEE_STATUSES = ['Active', 'Inactive', 'On Leave'] as const;
+
+const createSchema = z.object({
+  name: requiredText(120),
+  // The person's job title, which the directory calls their role.
+  role: requiredText(120),
+  email: z.string().trim().max(254).email('must be an email address'),
+  phone: optionalText(40),
+  status: z.enum(EMPLOYEE_STATUSES).optional(),
+});
 
 /** One row of the directory query in GET. */
 interface EmployeeRow {
   id: string;
-  userId: string;
+  userId: string | null;
   organizationId: string;
   name: string;
   role: string;
@@ -58,13 +72,23 @@ export async function GET() {
              ON m."userId" = e."accountId" AND m."organizationId" = e."organizationId"
       WHERE e."organizationId" = ${ctx.organizationId}
       ORDER BY e."name" ASC
+      LIMIT 2000
     `;
 
-    const employees = rows.map(({ accountEmail, orgRole, lastSignInAt, ...employee }) => ({
+    // The address somebody signs in with is only shown to those who manage
+    // logins; everyone else sees that a login exists, and the directory's own
+    // contact email, as before.
+    const showLogins = canManageMembers(ctx);
+
+    // `userId` records who typed the row in and is not part of the directory.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const employees = rows.map(({ accountEmail, orgRole, lastSignInAt, userId, ...employee }) => ({
       employee: {
         ...employee,
         // Lets the list show who can actually sign in.
-        account: employee.accountId && accountEmail ? { id: employee.accountId, email: accountEmail } : null,
+        account: employee.accountId && accountEmail
+          ? { id: employee.accountId, email: showLogins ? accountEmail : null }
+          : null,
       },
       orgRole,
       lastSignInAt,
@@ -144,23 +168,21 @@ export async function POST(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('add people to the directory');
 
-    const data = await request.json();
-    const { name, role, email, phone, status } = data;
-
-    if (!name || !role || !email) {
-      return NextResponse.json({ error: 'Name, role, and email are required' }, { status: 400 });
-    }
+    const body = await readJson(request, createSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
     const employee = await prisma.employee.create({
       data: {
         userId: ctx.userId,
         organizationId: ctx.organizationId,
-        name,
-        role,
-        email,
-        phone: phone || null,
-        status: status || 'Active',
+        name: input.name,
+        role: input.role,
+        email: input.email,
+        phone: input.phone ?? null,
+        status: input.status ?? 'Active',
       },
     });
 

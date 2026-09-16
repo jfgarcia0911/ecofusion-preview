@@ -12,101 +12,64 @@ export async function GET(
     if (refusal) return refusal;
 
     const { phaseId } = await params;
+    const organizationId = ctx.organizationId;
+
+    // A phase is one of this business's units, named by its key.
+    const unit = await prisma.businessUnit.findFirst({
+      where: { organizationId, key: phaseId },
+      select: { id: true },
+    });
+    if (!unit) {
+      return NextResponse.json({ error: 'Business unit not found' }, { status: 404 });
+    }
 
     // Get the current month's date range
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const thisMonth = { gte: startOfMonth, lte: endOfMonth };
 
-    // Calculate efficiency based on multiple factors:
-    // 1. Task completion rate (40% weight)
-    // 2. Alert resolution rate (30% weight)
-    // 3. Activity level (30% weight)
+    // Efficiency is weighted from:
+    // 1. Task completion rate (40%)
+    // 2. Alert resolution rate (30%)
+    // 3. Activity level (30%)
+    // Counted in the database rather than by loading every row.
+    const [
+      totalTasks,
+      completedTasks,
+      totalAlerts,
+      resolvedAlerts,
+      recentSales,
+      recentHarvests,
+      phaseSettings,
+    ] = await Promise.all([
+      prisma.task.count({ where: { organizationId, phaseId, createdAt: thisMonth } }),
+      prisma.task.count({ where: { organizationId, phaseId, createdAt: thisMonth, completed: true } }),
+      prisma.alert.count({ where: { organizationId, createdAt: thisMonth } }),
+      prisma.alert.count({ where: { organizationId, createdAt: thisMonth, status: 'resolved' } }),
+      prisma.sale.count({ where: { organizationId, saleDate: thisMonth, status: 'completed' } }),
+      prisma.harvest.count({ where: { organizationId, harvestDate: thisMonth } }),
+      prisma.phaseSettings.findUnique({
+        where: { organizationId_phaseId: { organizationId, phaseId } },
+        select: { targetRevenue: true },
+      }),
+    ]);
 
-    // 1. Task completion rate for this phase
-    const phaseTasks = await prisma.task.findMany({
-      where: {
-        organizationId: ctx.organizationId,
-        phaseId,
-        createdAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-      },
-    });
-
-    let taskCompletionRate = 0;
-    if (phaseTasks.length > 0) {
-      const completedTasks = phaseTasks.filter(t => t.completed).length;
-      taskCompletionRate = (completedTasks / phaseTasks.length) * 100;
-    } else {
-      // No tasks = neutral (50%)
-      taskCompletionRate = 50;
-    }
-
-    // 2. Alert resolution rate
-    const alerts = await prisma.alert.findMany({
-      where: {
-        organizationId: ctx.organizationId,
-        createdAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-      },
-    });
-
-    let alertResolutionRate = 0;
-    if (alerts.length > 0) {
-      const resolvedAlerts = alerts.filter(a => a.status === 'resolved').length;
-      alertResolutionRate = (resolvedAlerts / alerts.length) * 100;
-    } else {
-      // No alerts = good (100%)
-      alertResolutionRate = 100;
-    }
-
-    // 3. Activity level based on recent sales/harvests
-    const recentSales = await prisma.sale.count({
-      where: {
-        organizationId: ctx.organizationId,
-        saleDate: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-        status: 'completed',
-      },
-    });
-
-    const recentHarvests = await prisma.harvest.count({
-      where: {
-        organizationId: ctx.organizationId,
-        harvestDate: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-      },
-    });
+    // No tasks = neutral (50%)
+    const taskCompletionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 50;
+    // No alerts = good (100%)
+    const alertResolutionRate = totalAlerts > 0 ? (resolvedAlerts / totalAlerts) * 100 : 100;
 
     // Activity score: normalize based on expected monthly activity
     const expectedMonthlyActivity = 10; // Expected sales + harvests per month
     const actualActivity = recentSales + recentHarvests;
     const activityRate = Math.min(100, (actualActivity / expectedMonthlyActivity) * 100);
 
-    // Calculate weighted efficiency
     const efficiency = Math.round(
       taskCompletionRate * 0.4 +
       alertResolutionRate * 0.3 +
       activityRate * 0.3
     );
-
-    // Get phase settings for target revenue if configured
-    const phaseSettings = await prisma.phaseSettings.findUnique({
-      where: {
-        organizationId_phaseId: {
-          organizationId: ctx.organizationId,
-          phaseId,
-        },
-      },
-    });
 
     return NextResponse.json({
       phaseId,
@@ -117,10 +80,10 @@ export async function GET(
         activityLevel: Math.round(activityRate),
       },
       details: {
-        totalTasks: phaseTasks.length,
-        completedTasks: phaseTasks.filter(t => t.completed).length,
-        totalAlerts: alerts.length,
-        resolvedAlerts: alerts.filter(a => a.status === 'resolved').length,
+        totalTasks,
+        completedTasks,
+        totalAlerts,
+        resolvedAlerts,
         salesCount: recentSales,
         harvestCount: recentHarvests,
       },

@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { activeOrg } from '@/lib/api-access';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { readJson } from '@/lib/validation/request';
+import { aiRateLimited, chatHistory, chatMessage } from '@/lib/validation/fields';
+
+const chatSchema = z.object({
+  message: chatMessage,
+  history: chatHistory,
+});
+
+/** Messages one person may send the assistant in an hour. */
+const AI_LIMIT = { interval: 60 * 60 * 1000, maxRequests: 60 };
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -20,24 +32,26 @@ Be concise, practical, and actionable in your responses. Use your knowledge of a
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // A business that is signed in and paid up, rather than any session: a
+    // locked business, or somebody removed from it, is refused here too.
+    const { ctx, refusal } = await activeOrg();
+    if (refusal) return refusal;
 
-    const { message, history } = await request.json();
+    const body = await readJson(request, chatSchema);
+    if (!body.ok) return body.response;
+    const { message, history } = body.data;
 
-    if (!message) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
-    }
+    // Every message is paid for, so each person has an hourly allowance.
+    const limit = await checkRateLimit(`ai:${ctx.userId}`, AI_LIMIT);
+    if (!limit.success) return aiRateLimited();
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     // Build chat history
-    const chatHistory = history?.map((msg: { role: string; content: string }) => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
-    })) || [];
+    const turns = history.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.content }],
+    }));
 
     const chat = model.startChat({
       history: [
@@ -49,7 +63,7 @@ export async function POST(request: Request) {
           role: 'model',
           parts: [{ text: 'I understand. I am EcoFusion AI, ready to help with aquaponics farm management including fish care, plant cultivation, system optimization, business insights, and troubleshooting. How can I assist you today?' }],
         },
-        ...chatHistory,
+        ...turns,
       ],
     });
 

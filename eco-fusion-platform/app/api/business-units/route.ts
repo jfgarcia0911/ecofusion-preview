@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { canAdminister } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
+import { readJson } from '@/lib/validation/request';
+import { idFromQuery, recordId, requiredInt } from '@/lib/validation/fields';
 import { ICON_NAMES, isKnownPalette, keyFromTitle, UNIT_PALETTES } from '@/lib/business-units';
 
 /**
@@ -14,21 +18,53 @@ import { ICON_NAMES, isKnownPalette, keyFromTitle, UNIT_PALETTES } from '@/lib/b
  * silo keeps pointing at something that answers.
  */
 
-/** Fields an operator may set, cleaned up and checked. */
-function readUnitFields(data: Record<string, unknown>) {
-  const title = typeof data.title === 'string' ? data.title.trim() : '';
-  const description = typeof data.description === 'string' ? data.description.trim() : '';
-  const icon = typeof data.icon === 'string' ? data.icon : 'Layers';
-  const color = typeof data.color === 'string' ? data.color : UNIT_PALETTES[0].color;
-  const accent = typeof data.accent === 'string' ? data.accent : UNIT_PALETTES[0].accent;
-  const keywords = Array.isArray(data.keywords)
-    ? data.keywords
-        .filter((k): k is string => typeof k === 'string')
-        .map((k) => k.trim().toLowerCase())
-        .filter(Boolean)
-    : [];
+/** Fields an operator may set. Anything else in the body is dropped. */
+const unitFieldShape = {
+  title: z.string().trim().max(120, 'A name must be 120 characters or fewer'),
+  description: z.string().trim().max(2000).optional(),
+  icon: z.string().max(60).optional(),
+  color: z.string().max(120).optional(),
+  accent: z.string().max(120).optional(),
+  keywords: z.array(z.string().max(60)).max(50).optional(),
+};
 
-  return { title, description, icon, color, accent, keywords };
+type UnitFieldInput = {
+  title: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  accent?: string;
+  keywords?: string[];
+};
+
+const createSchema = z.object(unitFieldShape);
+
+const updateSchema = z.object({
+  id: recordId,
+  title: unitFieldShape.title.optional(),
+  description: unitFieldShape.description,
+  icon: unitFieldShape.icon,
+  color: unitFieldShape.color,
+  accent: unitFieldShape.accent,
+  keywords: unitFieldShape.keywords,
+  enabled: z.boolean().optional(),
+  sortOrder: requiredInt(0, 100_000).optional(),
+});
+
+/** The fields cleaned up, with the defaults a new silo takes. */
+function readUnitFields(data: UnitFieldInput) {
+  return {
+    title: data.title.trim(),
+    description: data.description?.trim() ?? '',
+    icon: data.icon ?? 'Layers',
+    color: data.color ?? UNIT_PALETTES[0].color,
+    accent: data.accent ?? UNIT_PALETTES[0].accent,
+    keywords: [
+      ...new Set(
+        (data.keywords ?? []).map((k) => k.trim().toLowerCase()).filter(Boolean)
+      ),
+    ],
+  };
 }
 
 /** The first problem with these fields, or null. */
@@ -38,6 +74,9 @@ function validate(fields: ReturnType<typeof readUnitFields>): string | null {
   if (!isKnownPalette(fields.color, fields.accent)) return 'That colour is not one of the available colours';
   return null;
 }
+
+const isUniqueClash = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
 // GET - The silos this business runs, in display order.
 //
@@ -56,6 +95,7 @@ export async function GET(request: Request) {
         ...(includeDisabled ? {} : { enabled: true }),
       },
       orderBy: { sortOrder: 'asc' },
+      take: 500,
     });
 
     return NextResponse.json(units);
@@ -74,8 +114,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const data = await request.json();
-    const fields = readUnitFields(data);
+    const body = await readJson(request, createSchema);
+    if (!body.ok) return body.response;
+    const fields = readUnitFields(body.data);
     const problem = validate(fields);
     if (problem) {
       return NextResponse.json({ error: problem }, { status: 400 });
@@ -109,16 +150,28 @@ export async function POST(request: Request) {
       _max: { sortOrder: true },
     });
 
-    const unit = await prisma.businessUnit.create({
-      data: {
-        organizationId: ctx.organizationId,
-        key,
-        ...fields,
-        sortOrder: (last._max.sortOrder ?? 0) + 1,
-      },
-    });
-
-    return NextResponse.json(unit, { status: 201 });
+    try {
+      const unit = await prisma.businessUnit.create({
+        data: {
+          organizationId: ctx.organizationId,
+          key,
+          title: fields.title,
+          description: fields.description,
+          icon: fields.icon,
+          color: fields.color,
+          accent: fields.accent,
+          keywords: fields.keywords,
+          sortOrder: (last._max.sortOrder ?? 0) + 1,
+        },
+      });
+      return NextResponse.json(unit, { status: 201 });
+    } catch (error) {
+      // Two people adding the same name at once: the second loses the race.
+      if (isUniqueClash(error)) {
+        return NextResponse.json({ error: 'A silo with that name already exists' }, { status: 409 });
+      }
+      throw error;
+    }
   } catch (error) {
     console.error('Failed to create business unit:', error);
     return NextResponse.json({ error: 'Failed to add that silo' }, { status: 500 });
@@ -136,29 +189,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const data = await request.json();
-    const { id, enabled, sortOrder } = data;
-    if (!id) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
-    }
-
-    // Scoped by organization, so an id from another business reads as absent.
-    const existing = await prisma.businessUnit.findFirst({
-      where: { id, organizationId: ctx.organizationId },
-      select: { id: true },
-    });
-    if (!existing) {
-      return NextResponse.json({ error: 'No such silo' }, { status: 404 });
-    }
+    const body = await readJson(request, updateSchema);
+    if (!body.ok) return body.response;
+    const { id, enabled, sortOrder, ...definition } = body.data;
 
     // Only what was sent is touched, so a reorder does not have to restate the
     // silo's whole definition.
-    const patch: Record<string, unknown> = {};
+    const patch: Prisma.BusinessUnitUpdateManyMutationInput = {};
 
-    if (data.title !== undefined || data.description !== undefined ||
-        data.icon !== undefined || data.color !== undefined ||
-        data.accent !== undefined || data.keywords !== undefined) {
-      const fields = readUnitFields(data);
+    const definitionSent = Object.values(definition).some((value) => value !== undefined);
+    if (definitionSent) {
+      const fields = readUnitFields({ ...definition, title: definition.title ?? '' });
       const problem = validate(fields);
       if (problem) {
         return NextResponse.json({ error: problem }, { status: 400 });
@@ -166,14 +207,24 @@ export async function PATCH(request: Request) {
       Object.assign(patch, fields);
     }
 
-    if (typeof enabled === 'boolean') patch.enabled = enabled;
-    if (typeof sortOrder === 'number') patch.sortOrder = sortOrder;
+    if (enabled !== undefined) patch.enabled = enabled;
+    if (sortOrder !== undefined) patch.sortOrder = sortOrder;
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
     }
 
-    const unit = await prisma.businessUnit.update({ where: { id }, data: patch });
+    // Scoped by organization, so an id from another business reads as absent.
+    const where = { id, organizationId: ctx.organizationId };
+    const { count } = await prisma.businessUnit.updateMany({ where, data: patch });
+    if (count === 0) {
+      return NextResponse.json({ error: 'No such silo' }, { status: 404 });
+    }
+
+    const unit = await prisma.businessUnit.findFirst({ where });
+    if (!unit) {
+      return NextResponse.json({ error: 'No such silo' }, { status: 404 });
+    }
 
     return NextResponse.json(unit);
   } catch (error) {
@@ -196,7 +247,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const id = new URL(request.url).searchParams.get('id');
+    const id = idFromQuery(request);
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
@@ -230,7 +281,12 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.businessUnit.delete({ where: { id } });
+    const { count } = await prisma.businessUnit.deleteMany({
+      where: { id: unit.id, organizationId: ctx.organizationId },
+    });
+    if (count === 0) {
+      return NextResponse.json({ error: 'No such silo' }, { status: 404 });
+    }
 
     return NextResponse.json({ deleted: id });
   } catch (error) {

@@ -87,3 +87,57 @@ export function adminOnly(action: string): NextResponse {
         { status: 403 }
     );
 }
+
+// --- AI chat ------------------------------------------------------------------
+
+/** Longest message a person may send to the assistant. */
+export const CHAT_MESSAGE_MAX = 4000;
+
+/** How many earlier turns are passed back to the model. */
+export const CHAT_HISTORY_TURNS = 20;
+
+/** What a person types to the assistant. */
+export const chatMessage = z.string().trim().min(1, 'is required').max(CHAT_MESSAGE_MAX);
+
+/**
+ * The conversation so far, as the chat pages send it.
+ *
+ * The pages send every message they hold, with their own replies labelled
+ * 'assistant', and a long conversation is ordinary rather than an error. So the
+ * shape is checked, the model's turns are named as the model names them, and
+ * only the most recent turns - each cut to the message ceiling - are kept.
+ * The array and each turn still have a hard ceiling, so the body cannot be used
+ * to make the server hold something enormous.
+ */
+export const chatHistory = z
+    .array(
+        z.object({
+            role: z.enum(['user', 'model', 'assistant']),
+            content: z.string().max(50_000),
+        })
+    )
+    .max(500)
+    .optional()
+    .transform((turns) => {
+        const recent = (turns ?? [])
+            .slice(-CHAT_HISTORY_TURNS)
+            .map((turn) => ({
+                role: turn.role === 'user' ? ('user' as const) : ('model' as const),
+                content: turn.content.slice(0, CHAT_MESSAGE_MAX),
+            }))
+            .filter((turn) => turn.content.trim() !== '');
+        // The history is placed after the model's own opening turn, so it
+        // starts with the person rather than with a second model turn.
+        while (recent.length > 0 && recent[0].role !== 'user') recent.shift();
+        return recent;
+    });
+
+/** The friendly refusal when somebody has used up the assistant for the hour. */
+export function aiRateLimited(): NextResponse {
+    return NextResponse.json(
+        {
+            error: 'You have sent a lot of messages to the assistant in the last hour. Please wait a little and try again.',
+        },
+        { status: 429 }
+    );
+}

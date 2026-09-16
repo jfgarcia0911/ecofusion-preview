@@ -1,8 +1,41 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { decryptStoredKey } from '@/lib/encryption';
+import { readJson, readQuery } from '@/lib/validation/request';
+import { optionalText } from '@/lib/validation/fields';
 
+const searchQuery = z.object({
+  query: z.string().trim().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(100).catch(20),
+});
+
+const contactSchema = z
+  .object({
+    name: optionalText(120),
+    email: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.string().trim().max(254).email('must be an email address').optional()
+    ),
+    phone: optionalText(40),
+    company: optionalText(160),
+    tags: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+  })
+  .refine((c) => Boolean(c.email || c.phone), {
+    message: 'Email or phone is required',
+    path: ['email'],
+  });
+
+/** The business's CRM connection, or the answer to send when there is none. */
+async function crmConnection(organizationId: string) {
+  const settings = await prisma.integrationSettings.findUnique({
+    where: { organizationId },
+    select: { apiKey: true, isEnabled: true, locationId: true },
+  });
+  if (!settings?.apiKey || !settings.isEnabled) return null;
+  return { apiKey: decryptStoredKey(settings.apiKey), locationId: settings.locationId };
+}
 
 // GET - Search/fetch CRM contacts
 export async function GET(request: Request) {
@@ -10,45 +43,38 @@ export async function GET(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    // Get integration settings
-    const settings = await prisma.integrationSettings.findUnique({
-      where: { organizationId: ctx.organizationId },
-    });
+    const query = readQuery(request, searchQuery);
+    if (!query.ok) return query.response;
 
-    if (!settings?.apiKey || !settings.isEnabled) {
+    const crm = await crmConnection(ctx.organizationId);
+    if (!crm) {
       return NextResponse.json({ error: 'CRM integration not configured' }, { status: 400 });
     }
-
-    const apiKey = decryptStoredKey(settings.apiKey);
-    const locationId = settings.locationId;
-
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('query');
-    const limit = searchParams.get('limit') || '20';
 
     try {
       // Search contacts in GoHighLevel
       const searchUrl = new URL('https://rest.gohighlevel.com/v1/contacts/');
-      if (locationId) searchUrl.searchParams.set('locationId', locationId);
-      if (query) searchUrl.searchParams.set('query', query);
-      searchUrl.searchParams.set('limit', limit);
+      if (crm.locationId) searchUrl.searchParams.set('locationId', crm.locationId);
+      if (query.data.query) searchUrl.searchParams.set('query', query.data.query);
+      searchUrl.searchParams.set('limit', String(query.data.limit));
 
       const response = await fetch(searchUrl.toString(), {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${crm.apiKey}`,
         },
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('GoHighLevel API error:', errorText);
-        return NextResponse.json({ error: 'Failed to fetch contacts from CRM' }, { status: response.status });
+        console.error('GoHighLevel API error:', response.status, errorText.slice(0, 500));
+        return NextResponse.json({ error: 'Failed to fetch contacts from CRM' }, { status: 502 });
       }
 
       const data = await response.json();
 
       // Transform contacts for our use
-      const contacts = (data.contacts || []).map((contact: {
+      const contacts = (Array.isArray(data.contacts) ? data.contacts : []).map((contact: {
         id: string;
         firstName?: string;
         lastName?: string;
@@ -73,7 +99,7 @@ export async function GET(request: Request) {
       });
     } catch (crmError) {
       console.error('CRM API error:', crmError);
-      return NextResponse.json({ error: 'Failed to connect to CRM' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to connect to CRM' }, { status: 502 });
     }
   } catch (error) {
     console.error('Failed to fetch CRM customers:', error);
@@ -87,54 +113,46 @@ export async function POST(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    // Get integration settings
-    const settings = await prisma.integrationSettings.findUnique({
-      where: { organizationId: ctx.organizationId },
-    });
+    const body = await readJson(request, contactSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    if (!settings?.apiKey || !settings.isEnabled) {
+    const crm = await crmConnection(ctx.organizationId);
+    if (!crm) {
       return NextResponse.json({ error: 'CRM integration not configured' }, { status: 400 });
     }
 
-    const apiKey = decryptStoredKey(settings.apiKey);
-    const locationId = settings.locationId;
-
-    const data = await request.json();
-    const { name, email, phone, company, tags } = data;
-
-    if (!email && !phone) {
-      return NextResponse.json({ error: 'Email or phone is required' }, { status: 400 });
-    }
-
     // Parse name into first/last
-    const nameParts = (name || '').split(' ');
+    const nameParts = (input.name ?? '').split(/\s+/).filter(Boolean);
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
     try {
+      // Built field by field: only these reach the CRM.
       const contactData = {
         firstName,
         lastName,
-        email,
-        phone,
-        companyName: company,
-        tags: tags || [],
-        locationId,
+        email: input.email,
+        phone: input.phone ?? undefined,
+        companyName: input.company ?? undefined,
+        tags: input.tags ?? [],
+        locationId: crm.locationId,
       };
 
       const response = await fetch('https://rest.gohighlevel.com/v1/contacts/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${crm.apiKey}`,
         },
         body: JSON.stringify(contactData),
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('GoHighLevel API error:', errorText);
-        return NextResponse.json({ error: 'Failed to create contact in CRM' }, { status: response.status });
+        console.error('GoHighLevel API error:', response.status, errorText.slice(0, 500));
+        return NextResponse.json({ error: 'Failed to create contact in CRM' }, { status: 502 });
       }
 
       const result = await response.json();
@@ -148,7 +166,7 @@ export async function POST(request: Request) {
       });
     } catch (crmError) {
       console.error('CRM API error:', crmError);
-      return NextResponse.json({ error: 'Failed to connect to CRM' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to connect to CRM' }, { status: 502 });
     }
   } catch (error) {
     console.error('Failed to create CRM customer:', error);

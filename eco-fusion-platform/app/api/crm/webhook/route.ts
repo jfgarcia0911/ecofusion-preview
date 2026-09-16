@@ -1,6 +1,39 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+
+/** How old a signed payload may be before it is treated as a replay. */
+const MAX_AGE_MS = 10 * 60 * 1000;
+
+/** The parts of a payload this route reads. Everything else is ignored. */
+const webhookSchema = z
+  .object({
+    type: z.string().max(100).optional(),
+    locationId: z.string().trim().max(200).optional(),
+    contact: z.object({ id: z.string().max(200).optional() }).passthrough().optional(),
+    opportunity: z.object({ id: z.string().max(200).optional() }).passthrough().optional(),
+    timestamp: z.union([z.string().max(100), z.number()]).optional(),
+  })
+  .passthrough();
+
+/**
+ * When the payload says it was sent, in epoch milliseconds; null when it does
+ * not say, and 'invalid' when it says something that is not a time.
+ */
+function timestampOf(data: { timestamp?: string | number }): number | null | 'invalid' {
+  const raw = data.timestamp;
+  if (raw === undefined || raw === '') return null;
+  let ms: number;
+  if (typeof raw === 'number' || /^\d+$/.test(raw)) {
+    const n = Number(raw);
+    // Seconds or milliseconds, whichever the sender used.
+    ms = n < 1e12 ? n * 1000 : n;
+  } else {
+    ms = Date.parse(raw);
+  }
+  return Number.isFinite(ms) ? ms : 'invalid';
+}
 
 /**
  * Verifies the webhook signature from GoHighLevel
@@ -62,19 +95,46 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    // Parse the JSON body
-    const data = JSON.parse(body);
+    // Parse the JSON body. A malformed one is the sender's fault and is said
+    // to be, rather than acknowledged as though it had been handled.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON' }, { status: 400 });
+    }
+    const payload = webhookSchema.safeParse(parsed);
+    if (!payload.success) {
+      return NextResponse.json({ error: 'Unrecognised payload' }, { status: 400 });
+    }
+    const data = payload.data;
 
     // Log webhook for debugging (redact sensitive data in production)
     if (process.env.NODE_ENV === 'development') {
       console.log('CRM Webhook received:', JSON.stringify(data, null, 2));
     }
 
+    // A signed payload replayed long after it was sent is refused, when the
+    // payload says when it was sent.
+    const sentAt = timestampOf(data);
+    if (sentAt === 'invalid') {
+      return NextResponse.json({ error: 'Invalid timestamp' }, { status: 400 });
+    }
+    if (sentAt !== null && Math.abs(Date.now() - sentAt) > MAX_AGE_MS) {
+      return NextResponse.json({ error: 'Webhook is too old' }, { status: 400 });
+    }
+
     const { type, locationId, contact, opportunity } = data;
 
-    // Find user by locationId
+    // A payload that names no location belongs to nobody; never look one up
+    // with an empty or missing id, which would match whichever came first.
+    if (!locationId) {
+      return NextResponse.json({ error: 'locationId is required' }, { status: 400 });
+    }
+
     const settings = await prisma.integrationSettings.findFirst({
       where: { locationId },
+      select: { id: true },
     });
 
     if (!settings) {

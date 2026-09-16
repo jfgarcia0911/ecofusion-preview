@@ -1,8 +1,21 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
+import { canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import { adminOnly, requiredText } from '@/lib/validation/fields';
 
-// GET - Fetch all zones for user with latest sensor readings
+const ZONE_STATUSES = ['active', 'maintenance', 'offline'] as const;
+
+const createSchema = z.object({
+  name: requiredText(120),
+  // Free text rather than a list: templates and snapshots carry types of their own.
+  type: requiredText(60),
+  status: z.enum(ZONE_STATUSES).optional(),
+});
+
+// GET - This business's zones with their latest sensor reading
 export async function GET() {
   try {
     const { ctx, refusal } = await activeOrg();
@@ -11,12 +24,15 @@ export async function GET() {
     const zones = await prisma.zone.findMany({
       where: { organizationId: ctx.organizationId },
       orderBy: { name: 'asc' },
+      take: 500,
       include: {
         metrics: {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-        alertThresholds: true,
+        // One per parameter at most (unique on zone + parameter), so bounded
+        // by the handful of parameters there are.
+        alertThresholds: { orderBy: { parameter: 'asc' }, take: 50 },
       },
     });
 
@@ -54,20 +70,19 @@ export async function POST(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('add zones');
 
-    const data = await request.json();
-    const { name, type } = data;
-
-    if (!name || !type) {
-      return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
-    }
+    const body = await readJson(request, createSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
     const zone = await prisma.zone.create({
       data: {
         userId: ctx.userId,
         organizationId: ctx.organizationId,
-        name,
-        type,
+        name: input.name,
+        type: input.type,
+        ...(input.status ? { status: input.status } : {}),
       },
     });
 

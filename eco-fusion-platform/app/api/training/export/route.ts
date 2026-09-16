@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { canAdminister, isSameOrganization } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { csvRow } from '@/lib/csv';
 
 // GET - Export training records as CSV
 export async function GET(request: Request) {
@@ -85,16 +86,18 @@ export async function GET(request: Request) {
         const now = new Date();
         const csvRows: string[] = [];
 
-        // Header info
-        csvRows.push(`Training Records Export`);
-        csvRows.push(`Employee: ${user.name || 'N/A'}`);
-        csvRows.push(`Email: ${user.email}`);
-        csvRows.push(`Export Date: ${now.toLocaleDateString()}`);
+        // Every cell goes through csvRow: quoted, quotes doubled, and a
+        // leading = + - @ defused, since course titles and names are typed by
+        // people and open in somebody's spreadsheet.
+        csvRows.push(csvRow(['Training Records Export']));
+        csvRows.push(csvRow(['Employee', user.name || 'N/A']));
+        csvRows.push(csvRow(['Email', user.email]));
+        csvRows.push(csvRow(['Export Date', now.toLocaleDateString()]));
         csvRows.push('');
 
         // Completed Courses Section
-        csvRows.push('COMPLETED TRAINING');
-        csvRows.push('Course Code,Course Title,Category,Required,Completion Date,Score,Certificate ID,Expires,Status');
+        csvRows.push(csvRow(['COMPLETED TRAINING']));
+        csvRows.push(csvRow(['Course Code', 'Course Title', 'Category', 'Required', 'Completion Date', 'Score', 'Certificate ID', 'Expires', 'Status']));
 
         for (const completion of completions) {
             const expiresAt = completion.expiresAt ? new Date(completion.expiresAt) : null;
@@ -105,9 +108,9 @@ export async function GET(request: Request) {
                 else if (daysRemaining <= 30) status = 'Expiring Soon';
             }
 
-            csvRows.push([
+            csvRows.push(csvRow([
                 completion.course.code,
-                `"${completion.course.title}"`,
+                completion.course.title,
                 completion.course.category,
                 completion.course.isRequired ? 'Yes' : 'No',
                 new Date(completion.completedAt).toLocaleDateString(),
@@ -115,39 +118,42 @@ export async function GET(request: Request) {
                 completion.certificateId || 'N/A',
                 expiresAt ? expiresAt.toLocaleDateString() : 'Never',
                 status
-            ].join(','));
+            ]));
         }
 
         csvRows.push('');
 
         // Pending Assignments Section
         if (assignments.length > 0) {
-            csvRows.push('PENDING/IN-PROGRESS TRAINING');
-            csvRows.push('Course Code,Course Title,Category,Required,Status,Due Date');
+            csvRows.push(csvRow(['PENDING/IN-PROGRESS TRAINING']));
+            csvRows.push(csvRow(['Course Code', 'Course Title', 'Category', 'Required', 'Status', 'Due Date']));
 
             for (const assignment of assignments) {
-                csvRows.push([
+                csvRows.push(csvRow([
                     assignment.course.code,
-                    `"${assignment.course.title}"`,
+                    assignment.course.title,
                     assignment.course.category,
                     assignment.course.isRequired ? 'Yes' : 'No',
                     assignment.status,
                     assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No deadline'
-                ].join(','));
+                ]));
             }
         }
 
         csvRows.push('');
-        csvRows.push(`Total Completed: ${completions.length}`);
-        csvRows.push(`Pending Assignments: ${assignments.length}`);
+        csvRows.push(csvRow(['Total Completed', completions.length]));
+        csvRows.push(csvRow(['Pending Assignments', assignments.length]));
 
-        const csvContent = csvRows.join('\n');
+        const csvContent = csvRows.join('\r\n');
+        // A file name from the email's local part, reduced to safe characters
+        // so it cannot break out of the header.
+        const namePart = user.email.split('@')[0].replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 60) || 'user';
 
         // Return as downloadable CSV
         return new NextResponse(csvContent, {
             headers: {
-                'Content-Type': 'text/csv',
-                'Content-Disposition': `attachment; filename="training-records-${user.email.split('@')[0]}-${now.toISOString().split('T')[0]}.csv"`
+                'Content-Type': 'text/csv; charset=utf-8',
+                'Content-Disposition': `attachment; filename="training-records-${namePart}-${now.toISOString().split('T')[0]}.csv"`
             }
         });
     } catch (error) {

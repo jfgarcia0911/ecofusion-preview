@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
+import { canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import { adminOnly, requiredText } from '@/lib/validation/fields';
+
+const ZONE_STATUSES = ['active', 'maintenance', 'offline'] as const;
+
+// Only these fields; anything else in the body is dropped before Prisma.
+const updateSchema = z.object({
+  name: requiredText(120).optional(),
+  type: requiredText(60).optional(),
+  status: z.enum(ZONE_STATUSES).optional(),
+});
 
 // GET - Fetch a single zone with its latest readings
 export async function GET(
@@ -23,7 +36,7 @@ export async function GET(
           orderBy: { timestamp: 'desc' },
           take: 24, // Last 24 readings for charts
         },
-        alertThresholds: true,
+        alertThresholds: { orderBy: { parameter: 'asc' }, take: 50 },
         fishStocks: {
           where: { status: 'growing' },
           take: 5,
@@ -73,39 +86,38 @@ export async function PATCH(
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('change zones');
 
     const { id } = await params;
-    const data = await request.json();
-    const { name, type, status } = data;
+    const body = await readJson(request, updateSchema);
+    if (!body.ok) return body.response;
+    const changes = body.data;
 
-    // Verify zone belongs to user
-    const existingZone = await prisma.zone.findFirst({
-      where: {
-        id,
-        organizationId: ctx.organizationId,
+    const { count } = await prisma.zone.updateMany({
+      where: { id, organizationId: ctx.organizationId },
+      data: {
+        name: changes.name,
+        type: changes.type,
+        status: changes.status,
       },
     });
-
-    if (!existingZone) {
+    if (count === 0) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
-    // Update zone
-    const zone = await prisma.zone.update({
-      where: { id },
-      data: {
-        name: name !== undefined ? name : undefined,
-        type: type !== undefined ? type : undefined,
-        status: status !== undefined ? status : undefined,
-      },
+    const zone = await prisma.zone.findFirst({
+      where: { id, organizationId: ctx.organizationId },
       include: {
         metrics: {
           orderBy: { timestamp: 'desc' },
           take: 1,
         },
-        alertThresholds: true,
+        alertThresholds: { orderBy: { parameter: 'asc' }, take: 50 },
       },
     });
+    if (!zone) {
+      return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
+    }
 
     return NextResponse.json(zone);
   } catch (error) {
@@ -122,18 +134,20 @@ export async function DELETE(
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('delete zones');
 
     const { id } = await params;
 
-    // Verify zone belongs to user
     const existingZone = await prisma.zone.findFirst({
-      where: {
-        id,
-        organizationId: ctx.organizationId,
-      },
-      include: {
-        fishStocks: { where: { status: 'growing' } },
-        plantCrops: { where: { status: 'growing' } },
+      where: { id, organizationId: ctx.organizationId },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            fishStocks: { where: { status: 'growing' } },
+            plantCrops: { where: { status: 'growing' } },
+          },
+        },
       },
     });
 
@@ -141,18 +155,25 @@ export async function DELETE(
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
-    // Warn if zone has active stock
-    if (existingZone.fishStocks.length > 0 || existingZone.plantCrops.length > 0) {
+    // Refuse while the zone still has live stock in it
+    const fishStockCount = existingZone._count.fishStocks;
+    const plantCropCount = existingZone._count.plantCrops;
+    if (fishStockCount > 0 || plantCropCount > 0) {
       return NextResponse.json({
         error: 'Cannot delete zone with active fish stocks or plant crops. Please harvest or relocate them first.',
         hasActiveStock: true,
-        fishStockCount: existingZone.fishStocks.length,
-        plantCropCount: existingZone.plantCrops.length,
+        fishStockCount,
+        plantCropCount,
       }, { status: 400 });
     }
 
     // Delete zone (cascade will handle readings, thresholds, alerts)
-    await prisma.zone.delete({ where: { id } });
+    const { count } = await prisma.zone.deleteMany({
+      where: { id, organizationId: ctx.organizationId },
+    });
+    if (count === 0) {
+      return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

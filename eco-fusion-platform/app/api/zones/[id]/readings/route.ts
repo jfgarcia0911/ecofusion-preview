@@ -17,6 +17,21 @@ const readingSchema = z.object({
   humidity: sensorValue,
 });
 
+type Parameter = 'temperature' | 'ph' | 'dissolvedO2' | 'ammonia' | 'humidity';
+
+const LABELS: Record<Parameter, string> = {
+  temperature: 'Temperature',
+  ph: 'pH',
+  dissolvedO2: 'Dissolved O2',
+  ammonia: 'Ammonia',
+  humidity: 'Humidity',
+};
+
+const SEVERITIES = new Set(['info', 'warning', 'critical']);
+
+/** The roles told about a threshold being crossed, besides whoever entered the reading. */
+const ALERTED_ROLES = ['owner', 'supervisor', 'manager'];
+
 // GET - Fetch sensor readings for a zone
 export async function GET(
   request: Request,
@@ -30,18 +45,19 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     // Out of range or not a number falls back to 50 rather than refusing:
     // a bad limit is the caller's typo, not a reason to withhold the list.
+    // listLimit already caps it at 200.
     const limit = listLimit.parse(searchParams.get('limit'));
 
-    // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
       where: { id: zoneId, organizationId: ctx.organizationId },
+      select: { id: true },
     });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
     const readings = await prisma.sensorReading.findMany({
-      where: { zoneId },
+      where: { zoneId: zone.id },
       orderBy: { timestamp: 'desc' },
       take: limit,
     });
@@ -65,112 +81,124 @@ export async function POST(
     const { id: zoneId } = await params;
     const parsed = await readJson(request, readingSchema);
     if (!parsed.ok) return parsed.response;
-    const { temperature, ph, dissolvedO2, ammonia, humidity } = parsed.data;
+    const values = parsed.data;
 
-    // Verify zone belongs to user
     const zone = await prisma.zone.findFirst({
       where: { id: zoneId, organizationId: ctx.organizationId },
-      include: { alertThresholds: true },
+      select: {
+        id: true,
+        name: true,
+        alertThresholds: { where: { enabled: true }, take: 50 },
+      },
     });
     if (!zone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
-    // Create the sensor reading
-    const reading = await prisma.sensorReading.create({
-      data: {
-        zoneId,
-        temperature: temperature ?? null,
-        ph: ph ?? null,
-        dissolvedO2: dissolvedO2 ?? null,
-        ammonia: ammonia ?? null,
-        humidity: humidity ?? null,
-      },
-    });
-
-    // Check thresholds and generate alerts
-    const alerts: string[] = [];
-
+    // What this reading breaches, worked out before touching the database.
+    const breaches: { paramName: string; message: string; severity: string }[] = [];
     for (const threshold of zone.alertThresholds) {
-      if (!threshold.enabled) continue;
+      if (!(threshold.parameter in LABELS)) continue;
+      const parameter = threshold.parameter as Parameter;
+      const value = values[parameter];
+      if (value === null || value === undefined) continue;
+      const paramName = LABELS[parameter];
 
-      let value: number | null = null;
-      let paramName = '';
-
-      switch (threshold.parameter) {
-        case 'temperature':
-          value = reading.temperature;
-          paramName = 'Temperature';
-          break;
-        case 'ph':
-          value = reading.ph;
-          paramName = 'pH';
-          break;
-        case 'dissolvedO2':
-          value = reading.dissolvedO2;
-          paramName = 'Dissolved O2';
-          break;
-        case 'ammonia':
-          value = reading.ammonia;
-          paramName = 'Ammonia';
-          break;
-        case 'humidity':
-          value = reading.humidity;
-          paramName = 'Humidity';
-          break;
-      }
-
-      if (value === null) continue;
-
-      let alertMessage: string | null = null;
-
+      let message: string | null = null;
       if (threshold.minValue !== null && value < threshold.minValue) {
-        alertMessage = `${paramName} (${value}) is below minimum threshold (${threshold.minValue})`;
+        message = `${paramName} (${value}) is below minimum threshold (${threshold.minValue})`;
       } else if (threshold.maxValue !== null && value > threshold.maxValue) {
-        alertMessage = `${paramName} (${value}) is above maximum threshold (${threshold.maxValue})`;
+        message = `${paramName} (${value}) is above maximum threshold (${threshold.maxValue})`;
       }
+      if (message) {
+        breaches.push({
+          paramName,
+          message,
+          severity: SEVERITIES.has(threshold.alertLevel) ? threshold.alertLevel : 'warning',
+        });
+      }
+    }
 
-      if (alertMessage) {
-        // Check if there's already an active alert for this parameter
-        const existingAlert = await prisma.alert.findFirst({
-          where: {
-            organizationId: ctx.organizationId,
-            zoneId,
-            type: 'threshold',
-            status: 'active',
-            title: { contains: paramName },
+    // Everyone answerable for the business hears about it, and the person who
+    // entered the reading, once each.
+    const recipients = breaches.length
+      ? [
+          ...new Set([
+            ctx.userId,
+            ...(
+              await prisma.membership.findMany({
+                where: { organizationId: ctx.organizationId, role: { in: ALERTED_ROLES } },
+                select: { userId: true },
+                take: 200,
+              })
+            ).map((m) => m.userId),
+          ]),
+        ]
+      : [];
+
+    const { reading, alerts } = await prisma.$transaction(
+      async (tx) => {
+        const reading = await tx.sensorReading.create({
+          data: {
+            zoneId: zone.id,
+            temperature: values.temperature ?? null,
+            ph: values.ph ?? null,
+            dissolvedO2: values.dissolvedO2 ?? null,
+            ammonia: values.ammonia ?? null,
+            humidity: values.humidity ?? null,
           },
         });
 
-        if (!existingAlert) {
-          // Create new alert
-          await prisma.alert.create({
-            data: {
-              userId: ctx.userId,
-        organizationId: ctx.organizationId,
-              zoneId,
+        const alerts: string[] = [];
+        if (breaches.length === 0) return { reading, alerts };
+
+        // One reading at a time decides this zone's alerts, so two readings
+        // arriving together cannot each see "no active alert" and both raise one.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`zone-alert:${zone.id}`}))`;
+
+        for (const breach of breaches) {
+          const title = `${breach.paramName} Alert - ${zone.name}`;
+          const existingAlert = await tx.alert.findFirst({
+            where: {
+              organizationId: ctx.organizationId,
+              zoneId: zone.id,
               type: 'threshold',
-              severity: threshold.alertLevel as 'info' | 'warning' | 'critical',
-              title: `${paramName} Alert - ${zone.name}`,
-              message: alertMessage,
+              status: 'active',
+              title: { startsWith: `${breach.paramName} Alert` },
             },
+            select: { id: true },
           });
+          if (existingAlert) continue;
 
-          // Create notification
-          await prisma.notification.create({
+          await tx.alert.create({
             data: {
               userId: ctx.userId,
-              title: `Threshold Alert: ${paramName}`,
-              message: `${zone.name}: ${alertMessage}`,
-              type: threshold.alertLevel === 'critical' ? 'error' : 'warning',
-              link: '/dashboard/operations',
+              organizationId: ctx.organizationId,
+              zoneId: zone.id,
+              type: 'threshold',
+              severity: breach.severity,
+              title,
+              message: breach.message,
             },
           });
 
-          alerts.push(alertMessage);
+          await tx.notification.createMany({
+            data: recipients.map((userId) => ({
+              userId,
+              title: `Threshold Alert: ${breach.paramName}`,
+              message: `${zone.name}: ${breach.message}`,
+              type: breach.severity === 'critical' ? 'error' : 'warning',
+              link: '/dashboard/operations',
+            })),
+          });
+
+          alerts.push(breach.message);
         }
-      }
-    }
+
+        return { reading, alerts };
+      },
+      { timeout: 15_000 }
+    );
 
     return NextResponse.json({
       reading,

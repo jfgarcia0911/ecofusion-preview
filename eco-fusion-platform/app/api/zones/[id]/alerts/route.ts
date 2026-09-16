@@ -1,6 +1,38 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
+import { canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import { adminOnly, optionalNumber } from '@/lib/validation/fields';
+
+const PARAMETERS = ['temperature', 'ph', 'dissolvedO2', 'ammonia', 'humidity'] as const;
+const ALERT_LEVELS = ['info', 'warning', 'critical'] as const;
+
+// A limit is a sensor value: generous, but finite and bounded.
+const limit = optionalNumber(-1_000_000, 1_000_000);
+
+const thresholdSchema = z
+  .object({
+    parameter: z.enum(PARAMETERS),
+    minValue: limit,
+    maxValue: limit,
+    enabled: z.boolean().optional(),
+    alertLevel: z.enum(ALERT_LEVELS).optional(),
+  })
+  .refine(
+    (t) => t.minValue === null || t.minValue === undefined ||
+      t.maxValue === null || t.maxValue === undefined ||
+      t.minValue <= t.maxValue,
+    { message: 'Minimum must not be above maximum', path: ['minValue'] }
+  );
+
+const deleteQuery = z.object({ parameter: z.enum(PARAMETERS) });
+
+/** A zone, only if it is this business's. */
+function zoneInBusiness(zoneId: string, organizationId: string) {
+  return prisma.zone.findFirst({ where: { id: zoneId, organizationId }, select: { id: true } });
+}
 
 // GET - Fetch all alert thresholds for a zone
 export async function GET(
@@ -13,18 +45,14 @@ export async function GET(
 
     const { id: zoneId } = await params;
 
-    // Verify zone belongs to user
-    const zone = await prisma.zone.findFirst({
-      where: { id: zoneId, organizationId: ctx.organizationId },
+    const alerts = await prisma.zoneAlertThreshold.findMany({
+      where: { zoneId, zone: { organizationId: ctx.organizationId } },
+      orderBy: { parameter: 'asc' },
+      take: 50,
     });
-    if (!zone) {
+    if (alerts.length === 0 && !(await zoneInBusiness(zoneId, ctx.organizationId))) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
-
-    const alerts = await prisma.zoneAlertThreshold.findMany({
-      where: { zoneId },
-      orderBy: { parameter: 'asc' },
-    });
 
     return NextResponse.json(alerts);
   } catch (error) {
@@ -41,45 +69,35 @@ export async function POST(
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('change alert limits');
 
     const { id: zoneId } = await params;
-    const body = await request.json();
+    const body = await readJson(request, thresholdSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    const { parameter, minValue, maxValue, enabled, alertLevel } = body;
-
-    if (!parameter) {
-      return NextResponse.json({ error: 'Parameter is required' }, { status: 400 });
-    }
-
-    const validParameters = ['temperature', 'ph', 'dissolvedO2', 'ammonia', 'humidity'];
-    if (!validParameters.includes(parameter)) {
-      return NextResponse.json({ error: 'Invalid parameter' }, { status: 400 });
-    }
-
-    // Verify zone exists and belongs to user
-    const zone = await prisma.zone.findFirst({ where: { id: zoneId, organizationId: ctx.organizationId } });
-    if (!zone) {
+    if (!(await zoneInBusiness(zoneId, ctx.organizationId))) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
     }
 
     // Upsert the alert threshold
     const alert = await prisma.zoneAlertThreshold.upsert({
       where: {
-        zoneId_parameter: { zoneId, parameter },
+        zoneId_parameter: { zoneId, parameter: input.parameter },
       },
       update: {
-        minValue: minValue !== undefined ? minValue : undefined,
-        maxValue: maxValue !== undefined ? maxValue : undefined,
-        enabled: enabled !== undefined ? enabled : undefined,
-        alertLevel: alertLevel || undefined,
+        minValue: input.minValue,
+        maxValue: input.maxValue,
+        enabled: input.enabled,
+        alertLevel: input.alertLevel,
       },
       create: {
         zoneId,
-        parameter,
-        minValue,
-        maxValue,
-        enabled: enabled ?? true,
-        alertLevel: alertLevel || 'warning',
+        parameter: input.parameter,
+        minValue: input.minValue ?? null,
+        maxValue: input.maxValue ?? null,
+        enabled: input.enabled ?? true,
+        alertLevel: input.alertLevel ?? 'warning',
       },
     });
 
@@ -98,26 +116,30 @@ export async function DELETE(
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('change alert limits');
 
     const { id: zoneId } = await params;
-    const { searchParams } = new URL(request.url);
-    const parameter = searchParams.get('parameter');
-
-    if (!parameter) {
-      return NextResponse.json({ error: 'Parameter is required' }, { status: 400 });
+    const parsed = deleteQuery.safeParse(
+      Object.fromEntries(new URL(request.url).searchParams)
+    );
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'A valid parameter is required' }, { status: 400 });
     }
 
-    // Verify zone belongs to user
-    const zone = await prisma.zone.findFirst({ where: { id: zoneId, organizationId: ctx.organizationId } });
-    if (!zone) {
-      return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
-    }
-
-    await prisma.zoneAlertThreshold.delete({
+    const { count } = await prisma.zoneAlertThreshold.deleteMany({
       where: {
-        zoneId_parameter: { zoneId, parameter },
+        zoneId,
+        parameter: parsed.data.parameter,
+        zone: { organizationId: ctx.organizationId },
       },
     });
+    if (count === 0) {
+      const zone = await zoneInBusiness(zoneId, ctx.organizationId);
+      return NextResponse.json(
+        { error: zone ? 'Alert not found' : 'Zone not found' },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

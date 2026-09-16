@@ -3,6 +3,8 @@ import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { resolvePhaseId, monthRange } from '@/lib/phase-revenue';
 
+/** Most sales one month's chart reads. Far above any real month. */
+const MAX_SALES = 20_000;
 
 // GET - Fetch revenue data for a phase (weekly breakdown for the current month)
 export async function GET(
@@ -19,21 +21,40 @@ export async function GET(
     const now = new Date();
     const { startOfMonth, endOfMonth } = monthRange(now);
 
-    // Get all sales for the current month
-    const sales = await prisma.sale.findMany({
-      where: {
-        organizationId: ctx.organizationId,
-        saleDate: {
-          gte: startOfMonth,
-          lte: endOfMonth,
+    const [units, sales] = await Promise.all([
+      // The business's own units decide which product belongs where, in the
+      // order the business keeps them, rather than the platform defaults.
+      prisma.businessUnit.findMany({
+        where: { organizationId: ctx.organizationId },
+        orderBy: { sortOrder: 'asc' },
+        select: { key: true, keywords: true, enabled: true },
+      }),
+      prisma.sale.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          saleDate: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+          status: 'completed',
         },
-        status: 'completed',
-      },
-      include: {
-        items: true,
-      },
-      orderBy: { saleDate: 'asc' },
-    });
+        select: {
+          saleDate: true,
+          items: { select: { productName: true, total: true, phaseId: true } },
+        },
+        orderBy: { saleDate: 'asc' },
+        take: MAX_SALES,
+      }),
+    ]);
+
+    if (!units.some((unit) => unit.key === phaseId)) {
+      return NextResponse.json({ error: 'Business unit not found' }, { status: 404 });
+    }
+    // Keywords are matched against live units only, as the overview does, so
+    // the two agree on where an untagged line belongs.
+    const keywordTable = units
+      .filter((unit) => unit.enabled)
+      .map((unit) => ({ key: unit.key, keywords: unit.keywords }));
 
     // Group sales by week and filter by phase-related products
     const weeklyData: { name: string; revenue: number }[] = [];
@@ -45,18 +66,15 @@ export async function GET(
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
 
-      // Filter sales in this week
       const weekSales = sales.filter(sale => {
         const saleDate = new Date(sale.saleDate);
         return saleDate >= weekStart && saleDate <= weekEnd;
       });
 
-      // Calculate revenue for phase-related products
       let weekRevenue = 0;
-
       for (const sale of weekSales) {
         for (const item of sale.items) {
-          if (resolvePhaseId(item) === phaseId) {
+          if (resolvePhaseId(item, keywordTable) === phaseId) {
             weekRevenue += item.total;
           }
         }
@@ -68,7 +86,6 @@ export async function GET(
       });
     }
 
-    // Calculate total revenue for the month
     const totalRevenue = weeklyData.reduce((sum, week) => sum + week.revenue, 0);
 
     return NextResponse.json({

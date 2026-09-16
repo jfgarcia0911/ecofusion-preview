@@ -1,10 +1,25 @@
 import { NextResponse } from 'next/server';
-import { activeOrg } from '@/lib/api-access';
-import { prisma } from '@/lib/prisma';
-import { sensorValue } from '@/lib/validation/request';
+import { z } from 'zod';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { activeOrg } from '@/lib/api-access';
+import { canAdminister, type OrgContext } from '@/lib/tenancy';
+import { prisma } from '@/lib/prisma';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { readJson } from '@/lib/validation/request';
+import { aiRateLimited, chatHistory, chatMessage } from '@/lib/validation/fields';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+const chatSchema = z.object({
+  message: chatMessage,
+  history: chatHistory,
+});
+
+/** Messages one person may send the assistant in an hour. */
+const AI_LIMIT = { interval: 60 * 60 * 1000, maxRequests: 60 };
+
+/** Most commands one reply may carry. Anything past this is ignored. */
+const MAX_COMMANDS = 10;
 
 const SYSTEM_PROMPT = `You are EcoFusion AI, an intelligent assistant integrated into an aquaponics farm management system. You have REAL-TIME ACCESS to the system's data including:
 
@@ -18,7 +33,7 @@ const SYSTEM_PROMPT = `You are EcoFusion AI, an intelligent assistant integrated
 You can SET, UPDATE, or REMOVE alert thresholds when the user requests. To do this, include a command block in your response using this exact format:
 
 [COMMAND:SET_ALERT]
-zone: <zone name or partial match>
+zone: <exact zone name>
 parameter: <temperature|ph|dissolvedO2|ammonia|humidity>
 min: <number or null>
 max: <number or null>
@@ -26,7 +41,7 @@ level: <info|warning|critical>
 [/COMMAND]
 
 [COMMAND:REMOVE_ALERT]
-zone: <zone name>
+zone: <exact zone name>
 parameter: <parameter name>
 [/COMMAND]
 
@@ -50,11 +65,13 @@ Examples:
   level: critical
   [/COMMAND]
 
-Always explain what you're doing in natural language AND include the command block. The command will be executed automatically.`;
+Always use the zone's name exactly as it appears in the data below. Always explain what you're doing in natural language AND include the command block. The command will be executed automatically.`;
+
+type Command = { type: 'SET_ALERT' | 'REMOVE_ALERT'; params: Record<string, string | null> };
 
 // Parse commands from AI response
-function parseCommands(text: string): Array<{ type: string; params: Record<string, string | null> }> {
-  const commands: Array<{ type: string; params: Record<string, string | null> }> = [];
+function parseCommands(text: string): Command[] {
+  const commands: Command[] = [];
 
   const setAlertRegex = /\[COMMAND:SET_ALERT\]([\s\S]*?)\[\/COMMAND\]/g;
   const removeAlertRegex = /\[COMMAND:REMOVE_ALERT\]([\s\S]*?)\[\/COMMAND\]/g;
@@ -65,11 +82,11 @@ function parseCommands(text: string): Array<{ type: string; params: Record<strin
     const content = match[1];
     const params: Record<string, string | null> = {};
 
-    const zoneMatch = content.match(/zone:\s*(.+)/i);
-    const paramMatch = content.match(/parameter:\s*(.+)/i);
-    const minMatch = content.match(/min:\s*(.+)/i);
-    const maxMatch = content.match(/max:\s*(.+)/i);
-    const levelMatch = content.match(/level:\s*(.+)/i);
+    const zoneMatch = content.match(/zone:[ \t]*(.*)/i);
+    const paramMatch = content.match(/parameter:[ \t]*(.*)/i);
+    const minMatch = content.match(/min:[ \t]*(.*)/i);
+    const maxMatch = content.match(/max:[ \t]*(.*)/i);
+    const levelMatch = content.match(/level:[ \t]*(.*)/i);
 
     if (zoneMatch) params.zone = zoneMatch[1].trim();
     if (paramMatch) params.parameter = paramMatch[1].trim().toLowerCase();
@@ -84,8 +101,8 @@ function parseCommands(text: string): Array<{ type: string; params: Record<strin
     const content = match[1];
     const params: Record<string, string | null> = {};
 
-    const zoneMatch = content.match(/zone:\s*(.+)/i);
-    const paramMatch = content.match(/parameter:\s*(.+)/i);
+    const zoneMatch = content.match(/zone:[ \t]*(.*)/i);
+    const paramMatch = content.match(/parameter:[ \t]*(.*)/i);
 
     if (zoneMatch) params.zone = zoneMatch[1].trim();
     if (paramMatch) params.parameter = paramMatch[1].trim().toLowerCase();
@@ -93,84 +110,154 @@ function parseCommands(text: string): Array<{ type: string; params: Record<strin
     commands.push({ type: 'REMOVE_ALERT', params });
   }
 
-  return commands;
+  return commands.slice(0, MAX_COMMANDS);
 }
 
-// Find zone by name (scoped to user)
-async function findZone(zoneName: string, userId: string) {
-  let zone = await prisma.zone.findFirst({
+/** Parameter names as the model writes them (lower-cased), to how they are stored. */
+const PARAMETERS: Record<string, string> = {
+  temperature: 'temperature',
+  ph: 'ph',
+  dissolvedo2: 'dissolvedO2',
+  ammonia: 'ammonia',
+  humidity: 'humidity',
+};
+
+const ALERT_LEVELS = new Set(['info', 'warning', 'critical']);
+
+/** The stored name of a parameter, or null when it is not one. */
+function parameterName(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const key = raw.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(PARAMETERS, key) ? PARAMETERS[key] : null;
+}
+
+/**
+ * A limit from the model's text. Absent and "null" mean none; anything else
+ * must be a finite number in a sensor's range, or the command is refused.
+ */
+function parseLimit(
+  raw: string | null | undefined
+): { ok: true; value: number | null } | { ok: false } {
+  if (raw === null || raw === undefined || raw.trim() === '') return { ok: true, value: null };
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || Math.abs(value) > 1_000_000) return { ok: false };
+  return { ok: true, value };
+}
+
+/**
+ * The one zone of this business with exactly this name (ignoring case), or
+ * with this id. A blank name matches nothing, and a name two zones share is
+ * refused rather than guessed at.
+ */
+async function findZone(
+  zoneName: string | null | undefined,
+  organizationId: string
+): Promise<{ zone: { id: string; name: string } | null; reason: string }> {
+  const name = zoneName?.trim() ?? '';
+  if (!name || name.length > 200) return { zone: null, reason: 'No zone was named' };
+
+  const matches = await prisma.zone.findMany({
     where: {
-      userId,
+      organizationId,
       OR: [
-        { name: { contains: zoneName, mode: 'insensitive' } },
-        { id: zoneName },
+        { name: { equals: name, mode: 'insensitive' } },
+        { id: name },
       ],
     },
+    select: { id: true, name: true },
+    take: 2,
   });
-  return zone;
+  if (matches.length === 0) return { zone: null, reason: `Could not find zone: ${name}` };
+  if (matches.length > 1) {
+    return { zone: null, reason: `More than one zone is called ${name}, so nothing was changed` };
+  }
+  return { zone: matches[0], reason: '' };
 }
 
 // Execute commands
-async function executeCommands(commands: Array<{ type: string; params: Record<string, string | null> }>, userId: string) {
+async function executeCommands(commands: Command[], ctx: OrgContext): Promise<string[]> {
+  // Alert limits are configuration, and configuration belongs to the people
+  // who run the business. Nothing is changed, and the reply says why.
+  if (!canAdminister(ctx)) {
+    return ['No changes were made: only an owner, supervisor or manager can change alert limits.'];
+  }
+
   const results: string[] = [];
 
   for (const cmd of commands) {
+    const parameter = parameterName(cmd.params.parameter);
+    if (!parameter) {
+      results.push(`Invalid parameter: ${cmd.params.parameter ?? '(none)'}`);
+      continue;
+    }
+
+    const { zone, reason } = await findZone(cmd.params.zone, ctx.organizationId);
+    if (!zone) {
+      results.push(reason);
+      continue;
+    }
+
     if (cmd.type === 'SET_ALERT') {
-      const zone = await findZone(cmd.params.zone || '', userId);
-      if (!zone) {
-        results.push(`Could not find zone: ${cmd.params.zone}`);
+      const min = parseLimit(cmd.params.min);
+      const max = parseLimit(cmd.params.max);
+      if (!min.ok || !max.ok) {
+        results.push(`Alert for ${parameter} in ${zone.name} not set: the limits must be numbers`);
         continue;
       }
-
-      const parameter = cmd.params.parameter;
-      const validParams = ['temperature', 'ph', 'dissolvedo2', 'ammonia', 'humidity'];
-      if (!parameter || !validParams.includes(parameter.toLowerCase())) {
-        results.push(`Invalid parameter: ${parameter}`);
+      if (min.value === null && max.value === null) {
+        results.push(`Alert for ${parameter} in ${zone.name} not set: give a minimum or a maximum`);
         continue;
       }
-
-      const paramName = parameter === 'dissolvedo2' ? 'dissolvedO2' : parameter;
+      if (min.value !== null && max.value !== null && min.value > max.value) {
+        results.push(`Alert for ${parameter} in ${zone.name} not set: the minimum is above the maximum`);
+        continue;
+      }
+      const level = cmd.params.level?.trim() || 'warning';
+      if (!ALERT_LEVELS.has(level)) {
+        results.push(
+          `Alert for ${parameter} in ${zone.name} not set: the level must be info, warning or critical`
+        );
+        continue;
+      }
 
       try {
         await prisma.zoneAlertThreshold.upsert({
           where: {
-            zoneId_parameter: { zoneId: zone.id, parameter: paramName },
+            zoneId_parameter: { zoneId: zone.id, parameter },
           },
           update: {
-            minValue: sensorValue.catch(null).parse(cmd.params.min) ?? null,
-            maxValue: sensorValue.catch(null).parse(cmd.params.max) ?? null,
-            alertLevel: cmd.params.level || 'warning',
+            minValue: min.value,
+            maxValue: max.value,
+            alertLevel: level,
             enabled: true,
           },
           create: {
             zoneId: zone.id,
-            parameter: paramName,
-            minValue: sensorValue.catch(null).parse(cmd.params.min) ?? null,
-            maxValue: sensorValue.catch(null).parse(cmd.params.max) ?? null,
-            alertLevel: cmd.params.level || 'warning',
+            parameter,
+            minValue: min.value,
+            maxValue: max.value,
+            alertLevel: level,
             enabled: true,
           },
         });
-        results.push(`✓ Alert set for ${paramName} in ${zone.name}`);
+        results.push(`✓ Alert set for ${parameter} in ${zone.name}`);
       } catch (error) {
-        results.push(`Failed to set alert: ${error}`);
+        console.error('AI intelligence: failed to set an alert threshold:', error);
+        results.push(`Could not set the alert for ${parameter} in ${zone.name}. Please try again.`);
       }
-    } else if (cmd.type === 'REMOVE_ALERT') {
-      const zone = await findZone(cmd.params.zone || '', userId);
-      if (!zone) {
-        results.push(`Could not find zone: ${cmd.params.zone}`);
-        continue;
-      }
-
+    } else {
       try {
-        await prisma.zoneAlertThreshold.delete({
-          where: {
-            zoneId_parameter: { zoneId: zone.id, parameter: cmd.params.parameter || '' },
-          },
+        const { count } = await prisma.zoneAlertThreshold.deleteMany({
+          where: { zoneId: zone.id, parameter, zone: { organizationId: ctx.organizationId } },
         });
-        results.push(`✓ Alert removed for ${cmd.params.parameter} in ${zone.name}`);
+        results.push(
+          count > 0
+            ? `✓ Alert removed for ${parameter} in ${zone.name}`
+            : 'Alert not found or already removed'
+        );
       } catch (error) {
-        results.push(`Alert not found or already removed`);
+        console.error('AI intelligence: failed to remove an alert threshold:', error);
+        results.push(`Could not remove the alert for ${parameter} in ${zone.name}. Please try again.`);
       }
     }
   }
@@ -186,49 +273,50 @@ function cleanResponse(text: string): string {
     .trim();
 }
 
-async function getSystemData(userId: string) {
+async function getSystemData(organizationId: string) {
+  // The business's data, whoever entered it, and a bounded amount of each so
+  // the prompt stays a sensible size however large the business grows.
   const [
     zones,
     recentReadings,
     fishStock,
     plantCrops,
-    recentHarvests,
-    salesInventory,
     growthParameters,
     alertThresholds
   ] = await Promise.all([
-    prisma.zone.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+    prisma.zone.findMany({
+      where: { organizationId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, type: true, status: true },
+      take: 100,
+    }),
     prisma.sensorReading.findMany({
-      where: { zone: { userId } },
-      include: { zone: true },
+      where: { zone: { organizationId } },
+      include: { zone: { select: { name: true } } },
       orderBy: { timestamp: 'desc' },
       take: 50
     }),
     prisma.fishStock.findMany({
-      where: { userId },
-      include: { zone: true },
-      orderBy: { dateAdded: 'desc' }
+      where: { organizationId },
+      include: { zone: { select: { name: true } } },
+      orderBy: { dateAdded: 'desc' },
+      take: 100,
     }),
     prisma.plantCrop.findMany({
-      where: { userId },
-      include: { zone: true },
-      orderBy: { plantedDate: 'desc' }
+      where: { organizationId },
+      include: { zone: { select: { name: true } } },
+      orderBy: { plantedDate: 'desc' },
+      take: 100,
     }),
-    prisma.harvest.findMany({
-      where: { userId },
-      include: { fishStock: true, plantCrop: true },
-      orderBy: { harvestDate: 'desc' },
-      take: 10
+    prisma.growthParameter.findMany({
+      where: { organizationId },
+      take: 100,
     }),
-    prisma.salesInventory.findMany({
-      where: { userId, status: 'available' },
-      orderBy: { addedDate: 'desc' }
-    }),
-    prisma.growthParameter.findMany({ where: { userId } }),
     prisma.zoneAlertThreshold.findMany({
-      where: { zone: { userId } },
-      include: { zone: true },
-      orderBy: { parameter: 'asc' }
+      where: { zone: { organizationId } },
+      include: { zone: { select: { name: true } } },
+      orderBy: { parameter: 'asc' },
+      take: 500,
     })
   ]);
 
@@ -271,7 +359,7 @@ async function getSystemData(userId: string) {
   if (recentReadings.length === 0) {
     context += 'No readings available.\n';
   } else {
-    const byZone = new Map();
+    const byZone = new Map<string, (typeof recentReadings)[number]>();
     recentReadings.forEach(r => {
       if (!byZone.has(r.zoneId)) byZone.set(r.zoneId, r);
     });
@@ -324,19 +412,21 @@ export async function POST(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const { message, history } = await request.json();
+    const body = await readJson(request, chatSchema);
+    if (!body.ok) return body.response;
+    const { message, history } = body.data;
 
-    if (!message) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
-    }
+    // Every message is paid for, so each person has an hourly allowance.
+    const limit = await checkRateLimit(`ai-intel:${ctx.userId}`, AI_LIMIT);
+    if (!limit.success) return aiRateLimited();
 
-    const systemData = await getSystemData(ctx.userId);
+    const systemData = await getSystemData(ctx.organizationId);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-    const chatHistory = history?.map((msg: { role: string; content: string }) => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
-    })) || [];
+    const turns = history.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.content }],
+    }));
 
     const chat = model.startChat({
       history: [
@@ -348,7 +438,7 @@ export async function POST(request: Request) {
           role: 'model',
           parts: [{ text: 'I understand. I am EcoFusion AI with access to your aquaponics system data. I can monitor your zones, readings, inventory, and manage alert thresholds. How can I help?' }],
         },
-        ...chatHistory,
+        ...turns,
       ],
     });
 
@@ -357,11 +447,7 @@ export async function POST(request: Request) {
 
     // Parse and execute any commands
     const commands = parseCommands(responseText);
-    let executionResults: string[] = [];
-
-    if (commands.length > 0) {
-      executionResults = await executeCommands(commands, ctx.userId);
-    }
+    const executionResults = commands.length > 0 ? await executeCommands(commands, ctx) : [];
 
     // Clean response and add execution results
     let finalResponse = cleanResponse(responseText);
@@ -372,7 +458,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: finalResponse,
       model: 'gemini-2.0-flash',
-      actionsExecuted: commands.length,
+      actionsExecuted: canAdminister(ctx) ? commands.length : 0,
     });
   } catch (error) {
     console.error('AI intelligence error:', error);
