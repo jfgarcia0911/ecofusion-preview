@@ -12,6 +12,7 @@
  */
 
 import { headers } from 'next/headers';
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole } from '@/lib/roles';
 
@@ -73,7 +74,10 @@ export async function logMemberWriteIfAny(
   const path = head.get('x-request-path');
   if (path && IGNORED.some((prefix) => path.startsWith(prefix))) return;
 
-  await record(organizationId, userId, 'write', { method: method.toUpperCase(), path });
+  // Written once the response has gone. The request never waited on this
+  // line for anything, and each write used to pay a round trip for it first.
+  const detail = { method: method.toUpperCase(), path };
+  after(() => record(organizationId, userId, 'write', detail));
 }
 
 /**

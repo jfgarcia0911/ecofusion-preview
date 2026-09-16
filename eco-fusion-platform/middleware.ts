@@ -109,7 +109,24 @@ export default async function middleware(request: NextRequest) {
   // not belong in a security pass; NextAuthRequest was tried and the call
   // does not typecheck against any declared overload.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return auth(request as any);
+  const result = (await auth(request as any)) as unknown as NextResponse | Response | undefined;
+
+  // A redirect (to sign in, or away from it) goes out as it is.
+  if (result && result.status >= 300 && result.status < 400) return result;
+
+  // Pages read the same request headers the API does, to write the activity
+  // and access trails. Only this file may set them: a copy sent by the browser
+  // with a page request would otherwise have written its own line - "deleted
+  // a sale" - into somebody's record.
+  const forwarded = new Headers(request.headers);
+  forwarded.delete(SUMMARY_HEADER);
+  forwarded.set('x-request-method', request.method);
+  forwarded.set('x-request-path', pathname);
+  const next = NextResponse.next({ request: { headers: forwarded } });
+  if (result instanceof NextResponse) {
+    for (const cookie of result.cookies.getAll()) next.cookies.set(cookie);
+  }
+  return next;
 }
 
 export const config = {

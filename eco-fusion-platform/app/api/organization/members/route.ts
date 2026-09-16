@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { canManageMembers } from '@/lib/tenancy';
+import { canAdminister, canManageMembers } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { validatePassword } from '@/lib/validation/password';
 import { ASSIGNABLE_BUSINESS_ROLES } from '@/lib/roles';
@@ -17,6 +17,11 @@ export async function GET() {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    // The list of logins, with their emails, is for the people who run the
+    // week; a member has no need of every colleague's address.
+    if (!canAdminister(ctx)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
 
     // Every business the caller owns. Team Access is an account screen now: a
     // login is not a thing one business holds, so listing only the people in

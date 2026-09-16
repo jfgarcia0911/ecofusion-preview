@@ -79,6 +79,8 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+
+  @@index([userId])
 }
 
 model Session {
@@ -87,6 +89,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -163,6 +167,8 @@ model Task {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+
+  @@index([organizationId, phaseId])
 }
 
 model Employee {
@@ -247,6 +253,8 @@ model Notification {
   link      String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
 }
 
 model UserLmsProgress {
@@ -362,6 +370,8 @@ model CourseGrant {
 
   @@unique([courseId, organizationId])
   @@index([organizationId])
+
+  @@index([purchaseId])
 }
 
 /// What each business was carrying when courses became something bought.
@@ -485,6 +495,8 @@ model CourseAssignment {
   course       TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, assigneeId])
+
+  @@index([assigneeId])
 }
 
 model CourseCompletion {
@@ -501,6 +513,8 @@ model CourseCompletion {
   user          User           @relation("CompletedCourses", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, userId])
+
+  @@index([userId])
 }
 
 model LessonCompletion {
@@ -514,6 +528,8 @@ model LessonCompletion {
   user        User           @relation("CompletedLessons", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([lessonId, userId])
+
+  @@index([userId])
 }
 
 model DashboardData {
@@ -555,6 +571,8 @@ model FishStock {
   organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+
+  @@index([zoneId])
 }
 
 model FishGrowthLog {
@@ -566,6 +584,8 @@ model FishGrowthLog {
   feedUsed    Float?
   notes       String?
   fishStock   FishStock @relation(fields: [fishStockId], references: [id], onDelete: Cascade)
+
+  @@index([fishStockId, recordedAt])
 }
 
 model PlantCrop {
@@ -590,6 +610,8 @@ model PlantCrop {
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+
+  @@index([zoneId])
 }
 
 model PlantGrowthLog {
@@ -601,6 +623,8 @@ model PlantGrowthLog {
   losses      Int       @default(0)
   notes       String?
   plantCrop   PlantCrop @relation(fields: [plantCropId], references: [id], onDelete: Cascade)
+
+  @@index([plantCropId, recordedAt])
 }
 
 model GrowthParameter {
@@ -673,6 +697,8 @@ model SalesInventory {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+
+  @@index([harvestId])
 }
 
 model Sale {
@@ -701,6 +727,8 @@ model Sale {
 
   @@index([userId, saleDate])
   @@index([organizationId])
+
+  @@index([organizationId, saleDate])
 }
 
 model SaleItem {
@@ -720,6 +748,9 @@ model SaleItem {
 
   @@index([saleId])
   @@index([phaseId])
+
+  @@index([harvestId])
+  @@index([inventoryItemId])
 }
 
 model IntegrationSettings {
@@ -762,6 +793,10 @@ model Alert {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+
+  @@index([organizationId, status, createdAt])
+  @@index([zoneId])
+  @@index([assigneeId])
 }
 
 model Camera {
@@ -788,6 +823,8 @@ model Camera {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+
+  @@index([zoneId])
 }
 
 model PhaseSettings {
