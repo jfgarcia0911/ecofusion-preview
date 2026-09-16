@@ -28,6 +28,7 @@ import {
 } from '@/lib/staff-permissions';
 import { applySnapshot, defaultSnapshot, startingBusinessUnits } from '@/lib/snapshots';
 import { logMemberWriteIfAny } from '@/lib/activity';
+import { BUSINESS_ROLES } from '@/lib/roles';
 
 /** Days a new agency may use the platform before it has to subscribe. See lib/plans. */
 export const TRIAL_DAYS = AGENCY_TRIAL_DAYS;
@@ -154,7 +155,11 @@ export function evaluateAccess(org: {
 
 /** Roles allowed to administer an organization rather than just work in it. */
 export function canAdminister(ctx: OrgContext): boolean {
-  return ctx.role === 'owner' || ctx.role === 'supervisor' || ctx.role === 'manager';
+  return (
+    ctx.role === BUSINESS_ROLES.OWNER ||
+    ctx.role === BUSINESS_ROLES.SUPERVISOR ||
+    ctx.role === BUSINESS_ROLES.MANAGER
+  );
 }
 
 /**
@@ -167,7 +172,7 @@ export function canAdminister(ctx: OrgContext): boolean {
  * data, belongs with the people answerable for the farm itself.
  */
 export function canManageMembers(ctx: OrgContext): boolean {
-  return ctx.role === 'owner' || ctx.role === 'supervisor';
+  return ctx.role === BUSINESS_ROLES.OWNER || ctx.role === BUSINESS_ROLES.SUPERVISOR;
 }
 
 /**
@@ -353,20 +358,6 @@ async function resolveEnteredContext(userId: string): Promise<OrgContext | null>
     staffRefusal,
     business: { name: organization.name, location: organization.location },
   };
-}
-
-/**
- * Context for a farm that is allowed to use the app, or null.
- *
- * Routes that change data should use this so a lapsed farm becomes read-only
- * rather than continuing to accumulate records it cannot see.
- */
-export async function getActiveOrgContext(): Promise<OrgContext | null> {
-  const ctx = await getOrgContext();
-  if (!ctx) return null;
-  // A lapsed farm is one of the reasons staff are called in, so it opens for
-  // them. It stays shut for everyone who belongs to it.
-  return ctx.access.allowed || ctx.isStaff ? ctx : null;
 }
 
 /** Whether `userId` belongs to the caller's organization. */

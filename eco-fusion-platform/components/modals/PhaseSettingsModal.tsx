@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Modal from "@/components/ui/Modal";
 import { DollarSign, Bell, Target, FileText, Save } from "lucide-react";
 
@@ -39,13 +39,7 @@ export default function PhaseSettingsModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchSettings();
-    }
-  }, [isOpen, phaseId]);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/phases/${phaseId}/settings`);
@@ -60,7 +54,13 @@ export default function PhaseSettingsModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [phaseId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSettings();
+    }
+  }, [isOpen, fetchSettings]);
 
   const handleSave = async () => {
     setSaving(true);

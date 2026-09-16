@@ -6,19 +6,11 @@ import {
 } from '@/lib/tenancy';
 
 /**
- * The businesses a person runs, and the making of another one.
+ * The businesses a person belongs to, for the switcher.
  *
- * Distinct from /api/admin/organizations, which is EcoFusion creating a
- * business for somebody else and gives it an owner of its own. Here the caller
- * is the owner, and the business they add is theirs: they hold it, they switch
- * into it, and the subscription they already pay covers it.
+ * Read-only: an owner holds one business, and new businesses are made by an
+ * agency (/api/admin/organizations), never from here.
  */
-
-const NAME_MAX = 100;
-const LOCATION_MAX = 200;
-
-/** More than this from one login is a mistake or an abuse, not a business. */
-const MAX_BUSINESSES_PER_OWNER = 20;
 
 // GET - every business the caller belongs to, for the switcher.
 export async function GET() {

@@ -8,7 +8,6 @@
  */
 
 import type { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
 
 /**
  * The courses one farm may see: what it wrote, and what it was given.

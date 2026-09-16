@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { User, Mail, Plus, UserPlus, X, KeyRound } from "lucide-react";
+import { User, Mail, UserPlus, KeyRound } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 
 interface Employee {

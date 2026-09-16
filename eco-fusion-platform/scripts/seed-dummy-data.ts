@@ -37,7 +37,7 @@ const CROPS = [
   ['Lettuce', 'Butterhead'], ['Basil', 'Genovese'], ['Kale', 'Red Russian'],
   ['Spinach', 'Bloomsdale'], ['Mint', 'Spearmint'],
 ]
-// From lib/constants.ts: the only phase ids the UI can route to.
+// The default business unit keys (lib/business-units).
 const PHASES = [
   'aquaculture', 'plant-production', 'methane-gas', 'fertilizer',
   'training-center', 'restaurant', 'solar-energy',
@@ -62,7 +62,8 @@ async function wipe() {
 
   let total = 0
   for (const model of models) {
-    const { count } = await (prisma as any)[model].deleteMany({
+    const delegate = (prisma as unknown as Record<string, { deleteMany: (args: object) => Promise<{ count: number }> }>)[model]
+    const { count } = await delegate.deleteMany({
       where: { id: { startsWith: 'seed_' } },
     })
     total += count

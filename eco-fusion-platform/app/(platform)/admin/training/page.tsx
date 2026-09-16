@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import {
     BookOpen, Users, Plus, Search, CheckCircle, Clock,
-    AlertCircle, Shield, Download, ChevronDown, X,
-    Award, Calendar, FileText, Loader2
+    Shield, Download, X,
+    Award, Loader2
 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
@@ -317,7 +317,6 @@ export default function AdminTrainingPage() {
     );
 
     const requiredCourses = courses.filter(c => c.isRequired);
-    const optionalCourses = courses.filter(c => !c.isRequired);
 
     // Levels in the order they are climbed, then whatever else exists, so the
     // chips read as a curriculum rather than as an alphabet.

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     PlayCircle, CheckCircle, Circle, FileText, HelpCircle,
@@ -84,13 +84,7 @@ export default function CoursePlayerPage() {
     // The lesson pane scrolls on its own; the window does not move.
     const lessonPaneRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (courseId) {
-            fetchCourse();
-        }
-    }, [courseId]);
-
-    const fetchCourse = async () => {
+    const fetchCourse = useCallback(async () => {
         try {
             // Fetch course details
             const courseRes = await fetch(`/api/training/courses/${courseId}`);
@@ -111,7 +105,13 @@ export default function CoursePlayerPage() {
             console.error('Failed to fetch course:', error);
         }
         setLoading(false);
-    };
+    }, [courseId, router]);
+
+    useEffect(() => {
+        if (courseId) {
+            fetchCourse();
+        }
+    }, [courseId, fetchCourse]);
 
     const isLessonCompleted = (lessonId: string) => {
         return completedLessons.some(c => c.lessonId === lessonId);

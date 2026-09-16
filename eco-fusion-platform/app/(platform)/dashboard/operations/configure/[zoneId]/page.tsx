@@ -1,7 +1,7 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { ArrowLeft, Save, RotateCcw, Thermometer, Droplets, Wind, Clock, Wifi, Bluetooth, Cable, Zap, AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, Save, Wifi, Bluetooth, Cable, Zap, AlertTriangle, Trash2 } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
 import { temperatureToDisplay, temperatureToCanonical, temperatureLabel } from "@/lib/units";
 import clsx from "clsx";
@@ -42,7 +42,7 @@ export default function ZoneConfigurationPage() {
     const confirmAction = useConfirm();
     const params = useParams();
     const router = useRouter();
-    const { zones, saveZone, removeZone, addZone, refreshZones } = useZones();
+    const { zones, saveZone, removeZone, addZone } = useZones();
 
     const zoneId = params?.zoneId as string | undefined;
     const isNewZone = zoneId === "new";
@@ -58,6 +58,19 @@ export default function ZoneConfigurationPage() {
     const [equipment, setEquipment] = useState<{ name: string, wattage: number, qty: number }[]>([
         { name: "Main Pump (2000 GPH)", wattage: 150, qty: 1 }
     ]);
+
+    const fetchThresholds = useCallback(async () => {
+        if (!zoneId || isNewZone) return;
+        try {
+            const response = await fetch(`/api/zones/${zoneId}/alerts`);
+            if (response.ok) {
+                const data = await response.json();
+                setAlertThresholds(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch thresholds:', err);
+        }
+    }, [zoneId, isNewZone]);
 
     useEffect(() => {
         if (!zoneId) return;
@@ -79,20 +92,7 @@ export default function ZoneConfigurationPage() {
             // Fetch alert thresholds
             fetchThresholds();
         }
-    }, [zones, zoneId, isNewZone]);
-
-    const fetchThresholds = async () => {
-        if (!zoneId || isNewZone) return;
-        try {
-            const response = await fetch(`/api/zones/${zoneId}/alerts`);
-            if (response.ok) {
-                const data = await response.json();
-                setAlertThresholds(data);
-            }
-        } catch (err) {
-            console.error('Failed to fetch thresholds:', err);
-        }
-    };
+    }, [zones, zoneId, isNewZone, fetchThresholds]);
 
     const saveThreshold = async (parameter: string, minValue: number | null, maxValue: number | null, enabled: boolean, alertLevel: string) => {
         if (!zoneId || isNewZone) return;
@@ -205,8 +205,8 @@ export default function ZoneConfigurationPage() {
                             <Trash2 size={16} /> Delete Zone
                         </button>
                     )}
-                    <button onClick={handleSave} className="px-4 py-2 rounded-lg font-bold flex items-center gap-2 bg-accent text-primary hover:bg-accent/90 transition-colors">
-                        <Save size={16} /> {isNewZone ? "Create Zone" : "Save Changes"}
+                    <button onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg font-bold flex items-center gap-2 bg-accent text-primary hover:bg-accent/90 transition-colors disabled:opacity-60">
+                        <Save size={16} /> {saving ? "Saving..." : isNewZone ? "Create Zone" : "Save Changes"}
                     </button>
                 </div>
             </div>
