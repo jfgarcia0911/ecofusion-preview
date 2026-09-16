@@ -53,10 +53,17 @@ export async function POST() {
         return NextResponse.json({ url });
     } catch (error) {
         console.error('Failed to start Stripe Connect onboarding:', error);
-        const message =
-            error instanceof Error && /connect/i.test(error.message)
-                ? 'Stripe Connect is not switched on for EcoFusion yet.'
-                : 'Could not reach Stripe. Try again.';
+        // Stripe's own reason is passed on: "not switched on" is only one of
+        // the things it can say, and guessing hid the others.
+        const stripeMessage =
+            error && typeof error === 'object' && 'type' in error && String(error.type).startsWith('Stripe')
+                ? (error as Error).message
+                : null;
+        const message = stripeMessage
+            ? /signed up for Connect/i.test(stripeMessage)
+                ? "Stripe Connect is not switched on in EcoFusion's Stripe account yet."
+                : `Stripe said: ${stripeMessage}`
+            : 'Could not reach Stripe. Try again.';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
