@@ -5,11 +5,12 @@ import { canManageMembers } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { validatePassword } from '@/lib/validation/password';
 import { ASSIGNABLE_BUSINESS_ROLES } from '@/lib/roles';
+import { mayResetPassword } from '@/lib/login-control';
 
 const ROLES = ASSIGNABLE_BUSINESS_ROLES;
 
 /** Which role wins when one person holds different ones in different businesses. */
-const RANK: Record<string, number> = { owner: 3, admin: 2, manager: 1, member: 0 };
+const RANK: Record<string, number> = { owner: 3, supervisor: 2, manager: 1, member: 0 };
 
 // GET - Everyone with access to this farm.
 export async function GET() {
@@ -119,22 +120,39 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, password, role, employeeId, organizationIds } = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Expected a JSON body' }, { status: 400 });
+    }
+    const { name, email, password, role, employeeId, organizationIds } = body as Record<string, unknown>;
 
     // One login may cover several of the caller's businesses - a manager who
     // runs two sites should not need two accounts. Absent means "this one",
     // which is what every existing caller sends.
     const requestedOrgIds: string[] = Array.isArray(organizationIds) && organizationIds.length
-      ? [...new Set(organizationIds.map(String))]
+      ? [...new Set(organizationIds.map(String))].slice(0, 50)
       : [ctx.organizationId];
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
+    if (email.length > 254 || (name !== undefined && name !== null && (typeof name !== 'string' || name.length > 120))) {
+      return NextResponse.json({ error: 'Name or email is too long' }, { status: 400 });
+    }
 
-    const requestedRole = role || 'member';
+    const requestedRole = typeof role === 'string' && role ? role : 'member';
     if (!ROLES.includes(requestedRole)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+    }
+
+    // Appointing a supervisor is the owner's call. A supervisor - or staff who
+    // stepped in with a supervisor's reach - could otherwise mint a login at
+    // their own level that outlives their own access.
+    if (requestedRole === 'supervisor' && ctx.role !== 'owner') {
+      return NextResponse.json(
+        { error: 'Only the owner can create a supervisor login' },
+        { status: 403 }
+      );
     }
 
     const passwordCheck = validatePassword(password);
@@ -191,6 +209,9 @@ export async function POST(request: Request) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // An employee may only be linked if they belong to this farm.
+    if (employeeId !== undefined && employeeId !== null && typeof employeeId !== 'string') {
+      return NextResponse.json({ error: 'Invalid employee' }, { status: 400 });
+    }
     if (employeeId) {
       const employee = await prisma.employee.findFirst({
         where: { id: employeeId, organizationId: ctx.organizationId },
@@ -207,7 +228,7 @@ export async function POST(request: Request) {
     const created = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          name: name || null,
+          name: typeof name === 'string' && name.trim() ? name.trim() : null,
           email: normalisedEmail,
           password: hashedPassword,
           onboardingComplete: true,
@@ -252,9 +273,8 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    if (!userId) {
+    const userId = new URL(request.url).searchParams.get('userId')?.trim();
+    if (!userId || userId.length > 200) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
@@ -273,15 +293,6 @@ export async function DELETE(request: Request) {
       if (!ctx.fullControl) {
         return NextResponse.json({ error: 'The owner cannot be removed' }, { status: 400 });
       }
-      const owners = await prisma.membership.count({
-        where: { organizationId: ctx.organizationId, role: 'owner' },
-      });
-      if (owners <= 1) {
-        return NextResponse.json(
-          { error: 'This is the only owner. Make someone else an owner first.' },
-          { status: 400 }
-        );
-      }
     }
 
     // Removing an admin is the same decision as demoting one, so it rests with
@@ -294,7 +305,27 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.membership.delete({ where: { id: membership.id } });
+    // Counted and removed in one serializable transaction, so two owners
+    // removing each other at the same moment cannot leave none.
+    const removed = await prisma.$transaction(
+      async (tx) => {
+        if (membership.role === 'owner') {
+          const owners = await tx.membership.count({
+            where: { organizationId: ctx.organizationId, role: 'owner' },
+          });
+          if (owners <= 1) return false;
+        }
+        await tx.membership.delete({ where: { id: membership.id } });
+        return true;
+      },
+      { isolationLevel: 'Serializable' }
+    );
+    if (!removed) {
+      return NextResponse.json(
+        { error: 'This is the only owner. Make someone else an owner first.' },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({ removed: userId });
   } catch (error) {
@@ -316,7 +347,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const { userId, password } = await request.json();
+    const body = await request.json().catch(() => null);
+    const userId = typeof body?.userId === 'string' ? body.userId : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
     if (!userId || !password) {
       return NextResponse.json({ error: 'userId and password are required' }, { status: 400 });
     }
@@ -326,39 +359,19 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: passwordCheck.errors[0] }, { status: 400 });
     }
 
-    const membership = await prisma.membership.findUnique({
-      where: { userId_organizationId: { userId, organizationId: ctx.organizationId } },
-      select: { role: true },
-    });
-
-    if (!membership) {
-      return NextResponse.json({ error: 'That person is not on this business' }, { status: 404 });
+    // A reset hands over the whole login, in every business it opens, so it
+    // is checked against all of them (lib/login-control). The master account
+    // alone may reset an owner's: an owner locked out of their own business is
+    // exactly the problem it is there to solve.
+    const control = await mayResetPassword(ctx, userId);
+    if (!control.ok) {
+      return NextResponse.json({ error: control.error }, { status: control.status });
     }
 
-    // A reset hands over the account, so it follows the same line as changing
-    // someone's role: an admin must not be able to seize the owner's account,
-    // nor a fellow admin's. Resetting your own password is always allowed.
-    //
-    // The master account alone may reset an owner's: an owner locked out of
-    // their own business is exactly the problem it is there to solve.
-    if (ctx.userId !== userId) {
-      if (membership.role === 'owner' && !ctx.fullControl) {
-        return NextResponse.json(
-          { error: "Only the owner can change the owner's password" },
-          { status: 403 }
-        );
-      }
-      if (membership.role === 'supervisor' && ctx.role !== 'owner') {
-        return NextResponse.json(
-          { error: "Only the owner can reset an admin's password" },
-          { status: 403 }
-        );
-      }
-    }
-
+    // The new password also ends every session the old one opened.
     await prisma.user.update({
       where: { id: userId },
-      data: { password: await bcrypt.hash(password, 12) },
+      data: { password: await bcrypt.hash(password, 12), sessionVersion: { increment: 1 } },
     });
 
     return NextResponse.json({ reset: userId });

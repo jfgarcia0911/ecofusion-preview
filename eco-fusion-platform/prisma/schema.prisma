@@ -19,6 +19,8 @@ model User {
   updatedAt           DateTime              @updatedAt
   onboardingComplete  Boolean               @default(false)
   role                String                @default("user")
+  /// Bumped when the password changes or is reset; sessions issued before it end.
+  sessionVersion      Int                   @default(0)
   /// What an EcoFusion staff account may do: see lib/staff-permissions. Empty
   /// for everyone else, and ignored for the master account, which may do all of it.
   staffPermissions    String[]              @default([])

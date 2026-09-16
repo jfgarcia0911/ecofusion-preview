@@ -133,6 +133,12 @@ export async function PATCH(request: Request) {
         // do the same thing sideways, by stripping everyone who might undo it.
         // The password reset in organization/members already draws this line.
         if (ctx.role !== 'owner') {
+            if (role === 'supervisor') {
+                return NextResponse.json(
+                    { error: 'Only the owner can make somebody a supervisor' },
+                    { status: 403 }
+                );
+            }
             if (role === 'owner' || membership.role === 'owner') {
                 return NextResponse.json(
                     { error: "Only the owner can grant or remove ownership" },
@@ -147,27 +153,34 @@ export async function PATCH(request: Request) {
             }
         }
 
-        // An organization must keep at least one owner.
-        if (membership.role === 'owner' && role !== 'owner') {
-            const owners = await prisma.membership.count({
-                where: { organizationId: ctx.organizationId, role: 'owner' },
-            });
-            if (owners <= 1) {
-                return NextResponse.json(
-                    { error: 'This is the only owner. Make someone else an owner first.' },
-                    { status: 400 }
-                );
-            }
-        }
-
-        const updated = await prisma.membership.update({
-            where: { id: membership.id },
-            data: { role },
-            select: {
-                role: true,
-                user: { select: { id: true, name: true, email: true } },
+        // An organization must keep at least one owner. Counted and changed in
+        // one serializable transaction, so two owners demoting each other at
+        // the same moment cannot leave none.
+        const updated = await prisma.$transaction(
+            async (tx) => {
+                if (membership.role === 'owner' && role !== 'owner') {
+                    const owners = await tx.membership.count({
+                        where: { organizationId: ctx.organizationId, role: 'owner' },
+                    });
+                    if (owners <= 1) return null;
+                }
+                return tx.membership.update({
+                    where: { id: membership.id },
+                    data: { role },
+                    select: {
+                        role: true,
+                        user: { select: { id: true, name: true, email: true } },
+                    },
+                });
             },
-        });
+            { isolationLevel: 'Serializable' }
+        );
+        if (!updated) {
+            return NextResponse.json(
+                { error: 'This is the only owner. Make someone else an owner first.' },
+                { status: 400 }
+            );
+        }
 
         return NextResponse.json({ ...updated.user, role: updated.role });
     } catch (error) {

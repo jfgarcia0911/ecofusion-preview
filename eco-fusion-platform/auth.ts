@@ -10,6 +10,9 @@ import { ensurePersonalOrganization } from './lib/tenancy';
 import { logSignIn } from './lib/activity';
 import { prisma } from './lib/prisma';
 
+/** How often a session re-reads its account: role, memberships, and whether it still stands. */
+const SESSION_RECHECK_MS = 5 * 60 * 1000;
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig,
     // The adapter's own types and next-auth's drift by a version; naming the
@@ -92,38 +95,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             if (user) {
                 token.sub = user.id;
                 token.role = user.role;
+                token.checkedAt = 0;
             }
-            // Resolve the organization once per token rather than on every request.
-            if (token.sub && !token.organizationId) {
-                const membership = await prisma.membership.findFirst({
-                    where: { userId: token.sub },
-                    orderBy: { createdAt: 'asc' },
-                    select: { organizationId: true, role: true },
-                });
-                if (membership) {
-                    token.organizationId = membership.organizationId;
-                    token.orgRole = membership.role;
-                }
-            }
-            // Refresh role from database on update
-            if (trigger === 'update' && token.sub) {
-                const dbUser = await prisma.user.findUnique({
+            if (!token.sub) return token;
+
+            // The account is re-read now and then rather than on every request
+            // - the database is a round trip away - and whenever the session
+            // is updated. Accounts with no business of their own used to query
+            // their memberships on every single call.
+            const due =
+                trigger === 'update' ||
+                !token.checkedAt ||
+                Date.now() - token.checkedAt > SESSION_RECHECK_MS;
+            if (!due) return token;
+
+            const [account, membership] = await Promise.all([
+                prisma.user.findUnique({
                     where: { id: token.sub },
-                    select: { role: true },
-                });
-                if (dbUser) {
-                    token.role = dbUser.role;
-                }
-                const membership = await prisma.membership.findFirst({
+                    select: { role: true, sessionVersion: true },
+                }),
+                prisma.membership.findFirst({
                     where: { userId: token.sub },
                     orderBy: { createdAt: 'asc' },
                     select: { organizationId: true, role: true },
-                });
-                if (membership) {
-                    token.organizationId = membership.organizationId;
-                    token.orgRole = membership.role;
-                }
+                }),
+            ]);
+
+            // A deleted account, or a password changed since this session
+            // began, ends it. A fresh sign-in (or a token from before versions
+            // existed) takes the current version.
+            if (!account) return null;
+            if (user || token.sv === undefined) {
+                token.sv = account.sessionVersion;
+            } else if (token.sv !== account.sessionVersion) {
+                return null;
             }
+
+            token.role = account.role;
+            token.organizationId = membership?.organizationId;
+            token.orgRole = membership?.role;
+            token.checkedAt = Date.now();
             return token;
         },
     },

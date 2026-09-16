@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { auth } from '@/auth';
+import { auth, signIn } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { validatePassword } from '@/lib/validation/password';
 import { isPlatformRole } from '@/lib/roles';
@@ -17,7 +17,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { currentPassword, newPassword } = await request.json();
+    const body = await request.json().catch(() => null);
+    const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
+    const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { error: 'Current and new password are required' },
@@ -27,7 +29,7 @@ export async function PATCH(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { password: true, role: true },
+      select: { password: true, role: true, email: true },
     });
 
     if (!user?.password) {
@@ -46,9 +48,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: check.errors[0] }, { status: 400 });
     }
 
+    // Every other session ends with the old password. This one is renewed
+    // below, with the new one.
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { password: await bcrypt.hash(newPassword, 12) },
+      data: { password: await bcrypt.hash(newPassword, 12), sessionVersion: { increment: 1 } },
+    });
+    await signIn('credentials', { email: user.email, password: newPassword, redirect: false }).catch((error) => {
+      console.error('Password changed, but the session could not be renewed:', error);
     });
 
     // An EcoFusion account changing its own password is a change to who can

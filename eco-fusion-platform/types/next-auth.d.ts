@@ -25,5 +25,9 @@ declare module 'next-auth/jwt' {
         role?: string;
         organizationId?: string;
         orgRole?: string;
+        /** User.sessionVersion when the token was issued. */
+        sv?: number;
+        /** When the account was last re-read, epoch ms. */
+        checkedAt?: number;
     }
 }

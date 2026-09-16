@@ -11,12 +11,12 @@ import type { NextAuthConfig } from 'next-auth';
  * API routes never reach this callback - middleware.ts returns early for
  * /api, and each route checks the session itself.
  */
-const PUBLIC_ROUTES = ['/login', '/signup',
+const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password',
     '/api/billing/webhook',
 ];
 
 /** Signed-in users have no reason to sit on these. */
-const AUTH_ENTRY_ROUTES = ['/', '/login', '/signup'];
+const AUTH_ENTRY_ROUTES = ['/', '/login', '/signup', '/forgot-password'];
 
 const isPublicRoute = (pathname: string) =>
     pathname === '/' ||
