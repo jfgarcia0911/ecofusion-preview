@@ -34,6 +34,9 @@ export const PLATFORM_ROLES = {
  */
 const LEGACY_ADMIN_ROLES = ['master', 'platform_owner'];
 
+/** Every User.role value that marks the EcoFusion admin, old names included. */
+export const PLATFORM_ADMIN_ROLE_VALUES: string[] = [PLATFORM_ROLES.ADMIN, ...LEGACY_ADMIN_ROLES];
+
 /** Every User.role value that marks an EcoFusion account, old names included. */
 export const PLATFORM_ROLE_VALUES: string[] = [
   PLATFORM_ROLES.ADMIN,

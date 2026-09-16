@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { activeOrg } from '@/lib/api-access';
 import { standingOfRoles } from '@/lib/roles';
+import { NOT_BY_ECOFUSION_ADMIN } from '@/lib/staff';
 
 /** How each standing reads to a business owner looking at who has been in. */
 const STAFF_LABELS: Record<string, string> = {
@@ -44,7 +45,12 @@ export async function GET() {
 
     const [staff, members] = await Promise.all([
       prisma.staffAccessLog.findMany({
-        where: { organizationId: ctx.organizationId },
+        // The EcoFusion admin's visits are not shown to the business. Its
+        // support staff's are. The admin, stepped in, still sees them all.
+        where: {
+          organizationId: ctx.organizationId,
+          ...(ctx.isPlatformAdmin ? {} : NOT_BY_ECOFUSION_ADMIN),
+        },
         select: {
           id: true,
           action: true,

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { PERMISSIONS } from '@/lib/staff-permissions';
 import { PLATFORM_ROLE_VALUES, isAdminStanding, standingOfRoles } from '@/lib/roles';
 import { preferOf, reachableOrganizationIds, requireScope, scopeReaches } from '@/lib/agency';
+import { NOT_BY_ECOFUSION_ADMIN } from '@/lib/staff';
 import type { Prisma } from '@prisma/client';
 
 // GET - The record of what people above the businesses did.
@@ -11,8 +12,8 @@ import type { Prisma } from '@prisma/client';
 // (lib/agency):
 //
 //   - An agency reads its own trail: its team's sign-ins and changes, and
-//     every visit to its businesses, EcoFusion's included. Never another
-//     agency's.
+//     every visit to its businesses, EcoFusion's support staff included.
+//     Never another agency's, and never the EcoFusion admin's.
 //   - EcoFusion reads the whole platform's from the console.
 //
 // Reading takes the "Read the Access Log" permission, which each team's admin
@@ -42,6 +43,9 @@ export async function GET(request: Request) {
 
         const filters: Prisma.StaffAccessLogWhereInput[] = [];
         if (scope.kind === 'agency') filters.push({ agencyId: scope.agencyId });
+        // An agency's own team never sees the EcoFusion admin's lines. EcoFusion
+        // looking at the agency from the console still does.
+        if (scope.kind === 'agency' && scope.via === 'member') filters.push(NOT_BY_ECOFUSION_ADMIN);
         if (organizationId) {
             filters.push({ organizationId });
         } else if (!scope.admin) {

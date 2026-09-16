@@ -14,7 +14,8 @@ import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { isPlatformRole, isPlatformAdminRole } from '@/lib/roles';
+import type { Prisma } from '@prisma/client';
+import { PLATFORM_ADMIN_ROLE_VALUES, isPlatformRole, isPlatformAdminRole } from '@/lib/roles';
 import { SUMMARY_HEADER, readSummaryHeader } from '@/lib/audit-summary';
 import { cleanPermissions, type StaffPermission } from '@/lib/staff-permissions';
 
@@ -166,6 +167,24 @@ export async function staffReachableOrganizationIds(
     });
     return rows.map((r) => r.organizationId);
 }
+
+/**
+ * Leaves out the EcoFusion admin's Access Log lines.
+ *
+ * The admin's own activity is EcoFusion's business, read in the console. An
+ * agency's team and a business's owner see everybody else who was in -
+ * their own people, and EcoFusion's support staff - but not the admin. A
+ * line whose account has since been deleted is recognised by the standing
+ * written onto it as it went.
+ */
+export const NOT_BY_ECOFUSION_ADMIN: Prisma.StaffAccessLogWhereInput = {
+    NOT: {
+        OR: [
+            { staffUser: { is: { role: { in: PLATFORM_ADMIN_ROLE_VALUES } } } },
+            { staffUserId: null, staffStanding: 'EcoFusion admin' },
+        ],
+    },
+};
 
 /** The farm named by the staff cookie, or null when there is none. */
 export async function currentStaffOrganizationId(): Promise<string | null> {
