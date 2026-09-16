@@ -56,8 +56,8 @@ export async function POST() {
         // Stripe's own reason is passed on: "not switched on" is only one of
         // the things it can say, and guessing hid the others.
         const stripeMessage =
-            error && typeof error === 'object' && 'type' in error && String(error.type).startsWith('Stripe')
-                ? (error as Error).message
+            error instanceof Error && 'type' in error && String(error.type).startsWith('Stripe')
+                ? error.message
                 : null;
         const message = stripeMessage
             ? /signed up for Connect/i.test(stripeMessage)
