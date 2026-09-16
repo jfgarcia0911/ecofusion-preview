@@ -435,6 +435,8 @@ export async function provisionOrganization(options: {
   location?: string | null;
   /** Fixed id, for the personal business whose id is derived from the user. */
   organizationId?: string;
+  /** Never charged by its agency. The master account's choice alone. */
+  complimentary?: boolean;
 }): Promise<string> {
   const { ownerUserId, name } = options;
   // Only the personal business derives its id from its owner, and it asks for
@@ -463,6 +465,7 @@ export async function provisionOrganization(options: {
         location: options.location ?? null,
         agencyId: options.agencyId,
         clientBillingExempt: exempt,
+        clientComplimentary: !exempt && Boolean(options.complimentary),
         clientTrialEndsAt: new Date(Date.now() + SUB_ACCOUNT_TRIAL_DAYS * 86_400_000),
       },
     }),

@@ -26,11 +26,12 @@ export default async function ConnectPaymentsPanel({
     });
     if (!agency) return null;
 
-    const counts = { paying: 0, trial: 0, unpaid: 0 };
+    const counts = { paying: 0, trial: 0, free: 0, unpaid: 0 };
     for (const org of agency.organizations) {
         const access = evaluateClientAccess(org, agency);
         if (access.reason === "active") counts.paying += 1;
         else if (access.reason === "trialing") counts.trial += 1;
+        else if (access.reason === "complimentary") counts.free += 1;
         else if (access.reason !== "exempt") counts.unpaid += 1;
     }
 
@@ -47,7 +48,8 @@ export default async function ConnectPaymentsPanel({
                         <h2 className="text-lg font-semibold text-white">Payments from sub-accounts</h2>
                         <p className="text-sm text-white/50 mt-1 max-w-2xl">
                             Each business you add pays you {SUB_ACCOUNT_PRICE_LABEL} after a {SUB_ACCOUNT_TRIAL_DAYS}-day
-                            free period, straight into your own Stripe account. Your own business pays nothing. Until
+                            free period, straight into your own Stripe account. Your own business pays nothing, and neither
+                            does any you make complimentary. Until
                             Stripe is connected, sub-accounts are not charged and nothing is locked.
                         </p>
                     </div>
@@ -64,10 +66,11 @@ export default async function ConnectPaymentsPanel({
                 </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mt-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
                 {[
                     { label: "Paying", value: counts.paying },
                     { label: "In free period", value: counts.trial },
+                    { label: "Complimentary", value: counts.free },
                     { label: "Unpaid", value: counts.unpaid },
                 ].map((item) => (
                     <div key={item.label} className="p-3 rounded-xl bg-white/5 text-center">

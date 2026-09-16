@@ -20,6 +20,9 @@ export async function POST() {
         if (ctx.client.reason === 'exempt') {
             return NextResponse.json({ error: "This business is covered by its agency's plan" }, { status: 400 });
         }
+        if (ctx.client.reason === 'complimentary') {
+            return NextResponse.json({ error: 'Your agency does not charge this business' }, { status: 400 });
+        }
         if (ctx.client.reason === 'active') {
             return NextResponse.json({ error: 'This business is already subscribed' }, { status: 400 });
         }

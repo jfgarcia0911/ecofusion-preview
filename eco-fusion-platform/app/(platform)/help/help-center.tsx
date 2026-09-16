@@ -742,23 +742,29 @@ Ask your owner or a supervisor to set a new one from **Employees → Manage logi
                 id: 'billing',
                 title: 'Billing and Your Trial',
                 content: `
-Billing is the owner's, under **Settings → Billing**.
+Billing is the owner's, under **Settings → Billing**. Your business pays the agency that set it up, not EcoFusion.
 
-## The trial
+## The free period
 
-Every new business has **15 days** free. A banner counts down, and turns amber in the last 5 days.
+Every new business has **30 days** free. **Settings → Billing** counts them down and shows the price: **$99 a month**.
 
 ## Subscribing
 
-Click **Subscribe** and pay by card. Your trial ends and the subscription starts at once. Only the owner can subscribe.
+Click **Subscribe** and pay by card. The money goes to your agency. Only the owner can subscribe.
 
-## If the trial ends, or a payment fails
+## If the free period ends, or a payment fails
 
-The business is **paused** for everybody in it until the owner subscribes. Nothing is deleted - subscribing brings everything back as it was.
+Your own people can open **Settings** and nothing else until the owner subscribes. Nothing is deleted - subscribing brings everything back as it was.
+
+If your agency has not switched on payments yet, nothing is locked.
+
+## Complimentary
+
+If your agency has chosen not to charge your business, **Settings → Billing** says **Complimentary**. There is nothing to pay, and nothing is ever locked.
 
 ## Changing your card, or cancelling
 
-Email support@llayd.com.
+Ask your agency - the subscription is on its Stripe account.
 
 ## Courses
 
@@ -927,13 +933,29 @@ What you can do in it depends on the permissions the master account has given yo
 
 ## Sub Accounts
 
-Every business you can reach - all of the agency's for the master account, the ones granted to you otherwise. The line above the table shows how many of the plan's businesses are used. Each row shows its **Status** (Active, Trial with days left, or Inactive), owner, location and how many people it has, with:
+Every business you can reach - all of the agency's for the master account, the ones granted to you otherwise. The line above the table shows how many of the plan's businesses are used. Each row shows its owner, location, how many people it has, and its **Billing**:
 
-- **Edit** - rename the business
+- **Paid** - subscribed at $99 a month
+- **Free period** - inside its first 30 days, with the days left
+- **Unpaid** - its free period or subscription has ended; its own people can open only Settings
+- **Complimentary** - the master account has chosen not to charge it
+- **Agency's own** - owned by the master account, and covered by the agency's plan
+- **Not charged** - the agency has not connected Stripe yet, so nothing is charged or locked
+
+Each row also has:
+
+- **Edit** - rename the business. The master account can also change whether it is charged here
 - **Capture** - save its setup as a snapshot
 - **Enter** - open it
 
 **Create Sub Account** makes a new business: its name and location, and its owner's name and email. Once the plan is full, the plan has to be upgraded first.
+
+The master account also chooses its **Billing**:
+
+- **Charge $99 / month** - 30 days free, then the owner subscribes under Settings → Billing
+- **Complimentary** - never charged and never locked. Use it for a partner, a demo or a business you look after for free
+
+Making a business complimentary later is done from **Edit**. A business already paying by card has its subscription cancelled in your Stripe dashboard first. Switching a complimentary business back to charging gives it a fresh 30-day free period.
 
 ## Snapshots
 

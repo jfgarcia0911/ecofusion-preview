@@ -3,34 +3,50 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import BillingChoice from "@/components/admin/BillingChoice";
+import { SUB_ACCOUNT_TRIAL_DAYS } from "@/lib/plans";
+import type { SubAccount } from "@/app/(agency)/agency/sub-accounts/page";
+
+type Saved = Pick<SubAccount, "id" | "name" | "standing" | "trialDaysLeft">;
 
 /**
- * Corrects how a business is identified in a list.
+ * Corrects how a business is identified in a list, and - for the master
+ * account - whether the agency charges it.
  *
- * The name and nothing else. Where a business is, who owns it, its people, its
- * subscription - all of that is the business's own to state, and is changed
- * from inside it, which means opening a support session and being recorded
- * doing it. A typo in a name is not worth that, and pretending it is only
- * teaches staff to keep a session open all day.
+ * Nothing else. Where a business is, who owns it and its people are the
+ * business's own to state, and are changed from inside it, which means opening
+ * a support session and being recorded doing it. A typo in a name is not worth
+ * that. Whether the agency charges it is different: that is the agency's
+ * decision, not the business's.
  */
 export default function EditSubAccountModal({
     business,
+    canComp,
     onClose,
     onSaved,
 }: {
-    business: { id: string; name: string } | null;
+    business: Pick<SubAccount, "id" | "name" | "standing"> | null;
+    /** May change whether the business is charged. The master account alone. */
+    canComp: boolean;
     onClose: () => void;
-    onSaved: (business: { id: string; name: string }) => void;
+    onSaved: (business: Saved) => void;
 }) {
     const [name, setName] = useState("");
+    const [complimentary, setComplimentary] = useState(false);
     const [saving, setSaving] = useState(false);
     const toast = useToast();
 
     useEffect(() => {
         if (business) {
             setName(business.name);
+            setComplimentary(business.standing === "free");
         }
     }, [business]);
+
+    // The agency's own business pays nothing whatever this says, so it is not asked.
+    const showBilling = canComp && business !== null && business.standing !== "own";
+    const wasComplimentary = business?.standing === "free";
+    const billingChanged = showBilling && complimentary !== wasComplimentary;
 
     async function save() {
         if (!business || !name.trim()) return;
@@ -42,6 +58,7 @@ export default function EditSubAccountModal({
                 body: JSON.stringify({
                     organizationId: business.id,
                     name: name.trim(),
+                    ...(billingChanged ? { complimentary } : {}),
                 }),
             });
             const data = await res.json();
@@ -77,6 +94,23 @@ export default function EditSubAccountModal({
                     />
                 </label>
 
+
+                {showBilling && (
+                    <BillingChoice
+                        complimentary={complimentary}
+                        onChange={setComplimentary}
+                        chargeNote={
+                            wasComplimentary
+                                ? `Starts a fresh ${SUB_ACCOUNT_TRIAL_DAYS}-day free period, then the owner subscribes.`
+                                : undefined
+                        }
+                        compDisabledReason={
+                            business?.standing === "active"
+                                ? "Paying by card. Cancel its subscription in your Stripe dashboard first."
+                                : null
+                        }
+                    />
+                )}
 
                 <div className="flex items-center gap-3 pt-1">
                     <button

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { getPasswordRequirements, validatePassword } from "@/lib/validation/password";
+import { SUB_ACCOUNT_PRICE_LABEL, SUB_ACCOUNT_TRIAL_DAYS } from "@/lib/plans";
+import BillingChoice from "@/components/admin/BillingChoice";
 import type { SubAccount } from "@/app/(agency)/agency/sub-accounts/page";
 
 /**
@@ -16,10 +18,13 @@ import type { SubAccount } from "@/app/(agency)/agency/sub-accounts/page";
  */
 export default function CreateSubAccountModal({
     open,
+    canComp,
     onClose,
     onCreated,
 }: {
     open: boolean;
+    /** May make the business complimentary. The master account alone. */
+    canComp: boolean;
     onClose: () => void;
     onCreated: (business: SubAccount) => void;
 }) {
@@ -28,6 +33,7 @@ export default function CreateSubAccountModal({
     const [ownerName, setOwnerName] = useState("");
     const [ownerEmail, setOwnerEmail] = useState("");
     const [ownerPassword, setOwnerPassword] = useState("");
+    const [complimentary, setComplimentary] = useState(false);
     const [saving, setSaving] = useState(false);
     const toast = useToast();
 
@@ -38,6 +44,7 @@ export default function CreateSubAccountModal({
             setOwnerName("");
             setOwnerEmail("");
             setOwnerPassword("");
+            setComplimentary(false);
         }
     }, [open]);
 
@@ -59,6 +66,7 @@ export default function CreateSubAccountModal({
                     ownerName: ownerName.trim(),
                     ownerEmail: ownerEmail.trim(),
                     ownerPassword,
+                    ...(canComp && complimentary ? { complimentary: true } : {}),
                 }),
             });
             const data = await res.json();
@@ -83,10 +91,18 @@ export default function CreateSubAccountModal({
             <div className="flex flex-col gap-5">
                 <div className="text-sm text-white/50 leading-relaxed">
                     <p>
-                        Creates the business, its owner&apos;s login, and a{" "}
-                        <strong className="text-white/80">15 day trial</strong>, with whatever
-                        the default snapshot carries: business units, zones, growing parameters
-                        and classes.
+                        Creates the business and its owner&apos;s login, with whatever the
+                        default snapshot carries: business units, zones, growing parameters and
+                        classes.{" "}
+                        {canComp && complimentary ? (
+                            <strong className="text-white/80">It is never charged.</strong>
+                        ) : (
+                            <>
+                                It has a{" "}
+                                <strong className="text-white/80">{SUB_ACCOUNT_TRIAL_DAYS}-day free period</strong>,
+                                then pays you {SUB_ACCOUNT_PRICE_LABEL}.
+                            </>
+                        )}
                     </p>
                     <p className="mt-2">
                         The starting password is not emailed to anyone. Pass it to the owner
@@ -160,6 +176,8 @@ export default function CreateSubAccountModal({
                         </span>
                     )}
                 </label>
+
+                {canComp && <BillingChoice complimentary={complimentary} onChange={setComplimentary} />}
 
                 <div className="flex items-center gap-3 pt-1">
                     <button

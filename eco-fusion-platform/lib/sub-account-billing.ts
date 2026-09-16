@@ -9,8 +9,9 @@
  * open it in full. The money goes to the agency's own Stripe account, connected
  * with Stripe Connect, so EcoFusion never holds it.
  *
- * Two kinds of business are never shut out for not paying:
+ * Three kinds of business are never shut out for not paying:
  *   - the agency's own, owned by its master account, which the plan covers;
+ *   - a complimentary one, which the master account has chosen not to charge;
  *   - one whose agency has not connected a Stripe account that can take
  *     payments, since there is nowhere for it to pay.
  */
@@ -26,13 +27,22 @@ export interface ClientAccess {
     allowed: boolean;
     /**
      * exempt: the agency's own business.
+     * complimentary: the agency has chosen not to charge it.
      * active: paid up.
      * trialing: inside its 30 days.
      * not_set_up: past its 30 days, but its agency cannot take payments yet.
      * unpaid: its 30 days are over and it has not paid.
      * past_due / canceled: it paid, and then stopped.
      */
-    reason: 'exempt' | 'active' | 'trialing' | 'not_set_up' | 'unpaid' | 'past_due' | 'canceled';
+    reason:
+        | 'exempt'
+        | 'complimentary'
+        | 'active'
+        | 'trialing'
+        | 'not_set_up'
+        | 'unpaid'
+        | 'past_due'
+        | 'canceled';
     /** When the 30 days end, as epoch milliseconds, for the countdown. */
     trialEndsAt: number | null;
     daysLeft: number | null;
@@ -43,6 +53,7 @@ export interface ClientAccess {
 /** The fields an access decision reads. Selected wherever a business is looked up. */
 export const CLIENT_BILLING_SELECT = {
     clientBillingExempt: true,
+    clientComplimentary: true,
     clientStatus: true,
     clientTrialEndsAt: true,
     clientPeriodEnd: true,
@@ -51,6 +62,7 @@ export const CLIENT_BILLING_SELECT = {
 export function evaluateClientAccess(
     org: {
         clientBillingExempt: boolean;
+        clientComplimentary: boolean;
         clientStatus: string;
         clientTrialEndsAt: Date | null;
         clientPeriodEnd: Date | null;
@@ -64,6 +76,7 @@ export function evaluateClientAccess(
     const base = { trialEndsAt, daysLeft, canPay };
 
     if (org.clientBillingExempt) return { ...base, allowed: true, reason: 'exempt' };
+    if (org.clientComplimentary) return { ...base, allowed: true, reason: 'complimentary' };
 
     // Owed, and why: a trial that ran out, or a subscription that stopped.
     let owed: 'unpaid' | 'past_due' | 'canceled';

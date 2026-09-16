@@ -16,13 +16,13 @@ import {
     subAccountUsage,
     type Scope,
 } from '@/lib/agency';
-import { planFor, usageLabel } from '@/lib/plans';
+import { planFor, usageLabel, SUB_ACCOUNT_TRIAL_DAYS } from '@/lib/plans';
 import { CLIENT_BILLING_SELECT, evaluateClientAccess, type ClientAccess } from '@/lib/sub-account-billing';
 
 /**
  * How a sub-account stands with its agency, in the words of the list: paying,
- * in its free period, unpaid, the agency's own, or not charged because the
- * agency has not connected Stripe.
+ * in its free period, unpaid, the agency's own, complimentary, or not charged
+ * because the agency has not connected Stripe.
  */
 function standingOf(client: ClientAccess) {
     switch (client.reason) {
@@ -32,6 +32,8 @@ function standingOf(client: ClientAccess) {
             return 'trial' as const;
         case 'exempt':
             return 'own' as const;
+        case 'complimentary':
+            return 'free' as const;
         case 'not_set_up':
             return 'not_charged' as const;
         default:
@@ -57,6 +59,9 @@ function viewerOf(scope: Scope) {
         admin: scope.admin,
         permissions: scope.permissions,
         canCreate: scope.kind === 'agency' && scopeCan(scope, PERMISSIONS.CREATE_BUSINESS),
+        // Whether a sub-account is charged is a billing decision, and billing
+        // is the master account's alone - never a staff permission.
+        canComp: scope.admin,
     };
 }
 
@@ -175,6 +180,13 @@ export async function POST(request: Request) {
         const ownerEmail = String(body.ownerEmail ?? '').trim().toLowerCase();
         const location = String(body.location ?? '').trim();
         const ownerPassword = String(body.ownerPassword ?? '');
+        const complimentary = body.complimentary === true;
+        if (complimentary && !scope.admin) {
+            return NextResponse.json(
+                { error: 'Only the master account can make a sub account complimentary' },
+                { status: 403 }
+            );
+        }
 
         if (!name) {
             return NextResponse.json({ error: 'A business name is required' }, { status: 400 });
@@ -224,12 +236,15 @@ export async function POST(request: Request) {
             ownerUserId: owner.id,
             name,
             location: location || null,
+            complimentary,
         });
 
         await logStaffAccess(scope.userId, organizationId, 'write', {
             method: 'POST',
             path: '/api/admin/organizations',
-            summary: `Added the business "${name}" to the agency, with ${ownerEmail} as its owner`,
+            summary:
+                `Added the business "${name}" to the agency, with ${ownerEmail} as its owner` +
+                (complimentary ? ', complimentary (not charged)' : ''),
             agencyId: scope.agencyId,
         });
 
@@ -241,7 +256,15 @@ export async function POST(request: Request) {
             });
         }
 
-        const { agency, clientBillingExempt, clientStatus, clientTrialEndsAt, clientPeriodEnd, ...organization } =
+        const {
+            agency,
+            clientBillingExempt,
+            clientComplimentary,
+            clientStatus,
+            clientTrialEndsAt,
+            clientPeriodEnd,
+            ...organization
+        } =
             await prisma.organization.findUniqueOrThrow({
                 where: { id: organizationId },
                 select: {
@@ -255,7 +278,7 @@ export async function POST(request: Request) {
                 },
             });
         const client = evaluateClientAccess(
-            { clientBillingExempt, clientStatus, clientTrialEndsAt, clientPeriodEnd },
+            { clientBillingExempt, clientComplimentary, clientStatus, clientTrialEndsAt, clientPeriodEnd },
             agency
         );
 
@@ -286,11 +309,12 @@ export async function POST(request: Request) {
     }
 }
 
-// PATCH - Rename a business.
+// PATCH - Rename a business, and (master account only) choose whether it is
+// charged.
 //
-// The name and nothing else. Who owns a business is what its team, its
-// billing and its access record hang from, and moving it is a decision for
-// the people involved rather than a field on a form.
+// Nothing else. Who owns a business is what its team, its billing and its
+// access record hang from, and moving it is a decision for the people involved
+// rather than a field on a form.
 export async function PATCH(request: Request) {
     try {
         const scope = await requireScope({ anyOf: [PERMISSIONS.RENAME_BUSINESS] });
@@ -308,8 +332,20 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'No such business' }, { status: 404 });
         }
 
+        const renaming = body.name !== undefined;
+        const complimentary = typeof body.complimentary === 'boolean' ? body.complimentary : null;
+        if (!renaming && complimentary === null) {
+            return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
+        }
+        if (complimentary !== null && !scope.admin) {
+            return NextResponse.json(
+                { error: 'Only the master account can change whether a sub account is charged' },
+                { status: 403 }
+            );
+        }
+
         const name = String(body.name ?? '').trim();
-        if (!name) {
+        if (renaming && !name) {
             return NextResponse.json({ error: 'A business name is required' }, { status: 400 });
         }
         if (name.length > 100) {
@@ -319,21 +355,85 @@ export async function PATCH(request: Request) {
             );
         }
 
-        const organization = await prisma.organization.update({
+        const before = await prisma.organization.findUniqueOrThrow({
             where: { id: organizationId },
-            data: { name },
-            select: { id: true, name: true, slug: true, location: true },
+            select: { name: true, ...CLIENT_BILLING_SELECT, agency: { select: { stripeChargesEnabled: true } } },
         });
+        const standingBefore = evaluateClientAccess(before, before.agency).reason;
 
-        // Renaming somebody's business is a change to it, so it lands in the
-        // record the owner reads alongside everything else done from above.
-        await logStaffAccess(scope.userId, organizationId, 'write', {
-            method: 'PATCH',
-            path: '/api/admin/organizations',
-            summary: `Renamed the business to "${name}"`,
+        const data: Prisma.OrganizationUpdateInput = {};
+        if (renaming && name !== before.name) data.name = name;
+        let billingChange: 'on' | 'off' | null = null;
+        if (complimentary !== null && complimentary !== before.clientComplimentary) {
+            if (before.clientBillingExempt) {
+                return NextResponse.json(
+                    { error: "This is the agency's own business, so it pays nothing already" },
+                    { status: 400 }
+                );
+            }
+            // A card subscription on the agency's Stripe account would go on
+            // charging whatever this row said, so it is stopped there first.
+            if (complimentary && standingBefore === 'active') {
+                return NextResponse.json(
+                    {
+                        error:
+                            'This business is paying by card. Cancel its subscription in your Stripe ' +
+                            'dashboard first, then make it complimentary.',
+                    },
+                    { status: 409 }
+                );
+            }
+            data.clientComplimentary = complimentary;
+            if (!complimentary) {
+                // Charging starts the way it does for a new business: a fresh
+                // free period, not a lock the moment the switch is flipped.
+                data.clientTrialEndsAt = new Date(Date.now() + SUB_ACCOUNT_TRIAL_DAYS * 86_400_000);
+                if (before.clientStatus !== 'active') data.clientStatus = 'trialing';
+            }
+            billingChange = complimentary ? 'on' : 'off';
+        }
+
+        const updated = await prisma.organization.update({
+            where: { id: organizationId },
+            data,
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                location: true,
+                ...CLIENT_BILLING_SELECT,
+                agency: { select: { stripeChargesEnabled: true } },
+            },
         });
+        const client = evaluateClientAccess(updated, updated.agency);
 
-        return NextResponse.json({ organization });
+        // A change to somebody's business lands in the record the owner reads
+        // alongside everything else done from above.
+        const summaries = [
+            data.name ? `Renamed the business to "${name}"` : null,
+            billingChange === 'on' ? 'Made the business complimentary: it is no longer charged' : null,
+            billingChange === 'off'
+                ? `Started charging the business, after a ${SUB_ACCOUNT_TRIAL_DAYS}-day free period`
+                : null,
+        ].filter((s): s is string => s !== null);
+        for (const summary of summaries) {
+            await logStaffAccess(scope.userId, organizationId, 'write', {
+                method: 'PATCH',
+                path: '/api/admin/organizations',
+                summary,
+            });
+        }
+
+        return NextResponse.json({
+            organization: {
+                id: updated.id,
+                name: updated.name,
+                slug: updated.slug,
+                location: updated.location,
+                standing: standingOf(client),
+                trialDaysLeft: client.reason === 'trialing' ? client.daysLeft : null,
+            },
+        });
     } catch (error) {
         console.error('Failed to rename business:', error);
         return NextResponse.json({ error: 'Failed to rename the business' }, { status: 500 });

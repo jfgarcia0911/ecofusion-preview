@@ -886,6 +886,9 @@ model Organization {
   /// The agency's own business - the one its master account owns - pays
   /// nothing, since the agency's plan already covers it.
   clientBillingExempt  Boolean   @default(false)
+  /// Complimentary: the agency's master account has chosen not to charge this
+  /// business. It is never asked to pay and never locked for not paying.
+  clientComplimentary  Boolean   @default(false)
   /// trialing | active | past_due | canceled
   clientStatus         String    @default("trialing")
   clientTrialEndsAt    DateTime?

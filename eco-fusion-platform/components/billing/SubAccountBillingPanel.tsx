@@ -32,6 +32,21 @@ export default function SubAccountBillingPanel({
     const { client } = ctx;
     const canPay = ctx.role === "owner" && !ctx.entered;
 
+    if (client.reason === "complimentary") {
+        return (
+            <div className="glass-card border-white/10 p-8 rounded-3xl bg-black/40 text-center">
+                <div className="w-12 h-12 mx-auto bg-accent rounded-xl flex items-center justify-center mb-4">
+                    <Leaf className="text-primary" size={24} strokeWidth={2.5} />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Complimentary</h2>
+                <p className="text-white/50 text-sm leading-relaxed max-w-lg mx-auto">
+                    {agencyName} does not charge {ctx.business.name}, so there is nothing to pay and nothing
+                    will be locked.
+                </p>
+            </div>
+        );
+    }
+
     if (client.reason === "exempt") {
         return (
             <div className="glass-card border-white/10 p-8 rounded-3xl bg-black/40 text-center">

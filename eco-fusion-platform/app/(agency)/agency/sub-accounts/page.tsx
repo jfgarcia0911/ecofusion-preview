@@ -27,9 +27,10 @@ export interface SubAccount {
     /**
      * What the business pays the agency: active = paying, trial = in its free
      * 30 days, inactive = unpaid (its people are locked out), own = the
-     * agency's own business, not_charged = the agency has not connected Stripe.
+     * agency's own business, free = complimentary (the master account chose not
+     * to charge it), not_charged = the agency has not connected Stripe.
      */
-    standing: "active" | "trial" | "inactive" | "own" | "not_charged";
+    standing: "active" | "trial" | "inactive" | "own" | "free" | "not_charged";
     trialDaysLeft: number | null;
 }
 
@@ -49,6 +50,7 @@ const STANDING: Record<
     trial: { label: "Free period", className: "border-info/30 bg-info/10 text-info" },
     inactive: { label: "Unpaid", className: "border-amber-400/30 bg-amber-400/10 text-amber-200" },
     own: { label: "Agency's own", className: "border-white/15 bg-white/5 text-white/60" },
+    free: { label: "Complimentary", className: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200" },
     not_charged: { label: "Not charged", className: "border-white/15 bg-white/5 text-white/40" },
 };
 
@@ -81,10 +83,17 @@ export default function SubAccountsPage() {
     const [captureFrom, setCaptureFrom] = useState<{ id: string; name: string } | null>(null);
     // What the reader may do here, as the server says. Starts empty so nothing
     // is offered before the answer arrives.
-    const [viewer, setViewer] = useState<{ admin: boolean; permissions: StaffPermission[]; canCreate: boolean }>({
+    const [viewer, setViewer] = useState<{
+        admin: boolean;
+        permissions: StaffPermission[];
+        canCreate: boolean;
+        /** May choose whether a sub-account is charged. The master account's. */
+        canComp: boolean;
+    }>({
         admin: false,
         permissions: [],
         canCreate: false,
+        canComp: false,
     });
     // How much of the agency's plan is used. Adding past the limit is refused
     // by the server; the page says so first rather than after the form.
@@ -332,7 +341,11 @@ export default function SubAccountsPage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => setEditing(business)}
-                                                        title="Rename this business"
+                                                        title={
+                                                            viewer.canComp
+                                                                ? "Rename this business, or change whether it is charged"
+                                                                : "Rename this business"
+                                                        }
                                                         className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors whitespace-nowrap"
                                                     >
                                                         <Pencil size={13} />
@@ -373,6 +386,7 @@ export default function SubAccountsPage() {
 
             <CreateSubAccountModal
                 open={creating}
+                canComp={viewer.canComp}
                 onClose={() => setCreating(false)}
                 onCreated={(business) => {
                     setBusinesses((current) => [business, ...current]);
@@ -382,10 +396,15 @@ export default function SubAccountsPage() {
             />
             <EditSubAccountModal
                 business={editing}
+                canComp={viewer.canComp}
                 onClose={() => setEditing(null)}
                 onSaved={(saved) =>
                     setBusinesses((current) =>
-                        current.map((b) => (b.id === saved.id ? { ...b, name: saved.name } : b))
+                        current.map((b) =>
+                            b.id === saved.id
+                                ? { ...b, name: saved.name, standing: saved.standing, trialDaysLeft: saved.trialDaysLeft }
+                                : b
+                        )
                     )
                 }
             />
