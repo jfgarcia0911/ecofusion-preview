@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { canAdminister, isSameOrganization } from '@/lib/tenancy';
+import { readJson } from '@/lib/validation/request';
+import { idFromQuery, optionalDate, optionalText, recordId } from '@/lib/validation/fields';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
 import { isPlatformRole } from '@/lib/roles';
 import { visibleToOrganization } from '@/lib/training';
+
+const assignSchema = z.object({
+    courseId: recordId,
+    assigneeId: recordId,
+    dueDate: optionalDate,
+    priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+    notes: optionalText(2000),
+});
 
 /** One row of the assignment list query in GET. Counts are cast to int in SQL. */
 interface AssignmentRow {
@@ -71,7 +82,7 @@ export async function GET(request: Request) {
         // fetched every lesson row only to count them.
         //
         // The visibility rule is lib/training's assignmentShownIn, the same one
-        // the rest of the app uses: a business's own courses always, and an
+        // the rest of the app uses: this business's own courses always, and an
         // EcoFusion course only while this business holds it.
         const rows = await prisma.$queryRaw<AssignmentRow[]>`
             SELECT
@@ -97,7 +108,7 @@ export async function GET(request: Request) {
                    ON cc."courseId" = a."courseId" AND cc."userId" = a."assigneeId"
             WHERE a."assigneeId" = ${targetUserId}
               AND (
-                    c."organizationId" IS NOT NULL
+                    c."organizationId" = ${ctx.organizationId}
                  OR EXISTS (SELECT 1 FROM "CourseGrant" g
                              WHERE g."courseId" = c."id" AND g."organizationId" = ${ctx.organizationId})
               )
@@ -171,8 +182,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
-        const data = await request.json();
-        const { courseId, assigneeId, dueDate, priority, notes } = data;
+        const body = await readJson(request, assignSchema);
+        if (!body.ok) return body.response;
+        const { courseId, assigneeId, dueDate, priority, notes } = body.data;
+
+        // Only somebody in this business. Before this, a manager anywhere could
+        // put a course - and a notification - in front of any user on the
+        // platform.
+        if (!(await isSameOrganization(ctx, assigneeId))) {
+            return NextResponse.json({ error: 'That person is not in this business' }, { status: 404 });
+        }
 
         // A support account is not a trainee. It works on the platform rather
         // than inside a business, nothing it does is a business's compliance
@@ -194,9 +213,6 @@ export async function POST(request: Request) {
         // account needs none. Either way it is recorded in the trail the owner
         // reads.
 
-        if (!courseId || !assigneeId) {
-            return NextResponse.json({ error: 'Course ID and Assignee ID are required' }, { status: 400 });
-        }
 
         // Check if assignment already exists
         const existing = await prisma.courseAssignment.findUnique({
@@ -229,9 +245,9 @@ export async function POST(request: Request) {
                 courseId,
                 assigneeId,
                 assignedById: ctx.userId,
-                dueDate: dueDate ? new Date(dueDate) : null,
-                priority: priority || 'normal',
-                notes
+                dueDate: dueDate ?? null,
+                priority,
+                notes: notes ?? null
             },
             include: {
                 course: true,
@@ -270,16 +286,22 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
 
-        const { searchParams } = new URL(request.url);
-        const assignmentId = searchParams.get('id');
-
+        const assignmentId = idFromQuery(request);
         if (!assignmentId) {
             return NextResponse.json({ error: 'Assignment ID required' }, { status: 400 });
         }
 
-        await prisma.courseAssignment.delete({
-            where: { id: assignmentId }
+        // Only an assignment held by somebody in this business. By id alone,
+        // any manager could remove any business's compliance records.
+        const { count } = await prisma.courseAssignment.deleteMany({
+            where: {
+                id: assignmentId,
+                assignee: { memberships: { some: { organizationId: ctx.organizationId } } },
+            },
         });
+        if (count === 0) {
+            return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

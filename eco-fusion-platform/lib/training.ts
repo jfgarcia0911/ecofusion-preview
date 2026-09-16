@@ -29,7 +29,8 @@ export function visibleToOrganization(organizationId: string): Prisma.TrainingCo
 /**
  * Assignments worth showing inside one business.
  *
- * A business's own courses are shown as they always were. An EcoFusion course
+ * This business's own courses are shown as they always were - never another
+ * business's. An EcoFusion course
  * is shown only while this business holds it: one it has not bought, or has
  * lost to a refund, cannot be opened, and an assignment that leads nowhere is
  * only a dead end on somebody's list. The assignment itself is kept, with its
@@ -39,7 +40,7 @@ export function assignmentShownIn(organizationId: string): Prisma.CourseAssignme
   return {
     course: {
       OR: [
-        { organizationId: { not: null } },
+        { organizationId },
         { grants: { some: { organizationId } } },
       ],
     },

@@ -4,6 +4,7 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { Adapter } from 'next-auth/adapters';
 import bcrypt from 'bcryptjs';
+import { assertLoginAllowed, NO_ACCOUNT_HASH } from '@/lib/login-guard';
 import { authConfig } from './auth.config';
 import { ensurePersonalOrganization } from './lib/tenancy';
 import { logSignIn } from './lib/activity';
@@ -28,25 +29,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" }
             },
-            async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) {
+            async authorize(credentials, request) {
+                // Every account is stored lowercase, so "Bob@x.com" must be
+                // looked up the same way or it can never sign in.
+                const email =
+                    typeof credentials?.email === 'string' ? credentials.email.trim().toLowerCase() : '';
+                const password = typeof credentials?.password === 'string' ? credentials.password : '';
+                if (!email || !password || email.length > 254 || password.length > 256) {
                     return null;
                 }
+
+                await assertLoginAllowed(request, email);
 
                 const user = await prisma.user.findUnique({
-                    where: { email: credentials.email as string },
+                    where: { email },
                 });
 
-                if (!user || !user.password) {
-                    return null;
-                }
+                // Compared even when there is nothing to compare against, so an
+                // unknown email is refused as slowly as a wrong password.
+                const isPasswordValid = await bcrypt.compare(password, user?.password ?? NO_ACCOUNT_HASH);
 
-                const isPasswordValid = await bcrypt.compare(
-                    credentials.password as string,
-                    user.password
-                );
-
-                if (!isPasswordValid) {
+                if (!user?.password || !isPasswordValid) {
                     return null;
                 }
 

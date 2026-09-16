@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
-import { applyAccountUpdate, applyClientSubscription } from '@/lib/sub-account-billing';
+import {
+    applyAccountUpdate,
+    applyClientSubscription,
+    applyDeauthorization,
+} from '@/lib/sub-account-billing';
 
 // Events from agencies' connected Stripe accounts: sub-accounts paying their
 // agency, and an agency's account becoming able to take payments.
@@ -48,15 +52,26 @@ export async function POST(request: Request) {
                         {},
                         { stripeAccount: account }
                     );
-                    await applyClientSubscription(subscription);
+                    await applyClientSubscription(subscription, account);
                 }
                 break;
             }
 
             case 'customer.subscription.created':
             case 'customer.subscription.updated':
-            case 'customer.subscription.deleted':
-                await applyClientSubscription(event.data.object as Stripe.Subscription);
+            case 'customer.subscription.deleted': {
+                if (!account) break;
+                // Read as it is now rather than as the event says. Stripe does
+                // not deliver in order, and a late "past_due" must not lock a
+                // business that has since paid.
+                const sent = event.data.object as Stripe.Subscription;
+                const current = await stripe.subscriptions.retrieve(sent.id, {}, { stripeAccount: account });
+                await applyClientSubscription(current, account);
+                break;
+            }
+
+            case 'account.application.deauthorized':
+                if (account) await applyDeauthorization(account);
                 break;
 
             default:

@@ -5,7 +5,7 @@ import { authConfig } from './auth.config';
 import {
   checkRateLimit,
   getRateLimitIdentifier,
-  getRateLimitConfig,
+  getRateLimitBucket,
   getRateLimitHeaders,
 } from '@/lib/rate-limit';
 import { MAX_BODY_BYTES, SUMMARY_HEADER, summariseBody } from '@/lib/audit-summary';
@@ -55,9 +55,9 @@ export default async function middleware(request: NextRequest) {
 
   // Apply rate limiting to API routes
   if (pathname.startsWith('/api')) {
-    const identifier = getRateLimitIdentifier(request, pathname);
-    const config = getRateLimitConfig(pathname);
-    const rateLimitResult = await checkRateLimit(identifier, config);
+    const bucket = getRateLimitBucket(pathname, request.method);
+    const identifier = getRateLimitIdentifier(request, bucket.name);
+    const rateLimitResult = await checkRateLimit(identifier, bucket.config);
 
     if (!rateLimitResult.success) {
       return new NextResponse(

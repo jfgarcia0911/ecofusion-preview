@@ -145,31 +145,38 @@ export async function checkRateLimit(
     const { success, limit, remaining, reset } = await limiter.limit(identifier);
     return { success, limit, remaining, resetTime: reset };
   } catch (error) {
-    console.error('[rate-limit] shared store unreachable, letting the request through:', error);
-    return {
-      success: true,
-      limit: config.maxRequests,
-      remaining: config.maxRequests,
-      resetTime: Date.now() + config.interval,
-    };
+    // Counted here instead, rather than let through: a blip in Redis should not
+    // turn the sign-in limit off, and a per-instance count still slows a
+    // guesser down.
+    console.error('[rate-limit] shared store unreachable, counting in memory:', error);
+    return checkInMemory(identifier, config);
   }
 }
 
 /**
- * Who is being counted.
+ * The client's address, from the header the host in front of us sets.
  *
- * The client's address, from whichever header the host in front of us sets.
- * Prefixed by route group, so exhausting the sign-in allowance does not also
- * lock somebody out of the rest of the app.
+ * Vercel sets x-real-ip and overwrites x-forwarded-for; a client cannot choose
+ * either. cf-connecting-ip is only believed behind Cloudflare, which is said
+ * with TRUST_CLOUDFLARE=1 - anywhere else it is whatever the client sent, and
+ * reading it first let anybody pick a fresh allowance on every request.
  */
-export function getRateLimitIdentifier(request: Request, prefix: string = ''): string {
-  const headers = request.headers;
-  const ip =
-    headers.get('cf-connecting-ip') ||
+export function clientIp(headers: Headers): string {
+  return (
+    (process.env.TRUST_CLOUDFLARE === '1' ? headers.get('cf-connecting-ip') : null) ||
     headers.get('x-real-ip') ||
     headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    'unknown';
+    'unknown'
+  );
+}
 
+/**
+ * Who is being counted, prefixed by the window they are counted in, so
+ * exhausting the sign-in allowance does not also lock somebody out of the rest
+ * of the app - and so the allowance is per client, not per path.
+ */
+export function getRateLimitIdentifier(request: Request, prefix: string = ''): string {
+  const ip = clientIp(request.headers);
   return prefix ? `${prefix}:${ip}` : ip;
 }
 
@@ -181,9 +188,20 @@ export function getRateLimitHeaders(result: RateLimitResult): Record<string, str
   };
 }
 
-/** Which window a path falls into. */
-export function getRateLimitConfig(pathname: string): RateLimitConfig {
-  if (pathname.startsWith('/api/auth')) return RATE_LIMITS.auth;
-  if (pathname.includes('/webhook')) return RATE_LIMITS.webhook;
-  return RATE_LIMITS.api;
+/**
+ * Which window a request falls into.
+ *
+ * Only posts under /api/auth - signing in, registering - take the strict
+ * window. Reading the session and the CSRF token happens on every page, and
+ * counting those against five a minute locked out offices behind one address.
+ */
+export function getRateLimitBucket(
+  pathname: string,
+  method: string
+): { name: string; config: RateLimitConfig } {
+  if (pathname.startsWith('/api/auth') && method === 'POST') {
+    return { name: 'auth', config: RATE_LIMITS.auth };
+  }
+  if (pathname.includes('/webhook')) return { name: 'webhook', config: RATE_LIMITS.webhook };
+  return { name: 'api', config: RATE_LIMITS.api };
 }

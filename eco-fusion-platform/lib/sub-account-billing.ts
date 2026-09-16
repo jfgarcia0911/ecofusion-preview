@@ -72,7 +72,10 @@ export function evaluateClientAccess(
     const now = Date.now();
     const trialEndsAt = org.clientTrialEndsAt?.getTime() ?? null;
     const daysLeft = trialEndsAt !== null ? Math.ceil((trialEndsAt - now) / 86_400_000) : null;
-    const canPay = agency.stripeChargesEnabled;
+    // Payments need the agency's account ready and Stripe configured here.
+    // Without either there is nowhere to pay, and a lock would be one the
+    // business could not lift.
+    const canPay = agency.stripeChargesEnabled && Boolean(process.env.STRIPE_SECRET_KEY);
     const base = { trialEndsAt, daysLeft, canPay };
 
     if (org.clientBillingExempt) return { ...base, allowed: true, reason: 'exempt' };
@@ -103,13 +106,49 @@ function statusFor(subscription: Stripe.Subscription): string {
     return 'canceled';
 }
 
+const isLive = (subscription: Stripe.Subscription) =>
+    subscription.status === 'active' || subscription.status === 'trialing';
+
 /**
  * Apply a sub-account's subscription, from the webhook or a return from
  * checkout. The business is named in the metadata checkout set.
+ *
+ * `account` is the connected Stripe account the subscription was read from,
+ * and it must be the business's own agency's. Every agency controls its own
+ * Stripe account and can write any metadata it likes there; without this
+ * check, one agency could mark another agency's business paid for years, or
+ * cancelled, by naming it in a subscription of its own.
  */
-export async function applyClientSubscription(subscription: Stripe.Subscription): Promise<string | null> {
+export async function applyClientSubscription(
+    subscription: Stripe.Subscription,
+    account: string
+): Promise<string | null> {
     const organizationId = subscription.metadata?.organizationId;
     if (!organizationId || subscription.metadata?.kind !== 'sub_account') return null;
+
+    const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { clientSubscriptionId: true, agency: { select: { stripeAccountId: true } } },
+    });
+    if (!organization || !account || organization.agency.stripeAccountId !== account) {
+        console.error(
+            'Ignored a sub-account subscription from %s for a business its agency does not own: %s',
+            account || 'no account',
+            organizationId
+        );
+        return null;
+    }
+
+    // A different subscription than the one on record only replaces it when it
+    // is live. An old one ending must not cancel a business that has since
+    // paid again.
+    if (
+        organization.clientSubscriptionId &&
+        organization.clientSubscriptionId !== subscription.id &&
+        !isLive(subscription)
+    ) {
+        return null;
+    }
 
     const customer =
         typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id ?? null;
@@ -151,8 +190,8 @@ export async function syncClientCheckout(organizationId: string, sessionId: stri
             {},
             { stripeAccount: account }
         );
-        await applyClientSubscription(subscription);
-        return subscription.status === 'active' || subscription.status === 'trialing';
+        await applyClientSubscription(subscription, account);
+        return isLive(subscription);
     } catch (error) {
         console.error('Failed to reconcile a sub-account checkout:', error);
         return false;
@@ -205,7 +244,7 @@ export async function completeConnectSignIn(agencyId: string, code: string): Pro
     const account = token.stripe_user_id;
     if (!account) throw new Error('Stripe returned no account');
 
-    await prisma.agency.update({ where: { id: agencyId }, data: { stripeAccountId: account } });
+    await setConnectedAccount(agencyId, account);
     return refreshConnectedAccount(agencyId);
 }
 
@@ -250,7 +289,7 @@ export async function connectOnboardingUrl(
             metadata: { agencyId: agency.id },
         });
         account = created.id;
-        await prisma.agency.update({ where: { id: agency.id }, data: { stripeAccountId: account } });
+        await setConnectedAccount(agency.id, account);
     }
 
     const link = await stripe.v2.core.accountLinks.create({
@@ -308,6 +347,48 @@ export async function refreshConnectedAccount(agencyId: string): Promise<boolean
         console.error('Failed to read the connected Stripe account:', error);
         return agency.stripeChargesEnabled;
     }
+}
+
+/**
+ * Point an agency at a Stripe account.
+ *
+ * Customers and subscriptions live on the account that created them, so a
+ * different account makes every stored customer id point at nothing: checkout
+ * would fail with "No such customer" for a business that is locked and trying
+ * to pay. They are cleared when the account changes, and each business starts
+ * a fresh customer on the new one.
+ */
+export async function setConnectedAccount(agencyId: string, account: string): Promise<void> {
+    const agency = await prisma.agency.findUnique({ where: { id: agencyId }, select: { stripeAccountId: true } });
+    if (agency?.stripeAccountId === account) return;
+    await prisma.$transaction([
+        // One account, one agency: a second agency claiming it would receive
+        // the first agency's events.
+        prisma.agency.updateMany({
+            where: { stripeAccountId: account, id: { not: agencyId } },
+            data: { stripeAccountId: null, stripeChargesEnabled: false },
+        }),
+        prisma.agency.update({
+            where: { id: agencyId },
+            data: { stripeAccountId: account, stripeChargesEnabled: false },
+        }),
+        prisma.organization.updateMany({
+            where: { agencyId },
+            data: { clientCustomerId: null },
+        }),
+    ]);
+}
+
+/**
+ * An agency took EcoFusion's access away in Stripe. Its account can no longer
+ * take payments through us, so its businesses stop being charged - and stop
+ * being locked for not paying - until it connects again.
+ */
+export async function applyDeauthorization(account: string): Promise<void> {
+    await prisma.agency.updateMany({
+        where: { stripeAccountId: account },
+        data: { stripeChargesEnabled: false },
+    });
 }
 
 /** Keep an agency's payment readiness in step when Stripe reports a change. */

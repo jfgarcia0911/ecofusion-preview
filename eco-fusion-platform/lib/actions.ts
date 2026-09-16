@@ -2,6 +2,7 @@
 
 import { signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';
+import { TooManyAttempts } from '@/lib/login-guard';
 
 export async function authenticate(
     prevState: string | undefined,
@@ -10,6 +11,9 @@ export async function authenticate(
     try {
         await signIn('credentials', formData);
     } catch (error) {
+        if (error instanceof TooManyAttempts || (error as { code?: string })?.code === 'rate_limited') {
+            return 'Too many sign-in attempts. Wait a few minutes and try again.';
+        }
         if (error instanceof AuthError) {
             switch (error.type) {
                 case 'CredentialsSignin':
