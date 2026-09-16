@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { canManageMembers } from '@/lib/tenancy';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
-import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
+import { encrypt } from '@/lib/encryption';
 
 /**
  * Encrypts an API key using AES-256-GCM
@@ -11,21 +11,6 @@ function encryptApiKey(key: string): string {
   return encrypt(key);
 }
 
-/**
- * Decrypts an API key. Handles both new encrypted format and legacy base64 format.
- */
-function decryptApiKey(encrypted: string): string {
-  try {
-    // Check if it's in the new encrypted format (iv:authTag:data)
-    if (isEncrypted(encrypted)) {
-      return decrypt(encrypted);
-    }
-    // Legacy: try base64 decode for migration purposes
-    return Buffer.from(encrypted, 'base64').toString('utf-8');
-  } catch {
-    return '';
-  }
-}
 
 // GET - Fetch integration settings
 export async function GET() {

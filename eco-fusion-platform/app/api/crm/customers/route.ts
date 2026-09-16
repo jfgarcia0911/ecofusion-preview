@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { decryptStoredKey } from '@/lib/encryption';
 
-// Helper to decrypt API key
-function decryptApiKey(encrypted: string): string {
-  try {
-    return Buffer.from(encrypted, 'base64').toString('utf-8');
-  } catch {
-    return '';
-  }
-}
 
 // GET - Search/fetch CRM contacts
 export async function GET(request: Request) {
@@ -26,7 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'CRM integration not configured' }, { status: 400 });
     }
 
-    const apiKey = decryptApiKey(settings.apiKey);
+    const apiKey = decryptStoredKey(settings.apiKey);
     const locationId = settings.locationId;
 
     const { searchParams } = new URL(request.url);
@@ -103,7 +96,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'CRM integration not configured' }, { status: 400 });
     }
 
-    const apiKey = decryptApiKey(settings.apiKey);
+    const apiKey = decryptStoredKey(settings.apiKey);
     const locationId = settings.locationId;
 
     const data = await request.json();

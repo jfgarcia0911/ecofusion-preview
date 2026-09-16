@@ -85,3 +85,19 @@ export function isEncrypted(text: string): boolean {
 export function generateKey(): string {
   return crypto.randomBytes(32).toString('hex');
 }
+
+/**
+ * Read a stored integration key, in either format it has been kept in.
+ *
+ * Keys are stored encrypted now; older rows are base64. One reader for both,
+ * used by every route that calls the CRM - the CRM routes had their own copy
+ * that only knew base64, so any key saved after encryption arrived was sent
+ * to GoHighLevel as garbage.
+ */
+export function decryptStoredKey(stored: string): string {
+  try {
+    return isEncrypted(stored) ? decrypt(stored) : Buffer.from(stored, 'base64').toString('utf-8');
+  } catch {
+    return '';
+  }
+}

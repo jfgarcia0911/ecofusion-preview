@@ -87,6 +87,12 @@ export default function SubscribeButton({
                 setCheckingOut(false);
                 return;
             }
+            // A plan change on a live subscription needs no payment form.
+            if (data.changed) {
+                setCheckingOut(false);
+                showPaid();
+                return;
+            }
             if (data.checkout) {
                 if (abandoned.current) {
                     await finish(data.checkout.sessionId, true);

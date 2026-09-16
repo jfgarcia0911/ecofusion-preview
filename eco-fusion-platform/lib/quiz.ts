@@ -66,10 +66,10 @@ export function publicQuestions(json: unknown): PublicQuestion[] {
  * blank submission scores zero instead of dividing by nothing.
  *
  * What comes back depends on the outcome. A pass shows every correct answer
- * and every explanation - that is the teaching. A fail says which questions
- * were wrong but not what was right, and explains only the ones answered
- * correctly; otherwise the first attempt is a way to read the answer key, and
- * the retake is a formality.
+ * and every explanation - that is the teaching. A fail gives the score and
+ * nothing per question: saying which answers were wrong let a learner find
+ * every right one in a handful of attempts, one option at a time, without
+ * reading the lesson.
  */
 export function grade(json: unknown, answers: Record<string, unknown>, passScore: number): Grade {
     const questions = storedQuestions(json);
@@ -87,11 +87,13 @@ export function grade(json: unknown, answers: Record<string, unknown>, passScore
         correct,
         total,
         passed,
-        results: results.map(({ q, correct }) => ({
-            id: q.id,
-            correct,
-            ...(passed && { correctAnswer: q.correctAnswer }),
-            ...((passed || correct) && q.explanation && { explanation: q.explanation }),
-        })),
+        results: passed
+            ? results.map(({ q, correct }) => ({
+                  id: q.id,
+                  correct,
+                  correctAnswer: q.correctAnswer,
+                  ...(q.explanation && { explanation: q.explanation }),
+              }))
+            : [],
     };
 }

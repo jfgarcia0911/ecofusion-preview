@@ -279,6 +279,36 @@ export async function startCoursePurchase(options: {
         paidCourses.reduce((sum, course) => sum + (course.priceCents ?? 0), 0) +
         paidPackages.reduce((sum, quote) => sum + quote.chargeCents, 0);
 
+    // An earlier checkout for any of these courses that was never finished is
+    // closed first. Two open checkouts could both be paid, and refunding the
+    // first then took away a course the second had paid for.
+    const paidIds = [
+        ...paidCourses.map((course) => course.id),
+        ...paidPackages.flatMap((quote) => quote.courseIds),
+    ];
+    const overlapping = await prisma.coursePurchase.findMany({
+        where: { organizationId, status: 'pending', items: { some: { courseId: { in: paidIds } } } },
+        select: { id: true, stripeSessionId: true },
+    });
+    for (const earlier of overlapping) {
+        if (earlier.stripeSessionId && stripe) {
+            const open = await stripe.checkout.sessions.retrieve(earlier.stripeSessionId).catch(() => null);
+            if (open?.status === 'complete') {
+                throw new CourseShopError(
+                    'A payment for one or more of these courses is already going through. Give it a minute, then check Your courses.',
+                    409
+                );
+            }
+            if (open?.status === 'open') {
+                await stripe.checkout.sessions.expire(earlier.stripeSessionId).catch(() => null);
+            }
+        }
+        await prisma.coursePurchase.updateMany({
+            where: { id: earlier.id, status: 'pending' },
+            data: { status: 'expired' },
+        });
+    }
+
     const purchase = await prisma.coursePurchase.create({
         data: {
             organizationId,
@@ -507,6 +537,46 @@ export async function expireCheckoutSession(session: Stripe.Checkout.Session): P
 }
 
 /**
+ * Take back what a payment bought, once the money has gone back.
+ *
+ * A course the business also paid for in another purchase stays, now held by
+ * that purchase; only what nothing else paid for is removed.
+ */
+async function revokePurchase(paymentIntentId: string): Promise<void> {
+    const purchase = await prisma.coursePurchase.findUnique({
+        where: { stripePaymentIntentId: paymentIntentId },
+        select: { id: true, status: true, organizationId: true },
+    });
+    if (!purchase || purchase.status !== 'paid') return;
+
+    const grants = await prisma.courseGrant.findMany({
+        where: { purchaseId: purchase.id },
+        select: { id: true, courseId: true },
+    });
+    const alsoPaid = await prisma.coursePurchaseItem.findMany({
+        where: {
+            courseId: { in: grants.map((g) => g.courseId) },
+            purchase: { organizationId: purchase.organizationId, status: 'paid', id: { not: purchase.id } },
+        },
+        select: { courseId: true, purchaseId: true },
+    });
+    const keepWith = new Map(alsoPaid.map((item) => [item.courseId, item.purchaseId]));
+
+    await prisma.$transaction([
+        prisma.coursePurchase.update({
+            where: { id: purchase.id },
+            data: { status: 'refunded', refundedAt: new Date() },
+        }),
+        ...grants.map((grant) => {
+            const other = keepWith.get(grant.courseId);
+            return other
+                ? prisma.courseGrant.update({ where: { id: grant.id }, data: { purchaseId: other } })
+                : prisma.courseGrant.delete({ where: { id: grant.id } });
+        }),
+    ]);
+}
+
+/**
  * Take back what a fully refunded payment bought.
  *
  * A partial refund is a goodwill gesture and leaves the courses where they
@@ -516,21 +586,18 @@ export async function revokeRefundedCharge(charge: Stripe.Charge): Promise<void>
     if (!charge.refunded) return;
     const paymentIntentId =
         typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
-    if (!paymentIntentId) return;
+    if (paymentIntentId) await revokePurchase(paymentIntentId);
+}
 
-    const purchase = await prisma.coursePurchase.findUnique({
-        where: { stripePaymentIntentId: paymentIntentId },
-        select: { id: true, status: true },
-    });
-    if (!purchase || purchase.status !== 'paid') return;
-
-    await prisma.$transaction([
-        prisma.coursePurchase.update({
-            where: { id: purchase.id },
-            data: { status: 'refunded', refundedAt: new Date() },
-        }),
-        prisma.courseGrant.deleteMany({ where: { purchaseId: purchase.id } }),
-    ]);
+/**
+ * A chargeback: the bank has taken the money back, so the courses go with it,
+ * as for a full refund. Winning the dispute is a matter for the owner and
+ * support; the courses can be given back then.
+ */
+export async function revokeDisputedCharge(dispute: Stripe.Dispute): Promise<void> {
+    const paymentIntentId =
+        typeof dispute.payment_intent === 'string' ? dispute.payment_intent : dispute.payment_intent?.id;
+    if (paymentIntentId) await revokePurchase(paymentIntentId);
 }
 
 /**

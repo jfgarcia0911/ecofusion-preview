@@ -39,13 +39,23 @@ export function subscriptionPeriodEnd(subscription: Stripe.Subscription): Date |
   return null;
 }
 
-/** Map Stripe's status onto the agency's, which has fewer states. */
-function statusFor(subscription: Stripe.Subscription): string {
-  // Stripe reports several states; only these two admit an agency.
+/**
+ * Map Stripe's status onto the agency's, which has fewer states.
+ *
+ * Null for the states that say nothing yet: `incomplete` is a first payment
+ * still being confirmed (3-D Secure, a bank transfer) and
+ * `incomplete_expired` one that never was. Neither is a cancellation, and
+ * reading them as one ended a trial the moment somebody started to pay.
+ */
+export function statusFor(subscription: Stripe.Subscription): string | null {
   if (subscription.status === 'active' || subscription.status === 'trialing') return 'active';
   if (subscription.status === 'past_due' || subscription.status === 'unpaid') return 'past_due';
+  if (subscription.status === 'incomplete' || subscription.status === 'incomplete_expired') return null;
   return 'canceled';
 }
+
+export const isLiveSubscription = (subscription: Stripe.Subscription) =>
+  subscription.status === 'active' || subscription.status === 'trialing';
 
 /**
  * Which plan a subscription is for: the Price it charges, which is what
@@ -86,13 +96,33 @@ export async function applySubscription(
     return null;
   }
 
+  const status = statusFor(subscription);
+  if (!status) return id;
+
+  // Only the subscription on record speaks for the agency - unless this one
+  // is live and that one is not. Otherwise an old subscription renewing, or
+  // ending, overwrote the plan and period of the current one, or cancelled an
+  // agency that was paying.
+  const agency = await prisma.agency.findUnique({
+    where: { id },
+    select: { stripeSubscriptionId: true, subscriptionStatus: true },
+  });
+  if (!agency) return null;
+  if (
+    agency.stripeSubscriptionId &&
+    agency.stripeSubscriptionId !== subscription.id &&
+    !(isLiveSubscription(subscription) && agency.subscriptionStatus !== 'active')
+  ) {
+    return id;
+  }
+
   const plan = planOf(subscription);
 
   await prisma.agency.update({
     where: { id },
     data: {
       ...(plan ? { plan } : {}),
-      subscriptionStatus: statusFor(subscription),
+      subscriptionStatus: status,
       currentPeriodEnd: subscriptionPeriodEnd(subscription),
       canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
       stripeSubscriptionId: subscription.id,

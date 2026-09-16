@@ -5,6 +5,7 @@ import { applySubscription } from '@/lib/billing';
 import {
   expireCheckoutSession,
   fulfilCheckoutSession,
+  revokeDisputedCharge,
   revokeRefundedCharge,
 } from '@/lib/course-shop';
 
@@ -72,11 +73,20 @@ export async function POST(request: Request) {
         await revokeRefundedCharge(event.data.object as Stripe.Charge);
         break;
 
+      // A chargeback takes the money back without a refund.
+      case 'charge.dispute.created':
+        await revokeDisputedCharge(event.data.object as Stripe.Dispute);
+        break;
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
-      case 'customer.subscription.deleted':
-        await applySubscription(event.data.object as Stripe.Subscription);
+      case 'customer.subscription.deleted': {
+        // Re-read, since Stripe does not deliver in order: a late "past_due"
+        // must not lock an agency that has since paid.
+        const sent = event.data.object as Stripe.Subscription;
+        await applySubscription(await stripe.subscriptions.retrieve(sent.id));
         break;
+      }
 
       default:
         // Everything else is acknowledged and ignored, so Stripe stops retrying.

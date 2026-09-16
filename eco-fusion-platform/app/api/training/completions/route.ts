@@ -123,10 +123,32 @@ export async function POST(request: Request) {
             where: { courseId },
             select: { id: true, type: true },
         });
-        const done = await prisma.lessonCompletion.findMany({
-            where: { userId: ctx.userId, lessonId: { in: lessons.map((l) => l.id) } },
-            select: { lessonId: true, quizScore: true },
-        });
+        const [done, previous] = await Promise.all([
+            prisma.lessonCompletion.findMany({
+                where: { userId: ctx.userId, lessonId: { in: lessons.map((l) => l.id) } },
+                select: { lessonId: true, quizScore: true, completedAt: true },
+            }),
+            prisma.courseCompletion.findUnique({
+                where: { courseId_userId: { courseId, userId: ctx.userId } },
+                select: { completedAt: true },
+            }),
+        ]);
+        // A renewal is earned by taking the course again. Lesson completions
+        // never expire, so without this any later request re-issued the
+        // certificate and pushed its expiry forward without a lesson opened.
+        const current = previous
+            ? done.filter((d) => d.completedAt.getTime() > previous.completedAt.getTime())
+            : done;
+        if (previous && course.renewalDays && current.length < lessons.length) {
+            return NextResponse.json(
+                {
+                    error: 'Take the course again to renew the certificate',
+                    completedLessons: current.length,
+                    totalLessons: lessons.length,
+                },
+                { status: 409 }
+            );
+        }
         if (lessons.length === 0 || done.length < lessons.length) {
             return NextResponse.json(
                 {

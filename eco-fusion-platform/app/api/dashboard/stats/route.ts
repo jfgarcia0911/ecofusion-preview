@@ -23,7 +23,6 @@ export async function GET() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
     const [
@@ -48,7 +47,9 @@ export async function GET() {
       prisma.sale.aggregate({
         where: {
           organizationId,
-          saleDate: { gte: startOfLastMonth, lte: endOfLastMonth },
+          // Up to the start of this month. "lte the last day" stopped at
+          // midnight at the start of that day and left the day's sales out.
+          saleDate: { gte: startOfLastMonth, lt: startOfMonth },
           status: 'completed',
         },
         _sum: { total: true },
@@ -58,12 +59,16 @@ export async function GET() {
         where: { organizationId, status: 'completed' },
         _sum: { total: true },
       }),
-      // The last six months, for the chart
-      prisma.sale.groupBy({
-        by: ['saleDate'],
-        where: { organizationId, saleDate: { gte: sixMonthsAgo }, status: 'completed' },
-        _sum: { total: true },
-      }),
+      // The last six months, for the chart, summed by month in the database
+      // rather than one row per sale summed here.
+      prisma.$queryRaw<{ month: Date; total: number | null }[]>`
+        SELECT date_trunc('month', "saleDate") AS month, SUM("total")::float8 AS total
+        FROM "Sale"
+        WHERE "organizationId" = ${organizationId}
+          AND "saleDate" >= ${sixMonthsAgo}
+          AND "status" = 'completed'
+        GROUP BY 1
+      `,
       prisma.zone.count({ where: { organizationId, status: 'active' } }),
       prisma.zone.count({ where: { organizationId } }),
       // Harvests, for the yield figure
@@ -73,7 +78,7 @@ export async function GET() {
         _count: true,
       }),
       prisma.harvest.aggregate({
-        where: { organizationId, harvestDate: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        where: { organizationId, harvestDate: { gte: startOfLastMonth, lt: startOfMonth } },
         _sum: { quantity: true },
       }),
       prisma.alert.count({ where: { organizationId, status: 'active' } }),
@@ -98,11 +103,10 @@ export async function GET() {
     }
 
     // Fill in actual data
-    salesByMonth.forEach(sale => {
-      const saleDate = new Date(sale.saleDate);
-      const key = monthNames[saleDate.getMonth()];
+    salesByMonth.forEach(row => {
+      const key = monthNames[new Date(row.month).getMonth()];
       if (monthlyRevenue[key] !== undefined) {
-        monthlyRevenue[key] += sale._sum.total || 0;
+        monthlyRevenue[key] += row.total || 0;
       }
     });
 

@@ -1,21 +1,25 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
+import { canAdminister } from '@/lib/tenancy';
+import { readJson } from '@/lib/validation/request';
+import { adminOnly, optionalText } from '@/lib/validation/fields';
 import { prisma } from '@/lib/prisma';
+import { decryptStoredKey } from '@/lib/encryption';
 
-// Helper to decrypt API key
-function decryptApiKey(encrypted: string): string {
-  try {
-    return Buffer.from(encrypted, 'base64').toString('utf-8');
-  } catch {
-    return '';
-  }
-}
 
 // POST - Sync sales to CRM
+const syncSchema = z.object({
+  type: z.enum(['sale', 'all']).optional(),
+  saleId: optionalText(200),
+  pipelineId: optionalText(200),
+});
+
 export async function POST(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('sync with the CRM');
 
     // Get integration settings
     const settings = await prisma.integrationSettings.findUnique({
@@ -26,20 +30,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'CRM integration not configured' }, { status: 400 });
     }
 
-    const apiKey = decryptApiKey(settings.apiKey);
+    const apiKey = decryptStoredKey(settings.apiKey);
     const locationId = settings.locationId;
 
-    const data = await request.json();
+    const body = await readJson(request, syncSchema);
+    if (!body.ok) return body.response;
+    const data = body.data;
     const { type, saleId } = data;
 
     if (type === 'sale' && saleId) {
       // Sync a specific sale
-      const sale = await prisma.sale.findUnique({
-        where: { id: saleId },
+      const sale = await prisma.sale.findFirst({
+        where: { id: saleId, organizationId: ctx.organizationId },
         include: { items: true },
       });
 
-      if (!sale || sale.userId !== ctx.userId) {
+      if (!sale) {
         return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
       }
 

@@ -100,9 +100,12 @@ export function evaluateClientAccess(
     return { ...base, allowed: false, reason: owed };
 }
 
-function statusFor(subscription: Stripe.Subscription): string {
+// Null for a first payment still being confirmed, or one that never was:
+// neither is a cancellation, and neither should end a free period.
+function statusFor(subscription: Stripe.Subscription): string | null {
     if (subscription.status === 'active' || subscription.status === 'trialing') return 'active';
     if (subscription.status === 'past_due' || subscription.status === 'unpaid') return 'past_due';
+    if (subscription.status === 'incomplete' || subscription.status === 'incomplete_expired') return null;
     return 'canceled';
 }
 
@@ -150,13 +153,16 @@ export async function applyClientSubscription(
         return null;
     }
 
+    const status = statusFor(subscription);
+    if (!status) return organizationId;
+
     const customer =
         typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id ?? null;
 
     await prisma.organization.update({
         where: { id: organizationId },
         data: {
-            clientStatus: statusFor(subscription),
+            clientStatus: status,
             clientPeriodEnd: subscriptionPeriodEnd(subscription),
             clientCanceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
             clientSubscriptionId: subscription.id,

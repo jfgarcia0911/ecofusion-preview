@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { agencyStanding } from '@/lib/agency';
 import { isPlanKey, planFor } from '@/lib/plans';
 import { getStripe, isBillingConfigured, stripePriceFor, appUrl } from '@/lib/stripe';
+import { applySubscription, isLiveSubscription } from '@/lib/billing';
 import { stripePublishableKey } from '@/lib/course-shop';
 
 // POST - Start a Stripe Checkout session for the caller's agency, on a plan.
@@ -56,10 +57,32 @@ export async function POST(request: Request) {
 
     const agency = await prisma.agency.findUnique({
       where: { id: standing.agencyId },
-      select: { id: true, name: true, stripeCustomerId: true },
+      select: { id: true, name: true, stripeCustomerId: true, stripeSubscriptionId: true },
     });
     if (!agency) {
       return NextResponse.json({ error: 'Agency not found' }, { status: 404 });
+    }
+
+    // Already paying: change the plan on the subscription it has. A second
+    // checkout started a second subscription, billed both, and let the old
+    // one's renewals overwrite the new plan.
+    if (agency.stripeSubscriptionId) {
+      const current = await stripe.subscriptions
+        .retrieve(agency.stripeSubscriptionId)
+        .catch(() => null);
+      if (current && isLiveSubscription(current)) {
+        const item = current.items.data[0];
+        if (item?.price?.id === price) {
+          return NextResponse.json({ error: `The agency is already on the ${plan.name} plan.` }, { status: 400 });
+        }
+        const updated = await stripe.subscriptions.update(current.id, {
+          items: [{ id: item.id, price }],
+          proration_behavior: 'create_prorations',
+          metadata: { agencyId: agency.id, plan: planKey },
+        });
+        await applySubscription(updated, agency.id);
+        return NextResponse.json({ changed: true, plan: planKey });
+      }
     }
 
     // One Stripe customer per agency, reused across renewals and plan changes.
