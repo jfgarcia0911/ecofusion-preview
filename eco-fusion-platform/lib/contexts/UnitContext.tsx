@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useCallback, useMemo, useSyncExternalStore } from "react";
 import { DEFAULT_UNITS, type UnitPreferences, type TemperatureUnit, type WeightUnit } from "@/lib/units";
 
 const STORAGE_KEY = "ecofusion:units";
@@ -14,35 +14,67 @@ interface UnitContextType {
 
 const UnitContext = createContext<UnitContextType | undefined>(undefined);
 
-export function UnitProvider({ children }: { children: React.ReactNode }) {
-    const [units, setUnits] = useState<UnitPreferences>(DEFAULT_UNITS);
-    const [ready, setReady] = useState(false);
+// localStorage can throw in private windows. When a write fails the choice is
+// held here instead, so it still applies for the rest of the session.
+let unsaved: string | undefined;
+const listeners = new Set<() => void>();
 
-    // Read once on mount. localStorage is unavailable during SSR and can throw
-    // in private windows, so failure just falls back to the defaults.
-    useEffect(() => {
-        try {
-            const raw = window.localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw) as Partial<UnitPreferences>;
-                setUnits({
-                    temperature: parsed.temperature === "F" ? "F" : "C",
-                    weight: parsed.weight === "imperial" ? "imperial" : "metric",
-                });
-            }
-        } catch {
-            // Keep defaults.
-        }
-        setReady(true);
-    }, []);
+function readStored(): string | null {
+    if (unsaved !== undefined) return unsaved;
+    try {
+        return window.localStorage.getItem(STORAGE_KEY);
+    } catch {
+        return null;
+    }
+}
+
+function writeStored(value: string) {
+    try {
+        window.localStorage.setItem(STORAGE_KEY, value);
+        unsaved = undefined;
+    } catch {
+        unsaved = value;
+    }
+    listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+    listeners.add(listener);
+    // Another tab changing the preference is the same change made here.
+    const onStorage = (event: StorageEvent) => {
+        if (event.key === STORAGE_KEY) listener();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+        listeners.delete(listener);
+        window.removeEventListener("storage", onStorage);
+    };
+}
+
+const noSubscribe = () => () => {};
+
+function parseUnits(raw: string | null): UnitPreferences {
+    if (!raw) return DEFAULT_UNITS;
+    try {
+        const parsed = JSON.parse(raw) as Partial<UnitPreferences>;
+        return {
+            temperature: parsed.temperature === "F" ? "F" : "C",
+            weight: parsed.weight === "imperial" ? "imperial" : "metric",
+        };
+    } catch {
+        return DEFAULT_UNITS;
+    }
+}
+
+export function UnitProvider({ children }: { children: React.ReactNode }) {
+    // The server has no storage, so it and the first client render both use
+    // the defaults; the stored preference replaces them straight after.
+    const raw = useSyncExternalStore(subscribe, readStored, () => null);
+    const ready = useSyncExternalStore(noSubscribe, () => true, () => false);
+    const units = useMemo(() => parseUnits(raw), [raw]);
 
     const persist = useCallback((next: UnitPreferences) => {
-        setUnits(next);
-        try {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        } catch {
-            // Preference stays for this session only.
-        }
+        writeStored(JSON.stringify(next));
     }, []);
 
     const setTemperatureUnit = useCallback(

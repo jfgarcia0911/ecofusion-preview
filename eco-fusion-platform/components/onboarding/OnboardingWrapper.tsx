@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, Component, ReactNode } from 'react';
+import { useState, Component, ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 
-// Dynamic import to avoid SSR issues with Joyride
+// Client-only, and only fetched when the tour is actually shown, so
+// react-joyride stays out of the bundle for everybody who has done it.
 const OnboardingTour = dynamic(() => import('./OnboardingTour'), {
     ssr: false,
     loading: () => null,
@@ -38,18 +39,14 @@ interface OnboardingWrapperProps {
 
 export default function OnboardingWrapper({ initialShowTour }: OnboardingWrapperProps) {
     const [showTour, setShowTour] = useState(initialShowTour);
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     const handleComplete = () => {
         setShowTour(false);
     };
 
-    // Don't render until mounted to avoid hydration issues
-    if (!mounted) return null;
+    // The dynamic import renders nothing on the server and nothing while it
+    // loads, so the first client render matches the HTML without a mount gate.
+    if (!showTour) return null;
 
     return (
         <TourErrorBoundary>

@@ -8,6 +8,7 @@ import { PERMISSIONS } from "@/lib/staff-permissions";
 import { Eye } from "lucide-react";
 import Sidebar, { type AboveLink } from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import { MobileNavDrawer, MobileNavProvider } from "@/components/layout/MobileNav";
 import OnboardingWrapper from "@/components/onboarding/OnboardingWrapper";
 import SubAccountLock from "@/components/billing/SubAccountLock";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -95,16 +96,19 @@ export default async function DashboardLayout({
         <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
             <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
             <div className="relative z-10 flex w-full h-full">
-                <Sidebar
-                    user={session?.user ? { ...session.user, orgRole: ctx?.role ?? session.user.orgRole } : undefined}
-                    business={business}
-                    isOwner={isOwner}
-                    showClasses={showClasses}
-                    above={above}
-                />
-                <div className="flex flex-col flex-1 overflow-hidden">
+                <MobileNavProvider>
+                <MobileNavDrawer>
+                    <Sidebar
+                        user={session?.user ? { ...session.user, orgRole: ctx?.role ?? session.user.orgRole } : undefined}
+                        business={business}
+                        isOwner={isOwner}
+                        showClasses={showClasses}
+                        above={above}
+                    />
+                </MobileNavDrawer>
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                     <Header />
-                    <main className="flex-1 overflow-y-auto p-6 transition-all duration-300 scrollbar-hide">
+                    <main className="flex-1 overflow-y-auto p-4 md:p-6 transition-all duration-300 scrollbar-hide">
                         {viewOnly && (
                             <p className="mb-6 px-4 py-3 rounded-xl border border-info/25 bg-info/10 text-sm text-info flex items-center gap-2">
                                 <Eye size={15} className="shrink-0" />
@@ -122,6 +126,7 @@ export default async function DashboardLayout({
                         </SubAccountLock>
                     </main>
                 </div>
+                </MobileNavProvider>
             </div>
             <OnboardingWrapper initialShowTour={showOnboarding} />
         </div>

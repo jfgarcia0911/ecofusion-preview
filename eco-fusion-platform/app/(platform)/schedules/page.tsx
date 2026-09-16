@@ -1,18 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { MyScheduleSkeleton } from '@/components/skeletons/PageSkeletons';
 import {
     Calendar,
     Clock,
     CheckCircle2,
     AlertCircle,
-    Loader2,
     MapPin,
     Bell,
     ChevronRight,
     PlayCircle,
-    XCircle,
 } from 'lucide-react';
 
 interface Schedule {
@@ -40,7 +38,8 @@ interface ScheduledTask {
     creator: { name: string | null };
 }
 
-interface Notification {
+// Named so it doesn't shadow the browser's Notification, which this page also uses.
+interface AppNotification {
     id: string;
     title: string;
     message: string;
@@ -52,67 +51,103 @@ interface Notification {
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// The browser fires no event when notification permission changes, so the
+// button that asks for it tells these listeners itself.
+const permissionListeners = new Set<() => void>();
+
+function subscribeToPermission(listener: () => void) {
+    permissionListeners.add(listener);
+    return () => {
+        permissionListeners.delete(listener);
+    };
+}
+
+function notifyPermissionChange() {
+    permissionListeners.forEach(listener => listener());
+}
+
+function readPermission(): NotificationPermission | 'unsupported' {
+    return 'Notification' in window ? Notification.permission : 'unsupported';
+}
+
 export default function UserSchedulesPage() {
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [tasks, setTasks] = useState<ScheduledTask[]>([]);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'today' | 'week' | 'tasks'>('today');
     const today = new Date().getDay();
+    const reminderPermission = useSyncExternalStore(
+        subscribeToPermission,
+        readPermission,
+        () => 'unsupported' as const,
+    );
+
+    // The interval below outlives renders, so it reads tasks through a ref.
+    // Reading `tasks` directly would keep the empty list from the first render
+    // and no reminder would ever go out.
+    const tasksRef = useRef<ScheduledTask[]>([]);
+    const notifiedTaskIds = useRef<Set<string>>(new Set());
 
     useEffect(() => {
-        fetchData();
-        // Check for task notifications every minute
+        tasksRef.current = tasks;
+    }, [tasks]);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const [schedulesRes, tasksRes, notificationsRes] = await Promise.all([
+                    fetch('/api/schedules'),
+                    fetch('/api/scheduled-tasks'),
+                    fetch('/api/notifications'),
+                ]);
+                if (cancelled) return;
+
+                if (schedulesRes.ok) setSchedules(await schedulesRes.json());
+                if (tasksRes.ok) setTasks(await tasksRes.json());
+                if (notificationsRes.ok) setNotifications(await notificationsRes.json());
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+            }
+            if (!cancelled) setLoading(false);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        const checkTaskNotifications = () => {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            const now = Date.now();
+            for (const task of tasksRef.current) {
+                if (task.status !== 'pending' || notifiedTaskIds.current.has(task.id)) continue;
+                const scheduledTime = new Date(task.scheduledFor);
+                const minutesUntil = (scheduledTime.getTime() - now) / (1000 * 60);
+
+                if (minutesUntil <= 30 && minutesUntil > 0) {
+                    // Remembered so the same task doesn't notify again every minute
+                    // for the half hour before it starts.
+                    notifiedTaskIds.current.add(task.id);
+                    new Notification(`Task Reminder: ${task.title}`, {
+                        body: `Scheduled for ${scheduledTime.toLocaleTimeString()}`,
+                        icon: '/favicon.ico',
+                    });
+                }
+            }
+        };
+
         const interval = setInterval(checkTaskNotifications, 60000);
         return () => clearInterval(interval);
     }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [schedulesRes, tasksRes, notificationsRes] = await Promise.all([
-                fetch('/api/schedules'),
-                fetch('/api/scheduled-tasks'),
-                fetch('/api/notifications'),
-            ]);
-
-            if (schedulesRes.ok) setSchedules(await schedulesRes.json());
-            if (tasksRes.ok) setTasks(await tasksRes.json());
-            if (notificationsRes.ok) setNotifications(await notificationsRes.json());
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
-        }
-        setLoading(false);
+    // Browsers ignore or penalise permission prompts that aren't a response to
+    // something the person did, so this only runs from the button.
+    const enableReminders = async () => {
+        await Notification.requestPermission();
+        notifyPermissionChange();
     };
-
-    const checkTaskNotifications = useCallback(() => {
-        const now = new Date();
-        tasks.forEach(task => {
-            if (task.status === 'pending') {
-                const scheduledTime = new Date(task.scheduledFor);
-                const timeDiff = scheduledTime.getTime() - now.getTime();
-                const minutesDiff = timeDiff / (1000 * 60);
-
-                // If task is within 30 minutes and not yet notified
-                if (minutesDiff <= 30 && minutesDiff > 0) {
-                    // Browser notification
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification(`Task Reminder: ${task.title}`, {
-                            body: `Scheduled for ${scheduledTime.toLocaleTimeString()}`,
-                            icon: '/favicon.ico',
-                        });
-                    }
-                }
-            }
-        });
-    }, [tasks]);
-
-    // Request notification permission on mount
-    useEffect(() => {
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-    }, []);
 
     const updateTaskStatus = async (taskId: string, status: string) => {
         try {
@@ -123,7 +158,7 @@ export default function UserSchedulesPage() {
             });
 
             if (res.ok) {
-                setTasks(tasks.map(t => t.id === taskId ? { ...t, status } : t));
+                setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t));
             }
         } catch (error) {
             console.error('Failed to update task:', error);
@@ -132,12 +167,14 @@ export default function UserSchedulesPage() {
 
     const markNotificationRead = async (id: string) => {
         try {
-            await fetch('/api/notifications', {
+            const res = await fetch('/api/notifications', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notificationIds: [id] }),
             });
-            setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+            if (res.ok) {
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+            }
         } catch (error) {
             console.error('Failed to mark notification as read:', error);
         }
@@ -183,13 +220,25 @@ export default function UserSchedulesPage() {
                     </p>
                 </div>
 
-                {/* Notification Badge */}
-                {getUnreadNotifications().length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-accent/20 border border-accent/30 rounded-xl">
-                        <Bell className="text-accent" size={18} />
-                        <span className="text-sm">{getUnreadNotifications().length} new notifications</span>
-                    </div>
-                )}
+                <div className="flex items-center gap-3">
+                    {reminderPermission === 'default' && (
+                        <button
+                            onClick={enableReminders}
+                            className="flex items-center gap-2 px-4 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors"
+                        >
+                            <Bell size={16} />
+                            Turn on reminders
+                        </button>
+                    )}
+
+                    {/* Notification Badge */}
+                    {getUnreadNotifications().length > 0 && (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-accent/20 border border-accent/30 rounded-xl">
+                            <Bell className="text-accent" size={18} />
+                            <span className="text-sm">{getUnreadNotifications().length} new notifications</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Notifications Banner */}

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import RevenueByUnit from "@/components/sales/RevenueByUnit";
 import Link from "next/link";
 import { ShoppingCart, Plus, TrendingUp, DollarSign, Users, Package, Download, ChevronRight } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface SaleItem {
   id: string;
@@ -40,6 +41,7 @@ interface SalesStats {
 }
 
 export default function SalesDashboard() {
+  const toast = useToast();
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   // The list below shows ten; the breakdown is over everything, or a silo would
   // look small only because its last sale was eleven ago.
@@ -52,6 +54,7 @@ export default function SalesDashboard() {
     todayRevenue: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   // Every line of every sale. The breakdown is over lines, not sales: one sale
   // can carry fish and lettuce, and those belong to different silos.
@@ -63,17 +66,18 @@ export default function SalesDashboard() {
     }))
   );
 
-  useEffect(() => {
-    fetchSales();
-  }, []);
-
-  async function fetchSales() {
+  const fetchSales = useCallback(async () => {
     try {
       const res = await fetch("/api/sales");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // An error body is not an empty sales history; say so instead of showing zeroes as fact.
+        toast.error(data.error ?? "Could not load sales");
+        return;
+      }
       const sales = Array.isArray(data) ? data : [];
       setRecentSales(sales.slice(0, 10));
-        setAllSales(sales.filter((s: Sale) => s.status === "completed"));
+      setAllSales(sales.filter((s: Sale) => s.status === "completed"));
 
       // Calculate stats
       const today = new Date().toISOString().split("T")[0];
@@ -92,23 +96,39 @@ export default function SalesDashboard() {
       });
     } catch (error) {
       console.error("Failed to fetch sales:", error);
+      toast.error("Could not load sales");
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
 
   async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
     try {
       const res = await fetch("/api/sales/export");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not export sales");
+        return;
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `sales-export-${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      window.URL.revokeObjectURL(url);
+      // Some browsers start the download after click returns, so the URL has to outlive it.
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch (error) {
       console.error("Failed to export sales:", error);
+      toast.error("Could not export sales");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -137,16 +157,18 @@ export default function SalesDashboard() {
         <div className="flex gap-3">
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-white/5 text-white/70 font-medium rounded-lg hover:bg-white/10 flex items-center gap-2"
+            disabled={exporting}
+            className="px-4 py-2 bg-white/5 text-white/70 font-medium rounded-lg hover:bg-white/10 disabled:opacity-50 flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
-            Export
+            {exporting ? "Exporting..." : "Export"}
           </button>
-          <Link href="/sales/new">
-            <button className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              New Sale
-            </button>
+          <Link
+            href="/sales/new"
+            className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Sale
           </Link>
         </div>
       </div>
@@ -271,10 +293,11 @@ export default function SalesDashboard() {
           <div className="text-center py-8">
             <ShoppingCart className="w-12 h-12 text-white/20 mx-auto mb-3" />
             <p className="text-white/50 mb-4">No sales recorded yet</p>
-            <Link href="/sales/new">
-              <button className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90">
-                Create First Sale
-              </button>
+            <Link
+              href="/sales/new"
+              className="inline-block px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+            >
+              Create First Sale
             </Link>
           </div>
         ) : (

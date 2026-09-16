@@ -104,23 +104,43 @@ export default function SubAccountSwitcher({
         };
     }, [open]);
 
+    // Only the newest search may fill the list, so a slow answer to an
+    // earlier query cannot land after a newer one and replace it.
+    const pending = useRef<AbortController | null>(null);
+    useEffect(
+        () => () => {
+            pending.current?.abort();
+            pending.current = null;
+        },
+        []
+    );
+
     const load = useCallback(
         async (q: string) => {
+            pending.current?.abort();
+            const controller = new AbortController();
+            pending.current = controller;
             setLoading(true);
             try {
                 const res = await fetch(
-                    `/api/admin/organizations?q=${encodeURIComponent(q)}`
+                    `/api/admin/organizations?q=${encodeURIComponent(q)}`,
+                    { signal: controller.signal }
                 );
                 if (!res.ok) {
                     toast.error("Could not load the sub account list");
                     return;
                 }
                 const data = await res.json();
+                if (controller.signal.aborted) return;
                 setAccounts(data.organizations ?? []);
             } catch {
+                if (controller.signal.aborted) return;
                 toast.error("Could not load the sub account list");
             } finally {
-                setLoading(false);
+                if (pending.current === controller) {
+                    pending.current = null;
+                    setLoading(false);
+                }
             }
         },
         [toast]

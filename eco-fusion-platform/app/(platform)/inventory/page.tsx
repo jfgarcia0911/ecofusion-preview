@@ -23,6 +23,7 @@ export default function InventoryDashboard() {
     salesInventoryValue: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchStats() {
@@ -35,11 +36,19 @@ export default function InventoryDashboard() {
         ]);
 
         const [fish, plants, harvests, salesStock] = await Promise.all([
-          fishRes.json(),
-          plantsRes.json(),
-          harvestsRes.json(),
-          salesStockRes.json(),
+          fishRes.json().catch(() => ({})),
+          plantsRes.json().catch(() => ({})),
+          harvestsRes.json().catch(() => ({})),
+          salesStockRes.json().catch(() => ({})),
         ]);
+
+        // A failed request would otherwise show up as a confident zero.
+        const failed = [fishRes, plantsRes, harvestsRes, salesStockRes].findIndex((r) => !r.ok);
+        if (failed !== -1) {
+          const body = [fish, plants, harvests, salesStock][failed];
+          setLoadError(body?.error ?? "Couldn't load inventory stats");
+          return;
+        }
 
         const fishArray = Array.isArray(fish) ? fish : [];
         const plantsArray = Array.isArray(plants) ? plants : [];
@@ -63,6 +72,7 @@ export default function InventoryDashboard() {
         });
       } catch (error) {
         console.error("Failed to fetch inventory stats:", error);
+        setLoadError("Couldn't load inventory stats");
       } finally {
         setLoading(false);
       }
@@ -142,6 +152,10 @@ export default function InventoryDashboard() {
             </div>
           ))}
         </div>
+      ) : loadError ? (
+        <div role="alert" className="glass-card p-6 text-red-400">
+          {loadError}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cards.map((card) => (
@@ -163,29 +177,33 @@ export default function InventoryDashboard() {
       <div className="glass-card p-6">
         <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link href="/inventory/fish">
-            <button className="w-full px-4 py-3 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-2">
-              <Fish className="w-4 h-4" />
-              Add Fish Stock
-            </button>
+          <Link
+            href="/inventory/fish"
+            className="w-full px-4 py-3 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-2"
+          >
+            <Fish className="w-4 h-4" />
+            Add Fish Stock
           </Link>
-          <Link href="/inventory/plants">
-            <button className="w-full px-4 py-3 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors flex items-center justify-center gap-2">
-              <Leaf className="w-4 h-4" />
-              Add Plant Crop
-            </button>
+          <Link
+            href="/inventory/plants"
+            className="w-full px-4 py-3 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors flex items-center justify-center gap-2"
+          >
+            <Leaf className="w-4 h-4" />
+            Add Plant Crop
           </Link>
-          <Link href="/inventory/harvests">
-            <button className="w-full px-4 py-3 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition-colors flex items-center justify-center gap-2">
-              <Scale className="w-4 h-4" />
-              Record Harvest
-            </button>
+          <Link
+            href="/inventory/harvests"
+            className="w-full px-4 py-3 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition-colors flex items-center justify-center gap-2"
+          >
+            <Scale className="w-4 h-4" />
+            Record Harvest
           </Link>
-          <Link href="/sales/new">
-            <button className="w-full px-4 py-3 bg-accent/20 text-accent rounded-lg hover:bg-accent/30 transition-colors flex items-center justify-center gap-2">
-              <Package className="w-4 h-4" />
-              New Sale
-            </button>
+          <Link
+            href="/sales/new"
+            className="w-full px-4 py-3 bg-accent/20 text-accent rounded-lg hover:bg-accent/30 transition-colors flex items-center justify-center gap-2"
+          >
+            <Package className="w-4 h-4" />
+            New Sale
           </Link>
         </div>
       </div>

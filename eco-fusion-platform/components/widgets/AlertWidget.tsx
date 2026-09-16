@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AlertCircle, ChevronRight, RefreshCw } from "lucide-react";
 import clsx from "clsx";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 
 interface Alert {
   id: string;
@@ -22,6 +23,8 @@ interface AlertWidgetProps {
   limit?: number;
   showOnlyActive?: boolean;
   onAlertClick?: (alert: Alert) => void;
+  /** Change this number to refetch now, e.g. after an alert was updated. */
+  refreshSignal?: number;
 }
 
 export default function AlertWidget({
@@ -29,6 +32,7 @@ export default function AlertWidget({
   limit = 5,
   showOnlyActive = true,
   onAlertClick,
+  refreshSignal = 0,
 }: AlertWidgetProps) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +53,7 @@ export default function AlertWidget({
         throw new Error("Failed to fetch alerts");
       }
       const data = await response.json();
-      setAlerts(data);
+      setAlerts(Array.isArray(data) ? data : []);
       setError(null);
     } catch (err) {
       console.error("Error fetching alerts:", err);
@@ -59,11 +63,17 @@ export default function AlertWidget({
     }
   }, [limit, showOnlyActive]);
 
+  // Pauses while the tab is hidden, and runs the first fetch itself.
+  useVisibleInterval(fetchAlerts, 30000);
+
+  // The parent used to remount this widget to force a refresh, which also tore
+  // down and restarted the polling timer. A signal prop refetches in place.
+  const lastSignal = useRef(refreshSignal);
   useEffect(() => {
+    if (lastSignal.current === refreshSignal) return;
+    lastSignal.current = refreshSignal;
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 30000);
-    return () => clearInterval(interval);
-  }, [fetchAlerts]);
+  }, [refreshSignal, fetchAlerts]);
 
   const getSeverityStyles = (severity: string) => {
     switch (severity) {
@@ -116,6 +126,8 @@ export default function AlertWidget({
           {error}
           <button
             onClick={fetchAlerts}
+            aria-label="Retry loading alerts"
+            title="Retry"
             className="ml-auto p-1 hover:bg-white/10 rounded"
           >
             <RefreshCw size={14} />

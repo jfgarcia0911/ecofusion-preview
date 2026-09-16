@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Leaf, Plus, Edit2, Trash2, TrendingUp, Calendar, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Leaf, Plus, Edit2, Trash2, TrendingUp, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface Zone {
   id: string;
@@ -37,6 +38,7 @@ interface PlantCrop {
 
 export default function PlantInventoryPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [plantCrops, setPlantCrops] = useState<PlantCrop[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,8 @@ export default function PlantInventoryPage() {
   const [editingCrop, setEditingCrop] = useState<PlantCrop | null>(null);
   const [expandedCrop, setExpandedCrop] = useState<string | null>(null);
   const [showGrowthForm, setShowGrowthForm] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savingGrowth, setSavingGrowth] = useState(false);
 
   const [formData, setFormData] = useState({
     zoneId: "",
@@ -63,64 +67,77 @@ export default function PlantInventoryPage() {
     notes: "",
   });
 
-  useEffect(() => {
-    fetchPlantCrops();
-    fetchZones();
-  }, []);
-
-  async function fetchPlantCrops() {
+  const fetchPlantCrops = useCallback(async () => {
     try {
       const res = await fetch("/api/inventory/plants");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load plant crops");
+        return;
+      }
       setPlantCrops(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch plant crops:", error);
+      toast.error("Couldn't load plant crops");
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
 
-  async function fetchZones() {
+  const fetchZones = useCallback(async () => {
     try {
       const res = await fetch("/api/zones");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load zones");
+        return;
+      }
       const hydroponicsZones = (Array.isArray(data) ? data : []).filter(
         (z: Zone) => z.type === "hydroponics"
       );
       setZones(hydroponicsZones);
     } catch (error) {
       console.error("Failed to fetch zones:", error);
+      toast.error("Couldn't load zones");
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchPlantCrops();
+    fetchZones();
+  }, [fetchPlantCrops, fetchZones]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const payload = {
         ...formData,
         quantity: parseInt(formData.quantity),
       };
 
-      if (editingCrop) {
-        await fetch("/api/inventory/plants", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editingCrop.id, ...payload }),
-        });
-      } else {
-        await fetch("/api/inventory/plants", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const res = await fetch("/api/inventory/plants", {
+        method: editingCrop ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingCrop ? { id: editingCrop.id, ...payload } : payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't save plant crop");
+        return;
       }
 
+      toast.success(editingCrop ? "Plant crop updated" : "Plant crop added");
       setShowForm(false);
       setEditingCrop(null);
       resetForm();
       fetchPlantCrops();
     } catch (error) {
       console.error("Failed to save plant crop:", error);
+      toast.error("Couldn't save plant crop", { description: "Check your connection and try again." });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -132,17 +149,26 @@ export default function PlantInventoryPage() {
       tone: "danger",
     }))) return;
     try {
-      await fetch(`/api/inventory/plants?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/inventory/plants?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't delete plant crop");
+        return;
+      }
+      toast.success("Plant crop deleted");
       fetchPlantCrops();
     } catch (error) {
       console.error("Failed to delete plant crop:", error);
+      toast.error("Couldn't delete plant crop", { description: "Check your connection and try again." });
     }
   }
 
   async function handleGrowthSubmit(e: React.FormEvent, plantCropId: string) {
     e.preventDefault();
+    if (savingGrowth) return;
+    setSavingGrowth(true);
     try {
-      await fetch(`/api/inventory/plants/${plantCropId}/growth`, {
+      const res = await fetch(`/api/inventory/plants/${plantCropId}/growth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -152,12 +178,21 @@ export default function PlantInventoryPage() {
           notes: growthData.notes || null,
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't save growth log");
+        return;
+      }
 
+      toast.success("Growth log saved");
       setShowGrowthForm(null);
       setGrowthData({ heightCm: "", healthScore: "", losses: "0", notes: "" });
       fetchPlantCrops();
     } catch (error) {
       console.error("Failed to add growth log:", error);
+      toast.error("Couldn't save growth log", { description: "Check your connection and try again." });
+    } finally {
+      setSavingGrowth(false);
     }
   }
 
@@ -241,7 +276,7 @@ export default function PlantInventoryPage() {
               <h2 className="text-xl font-semibold text-white">
                 {editingCrop ? "Edit Plant Crop" : "Add Plant Crop"}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-white/50 hover:text-white">
+              <button onClick={() => setShowForm(false)} aria-label="Close" className="text-white/50 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -350,9 +385,10 @@ export default function PlantInventoryPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingCrop ? "Update" : "Add Crop"}
+                  {saving ? "Saving..." : editingCrop ? "Update" : "Add Crop"}
                 </button>
               </div>
             </form>
@@ -409,12 +445,14 @@ export default function PlantInventoryPage() {
                     </span>
                     <button
                       onClick={() => openEditForm(crop)}
+                      aria-label={`Edit ${crop.cropType}`}
                       className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(crop.id)}
+                      aria-label={`Delete ${crop.cropType}`}
                       className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -528,9 +566,10 @@ export default function PlantInventoryPage() {
                       </button>
                       <button
                         type="submit"
-                        className="px-3 py-1.5 bg-accent text-primary font-medium rounded text-sm hover:bg-accent/90"
+                        disabled={savingGrowth}
+                        className="px-3 py-1.5 bg-accent text-primary font-medium rounded text-sm hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Save Log
+                        {savingGrowth ? "Saving..." : "Save Log"}
                       </button>
                     </div>
                   </form>

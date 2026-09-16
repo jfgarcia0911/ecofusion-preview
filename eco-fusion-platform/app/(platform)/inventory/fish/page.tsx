@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Fish, Plus, Edit2, Trash2, TrendingUp, Calendar, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Fish, Plus, Edit2, Trash2, TrendingUp, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
 import { weightToDisplay, weightToCanonical, weightInputLabel, round } from "@/lib/units";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface Zone {
   id: string;
@@ -39,6 +40,7 @@ interface FishStock {
 
 export default function FishInventoryPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [fishStocks, setFishStocks] = useState<FishStock[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +48,8 @@ export default function FishInventoryPage() {
   const [editingStock, setEditingStock] = useState<FishStock | null>(null);
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [showGrowthForm, setShowGrowthForm] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savingGrowth, setSavingGrowth] = useState(false);
 
   const { units } = useUnits();
   const [formData, setFormData] = useState({
@@ -65,38 +69,50 @@ export default function FishInventoryPage() {
     notes: "",
   });
 
-  useEffect(() => {
-    fetchFishStocks();
-    fetchZones();
-  }, []);
-
-  async function fetchFishStocks() {
+  const fetchFishStocks = useCallback(async () => {
     try {
       const res = await fetch("/api/inventory/fish");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load fish stocks");
+        return;
+      }
       setFishStocks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch fish stocks:", error);
+      toast.error("Couldn't load fish stocks");
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
 
-  async function fetchZones() {
+  const fetchZones = useCallback(async () => {
     try {
       const res = await fetch("/api/zones");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load zones");
+        return;
+      }
       const aquacultureZones = (Array.isArray(data) ? data : []).filter(
         (z: Zone) => z.type === "aquaculture"
       );
       setZones(aquacultureZones);
     } catch (error) {
       console.error("Failed to fetch zones:", error);
+      toast.error("Couldn't load zones");
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchFishStocks();
+    fetchZones();
+  }, [fetchFishStocks, fetchZones]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const payload = {
         ...formData,
@@ -106,26 +122,27 @@ export default function FishInventoryPage() {
         ageWeeks: formData.ageWeeks ? parseInt(formData.ageWeeks) : null,
       };
 
-      if (editingStock) {
-        await fetch("/api/inventory/fish", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editingStock.id, ...payload }),
-        });
-      } else {
-        await fetch("/api/inventory/fish", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const res = await fetch("/api/inventory/fish", {
+        method: editingStock ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingStock ? { id: editingStock.id, ...payload } : payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't save fish stock");
+        return;
       }
 
+      toast.success(editingStock ? "Fish stock updated" : "Fish stock added");
       setShowForm(false);
       setEditingStock(null);
       resetForm();
       fetchFishStocks();
     } catch (error) {
       console.error("Failed to save fish stock:", error);
+      toast.error("Couldn't save fish stock", { description: "Check your connection and try again." });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -137,17 +154,26 @@ export default function FishInventoryPage() {
       tone: "danger",
     }))) return;
     try {
-      await fetch(`/api/inventory/fish?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/inventory/fish?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't delete fish stock");
+        return;
+      }
+      toast.success("Fish stock deleted");
       fetchFishStocks();
     } catch (error) {
       console.error("Failed to delete fish stock:", error);
+      toast.error("Couldn't delete fish stock", { description: "Check your connection and try again." });
     }
   }
 
   async function handleGrowthSubmit(e: React.FormEvent, fishStockId: string) {
     e.preventDefault();
+    if (savingGrowth) return;
+    setSavingGrowth(true);
     try {
-      await fetch(`/api/inventory/fish/${fishStockId}/growth`, {
+      const res = await fetch(`/api/inventory/fish/${fishStockId}/growth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,12 +183,21 @@ export default function FishInventoryPage() {
           notes: growthData.notes || null,
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't save growth log");
+        return;
+      }
 
+      toast.success("Growth log saved");
       setShowGrowthForm(null);
       setGrowthData({ avgWeight: "", mortality: "0", feedUsed: "", notes: "" });
       fetchFishStocks();
     } catch (error) {
       console.error("Failed to add growth log:", error);
+      toast.error("Couldn't save growth log", { description: "Check your connection and try again." });
+    } finally {
+      setSavingGrowth(false);
     }
   }
 
@@ -237,7 +272,7 @@ export default function FishInventoryPage() {
               <h2 className="text-xl font-semibold text-white">
                 {editingStock ? "Edit Fish Stock" : "Add Fish Stock"}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-white/50 hover:text-white">
+              <button onClick={() => setShowForm(false)} aria-label="Close" className="text-white/50 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -336,9 +371,10 @@ export default function FishInventoryPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingStock ? "Update" : "Add Stock"}
+                  {saving ? "Saving..." : editingStock ? "Update" : "Add Stock"}
                 </button>
               </div>
             </form>
@@ -389,12 +425,14 @@ export default function FishInventoryPage() {
                     </span>
                     <button
                       onClick={() => openEditForm(stock)}
+                      aria-label={`Edit ${stock.species}`}
                       className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(stock.id)}
+                      aria-label={`Delete ${stock.species}`}
                       className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -513,9 +551,10 @@ export default function FishInventoryPage() {
                       </button>
                       <button
                         type="submit"
-                        className="px-3 py-1.5 bg-accent text-primary font-medium rounded text-sm hover:bg-accent/90"
+                        disabled={savingGrowth}
+                        className="px-3 py-1.5 bg-accent text-primary font-medium rounded text-sm hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Save Log
+                        {savingGrowth ? "Saving..." : "Save Log"}
                       </button>
                     </div>
                   </form>

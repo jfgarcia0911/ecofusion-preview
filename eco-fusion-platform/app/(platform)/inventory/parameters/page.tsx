@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Settings, Plus, Edit2, Trash2, Fish, Leaf, X } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface GrowthParameter {
   id: string;
@@ -22,11 +23,13 @@ interface GrowthParameter {
 
 export default function GrowthParametersPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [parameters, setParameters] = useState<GrowthParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingParam, setEditingParam] = useState<GrowthParameter | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     type: "fish",
@@ -43,25 +46,32 @@ export default function GrowthParametersPage() {
     notes: "",
   });
 
-  useEffect(() => {
-    fetchParameters();
-  }, [filterType]);
-
-  async function fetchParameters() {
+  const fetchParameters = useCallback(async () => {
     try {
       const url = filterType === "all" ? "/api/inventory/parameters" : `/api/inventory/parameters?type=${filterType}`;
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load growth templates");
+        return;
+      }
       setParameters(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch parameters:", error);
+      toast.error("Couldn't load growth templates");
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterType, toast]);
+
+  useEffect(() => {
+    fetchParameters();
+  }, [fetchParameters]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const payload = {
         ...formData,
@@ -74,26 +84,27 @@ export default function GrowthParametersPage() {
         expectedYield: formData.expectedYield ? parseFloat(formData.expectedYield) : null,
       };
 
-      if (editingParam) {
-        await fetch("/api/inventory/parameters", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editingParam.id, ...payload }),
-        });
-      } else {
-        await fetch("/api/inventory/parameters", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const res = await fetch("/api/inventory/parameters", {
+        method: editingParam ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingParam ? { id: editingParam.id, ...payload } : payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't save growth template");
+        return;
       }
 
+      toast.success(editingParam ? "Growth template updated" : "Growth template created");
       setShowForm(false);
       setEditingParam(null);
       resetForm();
       fetchParameters();
     } catch (error) {
       console.error("Failed to save parameter:", error);
+      toast.error("Couldn't save growth template", { description: "Check your connection and try again." });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -105,10 +116,17 @@ export default function GrowthParametersPage() {
       tone: "danger",
     }))) return;
     try {
-      await fetch(`/api/inventory/parameters?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/inventory/parameters?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't delete growth template");
+        return;
+      }
+      toast.success("Growth template deleted");
       fetchParameters();
     } catch (error) {
       console.error("Failed to delete parameter:", error);
+      toast.error("Couldn't delete growth template", { description: "Check your connection and try again." });
     }
   }
 
@@ -195,7 +213,7 @@ export default function GrowthParametersPage() {
               <h2 className="text-xl font-semibold text-white">
                 {editingParam ? "Edit Template" : "Add Growth Template"}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-white/50 hover:text-white">
+              <button onClick={() => setShowForm(false)} aria-label="Close" className="text-white/50 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -362,9 +380,10 @@ export default function GrowthParametersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingParam ? "Update" : "Create Template"}
+                  {saving ? "Saving..." : editingParam ? "Update" : "Create Template"}
                 </button>
               </div>
             </form>
@@ -419,12 +438,14 @@ export default function GrowthParametersPage() {
                 <div className="flex gap-1">
                   <button
                     onClick={() => openEditForm(param)}
+                    aria-label={`Edit ${param.species} template`}
                     className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(param.id)}
+                    aria-label={`Delete ${param.species} template`}
                     className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                   >
                     <Trash2 className="w-4 h-4" />

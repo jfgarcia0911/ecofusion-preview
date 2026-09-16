@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Package, Plus, Edit2, Trash2, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface SalesInventoryItem {
   id: string;
@@ -25,11 +26,13 @@ interface SalesInventoryItem {
 
 export default function SalesStockPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [inventory, setInventory] = useState<SalesInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<SalesInventoryItem | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("available");
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     productName: "",
@@ -40,27 +43,34 @@ export default function SalesStockPage() {
     expiryDate: "",
   });
 
-  useEffect(() => {
-    fetchInventory();
-  }, [filterStatus]);
-
-  async function fetchInventory() {
+  const fetchInventory = useCallback(async () => {
     try {
       const url = filterStatus === "all"
         ? "/api/inventory/sales-stock"
         : `/api/inventory/sales-stock?status=${filterStatus}`;
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load sales inventory");
+        return;
+      }
       setInventory(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch sales inventory:", error);
+      toast.error("Couldn't load sales inventory");
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterStatus, toast]);
+
+  useEffect(() => {
+    fetchInventory();
+  }, [fetchInventory]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const payload = {
         ...formData,
@@ -69,26 +79,27 @@ export default function SalesStockPage() {
         expiryDate: formData.expiryDate || null,
       };
 
-      if (editingItem) {
-        await fetch("/api/inventory/sales-stock", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editingItem.id, ...payload }),
-        });
-      } else {
-        await fetch("/api/inventory/sales-stock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const res = await fetch("/api/inventory/sales-stock", {
+        method: editingItem ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingItem ? { id: editingItem.id, ...payload } : payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't save inventory item");
+        return;
       }
 
+      toast.success(editingItem ? "Inventory item updated" : "Inventory item added");
       setShowForm(false);
       setEditingItem(null);
       resetForm();
       fetchInventory();
     } catch (error) {
       console.error("Failed to save inventory item:", error);
+      toast.error("Couldn't save inventory item", { description: "Check your connection and try again." });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -100,10 +111,17 @@ export default function SalesStockPage() {
       tone: "danger",
     }))) return;
     try {
-      await fetch(`/api/inventory/sales-stock?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/inventory/sales-stock?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't delete inventory item");
+        return;
+      }
+      toast.success("Inventory item deleted");
       fetchInventory();
     } catch (error) {
       console.error("Failed to delete inventory item:", error);
+      toast.error("Couldn't delete inventory item", { description: "Check your connection and try again." });
     }
   }
 
@@ -170,11 +188,12 @@ export default function SalesStockPage() {
           <p className="text-white/50 mt-1">Products available for sale</p>
         </div>
         <div className="flex gap-3">
-          <Link href="/sales/new">
-            <button className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4" />
-              New Sale
-            </button>
+          <Link
+            href="/sales/new"
+            className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 inline-flex items-center gap-2"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            New Sale
           </Link>
           <button
             onClick={() => {
@@ -231,7 +250,7 @@ export default function SalesStockPage() {
               <h2 className="text-xl font-semibold text-white">
                 {editingItem ? "Edit Inventory Item" : "Add Inventory Item"}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-white/50 hover:text-white">
+              <button onClick={() => setShowForm(false)} aria-label="Close" className="text-white/50 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -325,9 +344,10 @@ export default function SalesStockPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingItem ? "Update" : "Add Item"}
+                  {saving ? "Saving..." : editingItem ? "Update" : "Add Item"}
                 </button>
               </div>
             </form>
@@ -413,12 +433,14 @@ export default function SalesStockPage() {
                     <div className="flex justify-end gap-1">
                       <button
                         onClick={() => openEditForm(item)}
+                        aria-label={`Edit ${item.productName}`}
                         className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
+                        aria-label={`Delete ${item.productName}`}
                         className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                       >
                         <Trash2 className="w-4 h-4" />

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Settings, CheckCircle, XCircle, RefreshCw, Key, Save, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import { IntegrationFeatures, IntegrationSetupGuide } from "@/components/settings/IntegrationGuide";
 import {
   IntegrationCardSkeleton,
@@ -28,6 +29,7 @@ interface SyncStatus {
 
 export default function IntegrationsPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [settings, setSettings] = useState<IntegrationSettings | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   // Asked separately from the settings, so the badge waits on its own answer
@@ -36,6 +38,8 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [formData, setFormData] = useState({
@@ -44,15 +48,15 @@ export default function IntegrationsPage() {
     isEnabled: false,
   });
 
-  useEffect(() => {
-    fetchSettings();
-    fetchSyncStatus();
-  }, []);
-
-  async function fetchSettings() {
+  const fetchSettings = useCallback(async () => {
     try {
       const res = await fetch("/api/settings/integrations");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Leave the form blank rather than filling it from an error body.
+        toast.error(data.error ?? "Could not load integration settings");
+        return;
+      }
       setSettings(data);
       setFormData({
         apiKey: "",
@@ -61,25 +65,38 @@ export default function IntegrationsPage() {
       });
     } catch (error) {
       console.error("Failed to fetch settings:", error);
+      toast.error("Could not load integration settings");
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
 
-  async function fetchSyncStatus() {
+  const fetchSyncStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/crm/sync");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not load the sync status");
+        setSyncStatus(null);
+        return;
+      }
       setSyncStatus(data);
     } catch (error) {
       console.error("Failed to fetch sync status:", error);
+      toast.error("Could not load the sync status");
     } finally {
       setSyncLoaded(true);
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchSettings();
+    fetchSyncStatus();
+  }, [fetchSettings, fetchSyncStatus]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     setSaving(true);
     setTestResult(null);
     try {
@@ -98,19 +115,18 @@ export default function IntegrationsPage() {
         body: JSON.stringify(payload),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setSettings(data);
         setFormData((prev) => ({ ...prev, apiKey: "" }));
+        toast.success("Settings saved");
         await fetchSyncStatus();
-        setTestResult({ success: true, message: "Settings saved successfully!" });
       } else {
-        const error = await res.json();
-        setTestResult({ success: false, message: error.error || "Failed to save settings" });
+        toast.error(data.error ?? "Failed to save settings");
       }
     } catch (error) {
       console.error("Failed to save settings:", error);
-      setTestResult({ success: false, message: "Failed to save settings" });
+      toast.error("Failed to save settings");
     } finally {
       setSaving(false);
     }
@@ -125,8 +141,8 @@ export default function IntegrationsPage() {
       if (res.ok) {
         setTestResult({ success: true, message: "Connection successful! CRM is accessible." });
       } else {
-        const error = await res.json();
-        setTestResult({ success: false, message: error.error || "Connection failed" });
+        const data = await res.json().catch(() => ({}));
+        setTestResult({ success: false, message: data.error ?? "Connection failed" });
       }
     } catch (error) {
       console.error("Connection test failed:", error);
@@ -145,37 +161,60 @@ export default function IntegrationsPage() {
     }))) {
       return;
     }
+    setRemoving(true);
     try {
-      await fetch("/api/settings/integrations", { method: "DELETE" });
+      const res = await fetch("/api/settings/integrations", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to remove the integration");
+        return;
+      }
       setSettings(null);
       setFormData({ apiKey: "", locationId: "", isEnabled: false });
+      setTestResult(null);
+      toast.success("Integration removed");
       await fetchSyncStatus();
     } catch (error) {
       console.error("Failed to remove integration:", error);
+      toast.error("Failed to remove the integration");
+    } finally {
+      setRemoving(false);
     }
   }
 
   async function handleSyncNow() {
-    if (!syncStatus?.unsyncedSalesCount) return;
+    if (!syncStatus?.unsyncedSalesCount || syncing) return;
+    setSyncing(true);
     try {
-      await fetch("/api/crm/sync", {
+      const res = await fetch("/api/crm/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "all" }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Sync failed");
+        return;
+      }
+      toast.success("Sales synced");
       await fetchSyncStatus();
     } catch (error) {
       console.error("Sync failed:", error);
+      toast.error("Sync failed");
+    } finally {
+      setSyncing(false);
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/sales">
-          <button className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+        <Link
+          href="/sales"
+          aria-label="Back to sales"
+          className="inline-flex p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
+        >
+          <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
@@ -255,10 +294,11 @@ export default function IntegrationsPage() {
                   {syncStatus.unsyncedSalesCount > 0 && (
                     <button
                       onClick={handleSyncNow}
-                      className="px-4 py-2 bg-accent/20 text-accent rounded-lg hover:bg-accent/30 flex items-center gap-2"
+                      disabled={syncing}
+                      className="px-4 py-2 bg-accent/20 text-accent rounded-lg hover:bg-accent/30 disabled:opacity-50 flex items-center gap-2"
                     >
-                      <RefreshCw className="w-4 h-4" />
-                      Sync Now
+                      <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+                      {syncing ? "Syncing..." : "Sync Now"}
                     </button>
                   )}
                 </div>
@@ -333,10 +373,11 @@ export default function IntegrationsPage() {
                     <button
                       type="button"
                       onClick={handleRemoveIntegration}
-                      className="px-4 py-2 text-red-400 hover:bg-red-500/10 rounded-lg flex items-center gap-2"
+                      disabled={removing}
+                      className="px-4 py-2 text-red-400 hover:bg-red-500/10 rounded-lg disabled:opacity-50 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
-                      Remove
+                      {removing ? "Removing..." : "Remove"}
                     </button>
                   </>
                 )}

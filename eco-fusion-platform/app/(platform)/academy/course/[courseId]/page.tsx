@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import LessonContent from '@/components/academy/LessonContent';
 import CourseCompleteModal from '@/components/academy/CourseCompleteModal';
 import CourseResources from '@/components/academy/CourseResources';
+import { useToast } from '@/components/ui/Toast';
 
 /**
  * A question as the browser receives it: no answer attached. The quiz is
@@ -63,6 +64,7 @@ interface LessonCompletion {
 export default function CoursePlayerPage() {
     const params = useParams();
     const router = useRouter();
+    const toast = useToast();
     const courseId = params?.courseId as string | undefined;
 
     const [course, setCourse] = useState<Course | null>(null);
@@ -151,25 +153,32 @@ export default function CoursePlayerPage() {
                 body: JSON.stringify({}),
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                setCompletedLessons(prev => [...prev, {
-                    lessonId: currentLesson.id,
-                    completedAt: new Date().toISOString(),
-                    quizScore: null,
-                }]);
+            const data = await res.json().catch(() => ({}));
+            // A refusal (an earlier lesson still open, say) must not tick the
+            // lesson off here, or the page would disagree with the server.
+            if (!res.ok) {
+                toast.error(data.error ?? 'Could not mark this lesson complete');
+                setCompleting(false);
+                return;
+            }
 
-                if (await finishCourseIfDone(data.courseProgress.allCompleted)) {
-                    setCompleting(false);
-                    return;
-                }
+            setCompletedLessons(prev => [...prev, {
+                lessonId: currentLesson.id,
+                completedAt: new Date().toISOString(),
+                quizScore: null,
+            }]);
 
-                if (activeLessonIndex < course.lessons.length - 1) {
-                    navigateTo(activeLessonIndex + 1);
-                }
+            if (await finishCourseIfDone(data.courseProgress?.allCompleted)) {
+                setCompleting(false);
+                return;
+            }
+
+            if (activeLessonIndex < course.lessons.length - 1) {
+                navigateTo(activeLessonIndex + 1);
             }
         } catch (error) {
             console.error('Failed to complete lesson:', error);
+            toast.error('Could not mark this lesson complete', { description: 'Check your connection and try again.' });
         }
         setCompleting(false);
     };
@@ -436,8 +445,8 @@ export default function CoursePlayerPage() {
                                                 </p>
                                                 {!quizGrade.passed && (
                                                     <p className="text-xs text-white/40 mt-1">
-                                                        The questions you missed are marked. Review the lesson and try again;
-                                                        the answers are shown once you pass.
+                                                        Review the lesson and try again. The right answers, and why,
+                                                        are shown once you pass.
                                                     </p>
                                                 )}
                                             </div>

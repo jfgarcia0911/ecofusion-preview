@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { resolvePhaseId } from "@/lib/phase-revenue";
 import Link from "next/link";
 import { ArrowLeft, Download, ShoppingCart, Calendar, Filter, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface SaleItem {
   id: string;
@@ -42,8 +43,11 @@ interface Sale {
 
 export default function SalesHistoryPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [units, setUnits] = useState<BusinessUnit[]>([]);
@@ -52,10 +56,6 @@ export default function SalesHistoryPage() {
     startDate: "",
     endDate: "",
   });
-
-  useEffect(() => {
-    fetchSales();
-  }, [filterStatus, dateRange]);
 
   // The silos this business runs, for the filter. Read once: they do not change
   // while somebody reads their sales.
@@ -66,7 +66,7 @@ export default function SalesHistoryPage() {
       .catch(() => setUnits([]));
   }, []);
 
-  async function fetchSales() {
+  const fetchSales = useCallback(async () => {
     try {
       let url = "/api/sales";
       const params = new URLSearchParams();
@@ -76,16 +76,27 @@ export default function SalesHistoryPage() {
       if (params.toString()) url += `?${params.toString()}`;
 
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not load sales");
+        return;
+      }
       setSales(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch sales:", error);
+      toast.error("Could not load sales");
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterStatus, dateRange, toast]);
+
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
 
   async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
     try {
       let url = "/api/sales/export";
       const params = new URLSearchParams();
@@ -94,15 +105,24 @@ export default function SalesHistoryPage() {
       if (params.toString()) url += `?${params.toString()}`;
 
       const res = await fetch(url);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not export sales");
+        return;
+      }
       const blob = await res.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = downloadUrl;
       a.download = `sales-export-${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      window.URL.revokeObjectURL(downloadUrl);
+      // Some browsers start the download after click returns, so the URL has to outlive it.
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1000);
     } catch (error) {
       console.error("Failed to export sales:", error);
+      toast.error("Could not export sales");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -113,11 +133,22 @@ export default function SalesHistoryPage() {
       confirmLabel: "Delete",
       tone: "danger",
     }))) return;
+    setDeletingId(id);
     try {
-      await fetch(`/api/sales?id=${id}`, { method: "DELETE" });
-      fetchSales();
+      const res = await fetch(`/api/sales?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) {
+        // Only owners, supervisors and managers may delete; the server says which rule refused.
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Could not delete the sale");
+        return;
+      }
+      toast.success("Sale deleted");
+      await fetchSales();
     } catch (error) {
       console.error("Failed to delete sale:", error);
+      toast.error("Could not delete the sale");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -155,10 +186,12 @@ export default function SalesHistoryPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/sales">
-            <button className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+          <Link
+            href="/sales"
+            aria-label="Back to sales"
+            className="inline-flex p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
+          >
+            <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
@@ -171,10 +204,11 @@ export default function SalesHistoryPage() {
         </div>
         <button
           onClick={handleExport}
-          className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 flex items-center gap-2"
+          disabled={exporting}
+          className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 disabled:opacity-50 flex items-center gap-2"
         >
           <Download className="w-4 h-4" />
-          Export CSV
+          {exporting ? "Exporting..." : "Export CSV"}
         </button>
       </div>
 
@@ -256,10 +290,11 @@ export default function SalesHistoryPage() {
               ? "Try adjusting your filters"
               : "Create your first sale to see it here"}
           </p>
-          <Link href="/sales/new">
-            <button className="px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90">
-              New Sale
-            </button>
+          <Link
+            href="/sales/new"
+            className="inline-block px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+          >
+            New Sale
           </Link>
         </div>
       ) : (
@@ -307,7 +342,9 @@ export default function SalesHistoryPage() {
                         e.stopPropagation();
                         handleDelete(sale.id);
                       }}
-                      className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
+                      disabled={deletingId === sale.id}
+                      aria-label="Delete sale"
+                      className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg disabled:opacity-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

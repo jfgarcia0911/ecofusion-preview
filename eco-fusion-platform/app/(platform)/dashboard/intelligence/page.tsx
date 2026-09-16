@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Brain, Sparkles, Zap, Sprout, Send, Loader2, Trash2 } from "lucide-react";
+import { Brain, Send, Loader2, Trash2 } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -22,6 +22,7 @@ export default function IntelligencePage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,6 +40,7 @@ export default function IntelligencePage() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
+    const requestId = ++requestIdRef.current;
 
     try {
       const history = messages.map((m) => ({
@@ -55,9 +57,12 @@ export default function IntelligencePage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // The chat was cleared while this was on its way, so the reply belongs
+      // to a conversation that no longer exists.
+      if (requestId !== requestIdRef.current) return;
 
-      if (res.ok) {
+      if (res.ok && typeof data.message === "string") {
         const assistantMessage: Message = {
           role: "assistant",
           content: data.message,
@@ -67,13 +72,14 @@ export default function IntelligencePage() {
       } else {
         const errorMessage: Message = {
           role: "assistant",
-          content: "Sorry, I encountered an error accessing system data. Please try again.",
+          content: data.error ?? "Sorry, I encountered an error accessing system data. Please try again.",
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
       }
     } catch (error) {
       console.error("Intelligence chat error:", error);
+      if (requestId !== requestIdRef.current) return;
       const errorMessage: Message = {
         role: "assistant",
         content: "Sorry, I couldn't connect to the AI service. Please try again.",
@@ -81,7 +87,7 @@ export default function IntelligencePage() {
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }
 
@@ -91,7 +97,9 @@ export default function IntelligencePage() {
   }
 
   function clearChat() {
+    requestIdRef.current++;
     setMessages([]);
+    setLoading(false);
   }
 
   return (
@@ -106,54 +114,12 @@ export default function IntelligencePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full pb-6">
-        <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-          <div className="glass-panel p-6 rounded-2xl relative overflow-hidden border border-accent/20">
-            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-              <Sparkles size={120} className="text-accent" />
-            </div>
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Sparkles size={20} className="text-accent" />
-              Active Recommendations
-            </h2>
-            <div className="space-y-4">
-              <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl hover:bg-accent/10 transition-colors">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-accent flex items-center gap-2">
-                    <Zap size={16} /> Water Quality Optimization
-                  </span>
-                  <span className="text-xs text-accent bg-accent/10 border border-accent/20 px-2 py-1 rounded">Confidence: 94%</span>
-                </div>
-                <p className="text-white/80 text-sm">Based on recent pH fluctuations in Zone B, increasing <strong>buffer solution dosing by 5%</strong> will stabilize overnight alkalinity drops.</p>
-                <div className="mt-4 flex gap-3">
-                  <button className="px-4 py-2 bg-accent text-primary font-bold text-xs uppercase tracking-wide rounded-lg hover:bg-accent/90 cursor-pointer">Apply Automatic Fix</button>
-                  <button className="px-4 py-2 bg-white/5 text-white font-bold text-xs uppercase tracking-wide rounded-lg hover:bg-white/10 cursor-pointer">Simulate Impact</button>
-                </div>
-              </div>
-              <div className="p-4 bg-secondary/5 border border-secondary/20 rounded-xl hover:bg-secondary/10 transition-colors">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-secondary flex items-center gap-2">
-                    <Sprout size={16} /> Harvest Prediction
-                  </span>
-                  <span className="text-xs text-secondary bg-secondary/10 border border-secondary/20 px-2 py-1 rounded">Confidence: 88%</span>
-                </div>
-                <p className="text-white/80 text-sm">Lettuce crop in Zone A is maturing <strong>1.5 days faster</strong> than scheduled due to optimized lighting conditions. Update harvest schedule?</p>
-                <div className="mt-4 flex gap-3">
-                  <button className="px-4 py-2 bg-secondary/20 text-secondary border border-secondary/30 font-bold text-xs uppercase tracking-wide rounded-lg hover:bg-secondary/30 cursor-pointer">Update Schedule</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-6 min-h-[250px] flex flex-col items-center justify-center border-dashed border-2 border-white/10">
-            <Brain size={48} className="text-white/10 mb-4" />
-            <p className="text-white/30 font-medium">Machine Learning Model Training...</p>
-            <p className="text-white/20 text-xs mt-2">Gathering more data points for Predictive Yield Engine</p>
-          </div>
-        </div>
-
+      {/* This page used to sit the chat beside hard-coded "recommendations" and a
+          "model training" panel that nothing produced. The chat is the part that
+          reads the business's real data, so it gets the whole page. */}
+      <div className="h-full pb-6">
         {/* AI Chat Panel */}
-        <div className="glass-panel p-6 rounded-2xl flex flex-col h-full max-h-[calc(100vh-12rem)]">
+        <div className="glass-panel p-6 rounded-2xl flex flex-col h-full max-h-[calc(100vh-12rem)] max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Brain size={20} className="text-accent" />
@@ -164,6 +130,7 @@ export default function IntelligencePage() {
                 onClick={clearChat}
                 className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg"
                 title="Clear chat"
+                aria-label="Clear chat"
               >
                 <Trash2 size={16} />
               </button>
@@ -242,6 +209,7 @@ export default function IntelligencePage() {
             <button
               type="submit"
               disabled={!input.trim() || loading}
+              aria-label="Send message"
               className="absolute right-2 top-2 p-1.5 bg-accent/20 hover:bg-accent/40 rounded-lg text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={16} />

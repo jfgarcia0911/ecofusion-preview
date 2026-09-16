@@ -23,6 +23,7 @@ export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestRequest = useRef(0);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,6 +37,10 @@ export default function AssistantPage() {
       content: content.trim(),
       timestamp: new Date(),
     };
+
+    // Clearing the chat bumps this too, so a reply still on its way to a
+    // conversation that no longer exists is dropped instead of appearing alone.
+    const requestId = ++latestRequest.current;
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
@@ -56,9 +61,10 @@ export default function AssistantPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (requestId !== latestRequest.current) return;
 
-      if (res.ok) {
+      if (res.ok && typeof data.message === "string") {
         const assistantMessage: Message = {
           role: "assistant",
           content: data.message,
@@ -68,12 +74,16 @@ export default function AssistantPage() {
       } else {
         const errorMessage: Message = {
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
+          content:
+            typeof data.error === "string"
+              ? `Sorry, that didn't work: ${data.error}`
+              : "Sorry, I encountered an error. Please try again.",
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
       }
     } catch (error) {
+      if (requestId !== latestRequest.current) return;
       console.error("Chat error:", error);
       const errorMessage: Message = {
         role: "assistant",
@@ -82,7 +92,7 @@ export default function AssistantPage() {
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   }
 
@@ -92,7 +102,9 @@ export default function AssistantPage() {
   }
 
   function clearChat() {
+    latestRequest.current++;
     setMessages([]);
+    setLoading(false);
   }
 
   return (
@@ -222,6 +234,7 @@ export default function AssistantPage() {
             <button
               type="submit"
               disabled={!input.trim() || loading}
+              aria-label="Send message"
               className="px-4 py-3 bg-accent text-primary font-bold rounded-xl hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Send className="w-5 h-5" />

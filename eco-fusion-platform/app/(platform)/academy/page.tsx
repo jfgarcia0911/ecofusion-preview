@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import RenewButton from '@/components/academy/RenewButton';
 import { AcademySkeleton } from '@/components/skeletons/PageSkeletons';
 import {
-    BookOpen, Trophy, Clock, Medal, PlayCircle, Star,
+    BookOpen, Trophy, Clock, PlayCircle, Library,
     CheckCircle, AlertCircle, Shield, Download, Award
 } from 'lucide-react';
 
@@ -72,24 +73,30 @@ export default function AcademyDashboard() {
     const [activeTab, setActiveTab] = useState<'assigned' | 'completed'>('assigned');
 
     useEffect(() => {
-        fetchData();
+        let cancelled = false;
+        (async () => {
+            try {
+                const [assignmentsRes, completionsRes] = await Promise.all([
+                    fetch('/api/training/assignments'),
+                    fetch('/api/training/completions')
+                ]);
+
+                const [assignmentsData, completionsData] = await Promise.all([
+                    assignmentsRes.ok ? assignmentsRes.json() : null,
+                    completionsRes.ok ? completionsRes.json() : null,
+                ]);
+                if (cancelled) return;
+                if (assignmentsData) setAssignments(assignmentsData);
+                if (completionsData) setCompletions(completionsData);
+            } catch (error) {
+                console.error('Failed to fetch training data:', error);
+            }
+            if (!cancelled) setLoading(false);
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [assignmentsRes, completionsRes] = await Promise.all([
-                fetch('/api/training/assignments'),
-                fetch('/api/training/completions')
-            ]);
-
-            if (assignmentsRes.ok) setAssignments(await assignmentsRes.json());
-            if (completionsRes.ok) setCompletions(await completionsRes.json());
-        } catch (error) {
-            console.error('Failed to fetch training data:', error);
-        }
-        setLoading(false);
-    };
 
     const handleExportRecords = () => {
         window.open('/api/training/export', '_blank');
@@ -140,11 +147,14 @@ export default function AcademyDashboard() {
     if (assignments.length === 0 && completions.length === 0) {
         return (
             <div className="space-y-8">
-                <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
-                        Training Academy
-                    </h1>
-                    <p className="text-white/50 mt-1">Your assigned training courses will appear here</p>
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
+                            Training Academy
+                        </h1>
+                        <p className="text-white/50 mt-1">Your assigned training courses will appear here</p>
+                    </div>
+                    <BrowseCatalogLink />
                 </div>
 
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
@@ -161,19 +171,22 @@ export default function AcademyDashboard() {
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
                         Training Academy
                     </h1>
                     <p className="text-white/50 mt-1">Complete your required safety and compliance training</p>
                 </div>
-                <button
-                    onClick={handleExportRecords}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
-                >
-                    <Download size={16} /> Export My Records
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <BrowseCatalogLink />
+                    <button
+                        onClick={handleExportRecords}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <Download size={16} /> Export My Records
+                    </button>
+                </div>
             </div>
 
             {/* Stats Overview */}
@@ -441,23 +454,21 @@ export default function AcademyDashboard() {
 
                                     {completion.renewalStatus === 'expired' && (
                                         <div className="mt-3">
-                                            <Link
-                                                href={`/academy/course/${completion.courseId}`}
+                                            <RenewButton
+                                                courseId={completion.courseId}
+                                                label="Retake Course"
                                                 className="block w-full text-center py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-bold transition-colors"
-                                            >
-                                                Retake Course
-                                            </Link>
+                                            />
                                         </div>
                                     )}
 
                                     {completion.renewalStatus === 'expiring_soon' && (
                                         <div className="mt-3">
-                                            <Link
-                                                href={`/academy/course/${completion.courseId}`}
+                                            <RenewButton
+                                                courseId={completion.courseId}
+                                                label="Renew Certification"
                                                 className="block w-full text-center py-2 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-sm font-bold transition-colors"
-                                            >
-                                                Renew Certification
-                                            </Link>
+                                            />
                                         </div>
                                     )}
                                 </div>
@@ -475,5 +486,17 @@ export default function AcademyDashboard() {
                 </div>
             )}
         </div>
+    );
+}
+
+/** The full course catalog, which is reached from nowhere else in the academy. */
+function BrowseCatalogLink() {
+    return (
+        <Link
+            href="/academy/catalog"
+            className="flex items-center gap-2 px-4 py-2 bg-accent/20 hover:bg-accent/30 text-accent rounded-lg text-sm font-bold transition-colors"
+        >
+            <Library size={16} /> Browse all courses
+        </Link>
     );
 }

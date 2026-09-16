@@ -7,6 +7,7 @@ import { evaluateAccess } from "@/lib/tenancy";
 import { standingLabel } from "@/lib/roles";
 import AgencySidebar from "@/components/layout/AgencySidebar";
 import Header from "@/components/layout/Header";
+import { MobileNavDrawer, MobileNavProvider } from "@/components/layout/MobileNav";
 import OpenSessionNotice from "@/components/layout/OpenSessionNotice";
 import SupportAgencyNotice from "@/components/layout/SupportAgencyNotice";
 import TrialBanner from "@/components/layout/TrialBanner";
@@ -83,17 +84,20 @@ export default async function AgencyLayout({ children }: { children: React.React
                 <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
                     <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
                     <div className="relative z-10 flex w-full h-full">
-                        <AgencySidebar
-                            variant="agency"
-                            title={scope.agency.name}
-                            user={session.user}
-                            access={{ admin: scope.admin, permissions: scope.permissions }}
-                            standing={standing}
-                            backTo={backTo}
-                        />
-                        <div className="flex flex-col flex-1 overflow-hidden">
+                        <MobileNavProvider>
+                        <MobileNavDrawer>
+                            <AgencySidebar
+                                variant="agency"
+                                title={scope.agency.name}
+                                user={session.user}
+                                access={{ admin: scope.admin, permissions: scope.permissions }}
+                                standing={standing}
+                                backTo={backTo}
+                            />
+                        </MobileNavDrawer>
+                        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                             <Header />
-                            <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                            <main className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-hide">
                                 {scope.via === "platform" && (
                                     <div className="mb-6">
                                         <SupportAgencyNotice agencyName={scope.agency.name} />
@@ -112,6 +116,7 @@ export default async function AgencyLayout({ children }: { children: React.React
                                 {children}
                             </main>
                         </div>
+                        </MobileNavProvider>
                     </div>
                 </div>
             </ConfirmProvider>

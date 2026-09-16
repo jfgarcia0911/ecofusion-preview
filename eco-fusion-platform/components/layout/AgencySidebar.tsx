@@ -164,6 +164,10 @@ export default function AgencySidebar({
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20">
                     {user?.image ? (
+                        // A plain img on purpose: the avatar is 32px, and next/image
+                        // refuses any host not listed in next.config, which would
+                        // break the sidebar for an avatar from anywhere but Google.
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={user.image} alt={user.name ?? "User"} className="w-8 h-8 rounded-full" />
                     ) : (
                         <div className="w-8 h-8 rounded-full bg-amber-400/20 flex items-center justify-center text-amber-300 font-bold">

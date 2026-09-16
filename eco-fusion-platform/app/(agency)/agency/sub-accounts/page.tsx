@@ -110,23 +110,45 @@ export default function SubAccountsPage() {
     const toast = useToast();
     const confirmAction = useConfirm();
 
+    // Only the newest search may fill the table. Without this a slow answer to
+    // "gr" could land after the answer to "green" and replace it.
+    const pending = useRef<AbortController | null>(null);
+    useEffect(
+        () => () => {
+            pending.current?.abort();
+            pending.current = null;
+        },
+        []
+    );
+
     const load = useCallback(async (q: string) => {
+        pending.current?.abort();
+        const controller = new AbortController();
+        pending.current = controller;
         setLoading(true);
         try {
-            const res = await fetch(`/api/admin/organizations?q=${encodeURIComponent(q)}`);
+            const res = await fetch(`/api/admin/organizations?q=${encodeURIComponent(q)}`, {
+                signal: controller.signal,
+            });
             if (!res.ok) {
                 toast.error("Could not load the sub account list");
                 return;
             }
             const data = await res.json();
+            if (controller.signal.aborted) return;
             setBusinesses(data.organizations ?? []);
             if (data.viewer) setViewer(data.viewer);
             setUsage(data.usage ?? null);
         } catch {
+            if (controller.signal.aborted) return;
             toast.error("Could not load the sub account list");
         } finally {
-            setLoading(false);
-            setLoadedOnce(true);
+            // A superseded request leaves the spinner to the one that replaced it.
+            if (pending.current === controller) {
+                pending.current = null;
+                setLoading(false);
+                setLoadedOnce(true);
+            }
         }
     }, [toast]);
 

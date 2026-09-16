@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, X, Check, Calendar, AlertCircle, Info } from 'lucide-react';
+import { Bell, Calendar, AlertCircle, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/Toast';
 
 interface Notification {
     id: string;
@@ -25,6 +26,7 @@ export default function NotificationBell({ initialCount }: NotificationBellProps
     const [loading, setLoading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
+    const toast = useToast();
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -54,39 +56,53 @@ export default function NotificationBell({ initialCount }: NotificationBellProps
     };
 
     const handleOpen = () => {
-        setIsOpen(!isOpen);
         if (!isOpen) {
             fetchNotifications();
         }
+        setIsOpen(open => !open);
     };
 
+    // Marked read on screen straight away, and put back if the server refuses,
+    // so the badge never claims something the next load would contradict.
     const markAsRead = async (id: string) => {
+        setNotifications(prev => prev.map(n =>
+            n.id === id ? { ...n, read: true } : n
+        ));
+        setUnreadCount(prev => Math.max(0, prev - 1));
         try {
-            await fetch('/api/notifications', {
+            const res = await fetch('/api/notifications', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notificationIds: [id] }),
             });
-            setNotifications(notifications.map(n =>
-                n.id === id ? { ...n, read: true } : n
-            ));
-            setUnreadCount(prev => Math.max(0, prev - 1));
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
         } catch (error) {
             console.error('Failed to mark notification as read:', error);
+            setNotifications(prev => prev.map(n =>
+                n.id === id ? { ...n, read: false } : n
+            ));
+            setUnreadCount(prev => prev + 1);
+            toast.error('Could not mark that notification read');
         }
     };
 
     const markAllAsRead = async () => {
         try {
-            await fetch('/api/notifications', {
+            const res = await fetch('/api/notifications', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ markAllRead: true }),
             });
-            setNotifications(notifications.map(n => ({ ...n, read: true })));
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                toast.error(data.error ?? 'Could not mark your notifications read');
+                return;
+            }
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
             setUnreadCount(0);
         } catch (error) {
             console.error('Failed to mark all as read:', error);
+            toast.error('Could not mark your notifications read');
         }
     };
 
@@ -132,6 +148,8 @@ export default function NotificationBell({ initialCount }: NotificationBellProps
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={handleOpen}
+                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                aria-expanded={isOpen}
                 className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
             >
                 <Bell size={20} className="text-white/70" />

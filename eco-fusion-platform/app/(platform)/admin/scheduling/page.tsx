@@ -4,16 +4,9 @@ import { useState, useEffect } from 'react';
 import { SchedulingSkeleton } from '@/components/skeletons/PageSkeletons';
 import {
     Calendar,
-    Clock,
     Plus,
-    Users,
     X,
-    ChevronLeft,
-    ChevronRight,
     AlertCircle,
-    CheckCircle2,
-    Loader2,
-    Trash2,
     MapPin,
 } from 'lucide-react';
 
@@ -86,26 +79,33 @@ export default function AdminSchedulingPage() {
     });
 
     useEffect(() => {
-        fetchData();
+        let cancelled = false;
+        (async () => {
+            try {
+                const [usersRes, schedulesRes, tasksRes] = await Promise.all([
+                    fetch('/api/users'),
+                    fetch('/api/schedules'),
+                    fetch('/api/scheduled-tasks'),
+                ]);
+
+                const [usersData, schedulesData, tasksData] = await Promise.all([
+                    usersRes.ok ? usersRes.json() : null,
+                    schedulesRes.ok ? schedulesRes.json() : null,
+                    tasksRes.ok ? tasksRes.json() : null,
+                ]);
+                if (cancelled) return;
+                if (usersData) setUsers(usersData);
+                if (schedulesData) setSchedules(schedulesData);
+                if (tasksData) setTasks(tasksData);
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+            }
+            if (!cancelled) setLoading(false);
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [usersRes, schedulesRes, tasksRes] = await Promise.all([
-                fetch('/api/users'),
-                fetch('/api/schedules'),
-                fetch('/api/scheduled-tasks'),
-            ]);
-
-            if (usersRes.ok) setUsers(await usersRes.json());
-            if (schedulesRes.ok) setSchedules(await schedulesRes.json());
-            if (tasksRes.ok) setTasks(await tasksRes.json());
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
-        }
-        setLoading(false);
-    };
 
     const handleCreateSchedule = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -118,7 +118,7 @@ export default function AdminSchedulingPage() {
 
             if (res.ok) {
                 const newSchedule = await res.json();
-                setSchedules([...schedules, newSchedule]);
+                setSchedules(prev => [...prev, newSchedule]);
                 setShowScheduleModal(false);
                 resetForm();
             }
@@ -138,7 +138,7 @@ export default function AdminSchedulingPage() {
 
             if (res.ok) {
                 const newTask = await res.json();
-                setTasks([...tasks, newTask]);
+                setTasks(prev => [...prev, newTask]);
                 setShowTaskModal(false);
                 resetTaskForm();
             }
@@ -151,7 +151,7 @@ export default function AdminSchedulingPage() {
         try {
             const res = await fetch(`/api/schedules?id=${id}`, { method: 'DELETE' });
             if (res.ok) {
-                setSchedules(schedules.filter(s => s.id !== id));
+                setSchedules(prev => prev.filter(s => s.id !== id));
             }
         } catch (error) {
             console.error('Failed to delete schedule:', error);

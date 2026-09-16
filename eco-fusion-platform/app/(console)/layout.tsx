@@ -6,6 +6,7 @@ import { agencyStanding, businessReach } from "@/lib/agency";
 import { standingLabel } from "@/lib/roles";
 import AgencySidebar from "@/components/layout/AgencySidebar";
 import Header from "@/components/layout/Header";
+import { MobileNavDrawer, MobileNavProvider } from "@/components/layout/MobileNav";
 import OpenSessionNotice from "@/components/layout/OpenSessionNotice";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
@@ -47,17 +48,20 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
                 <div className="flex h-screen w-full overflow-hidden bg-background text-foreground bg-[url('/grid-pattern.svg')] bg-cover">
                     <div className="absolute inset-0 bg-background/90 z-0 pointer-events-none" />
                     <div className="relative z-10 flex w-full h-full">
-                        <AgencySidebar
-                            variant="console"
-                            title="EcoFusion console"
-                            user={session.user}
-                            access={{ admin: platform.admin, permissions: platform.permissions }}
-                            standing={standingLabel({ platform: platform.admin ? "admin" : "staff" })}
-                            backTo={openSession && sessionReachable ? openSession.name : null}
-                        />
-                        <div className="flex flex-col flex-1 overflow-hidden">
+                        <MobileNavProvider>
+                        <MobileNavDrawer>
+                            <AgencySidebar
+                                variant="console"
+                                title="EcoFusion console"
+                                user={session.user}
+                                access={{ admin: platform.admin, permissions: platform.permissions }}
+                                standing={standingLabel({ platform: platform.admin ? "admin" : "staff" })}
+                                backTo={openSession && sessionReachable ? openSession.name : null}
+                            />
+                        </MobileNavDrawer>
+                        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                             <Header />
-                            <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                            <main className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-hide">
                                 {openSession && sessionReachable && (
                                     <div className="mb-6">
                                         <OpenSessionNotice businessName={openSession.name} />
@@ -66,6 +70,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
                                 {children}
                             </main>
                         </div>
+                        </MobileNavProvider>
                     </div>
                 </div>
             </ConfirmProvider>

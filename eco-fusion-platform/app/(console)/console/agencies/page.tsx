@@ -65,12 +65,29 @@ export default function AgenciesPage() {
     const confirmAction = useConfirm();
     const router = useRouter();
 
+    // Only the newest search may fill the table, so a slow answer to an
+    // earlier query cannot land after a newer one and replace it.
+    const pending = useRef<AbortController | null>(null);
+    useEffect(
+        () => () => {
+            pending.current?.abort();
+            pending.current = null;
+        },
+        []
+    );
+
     const load = useCallback(
         async (q: string) => {
+            pending.current?.abort();
+            const controller = new AbortController();
+            pending.current = controller;
             setLoading(true);
             try {
-                const res = await fetch(`/api/admin/agencies?q=${encodeURIComponent(q)}`);
-                const data = await res.json();
+                const res = await fetch(`/api/admin/agencies?q=${encodeURIComponent(q)}`, {
+                    signal: controller.signal,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (controller.signal.aborted) return;
                 if (!res.ok) {
                     toast.error(data.error ?? "Could not load the agencies");
                     return;
@@ -78,10 +95,15 @@ export default function AgenciesPage() {
                 setAgencies(data.agencies ?? []);
                 setCanManage(Boolean(data.canManage));
             } catch {
+                if (controller.signal.aborted) return;
                 toast.error("Could not load the agencies");
             } finally {
-                setLoading(false);
-                setLoadedOnce(true);
+                // A superseded request leaves the spinner to the one that replaced it.
+                if (pending.current === controller) {
+                    pending.current = null;
+                    setLoading(false);
+                    setLoadedOnce(true);
+                }
             }
         },
         [toast]
@@ -106,7 +128,7 @@ export default function AgenciesPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ agencyId: agency.id, ...body }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 toast.error(data.error ?? "Could not change the agency");
                 return;

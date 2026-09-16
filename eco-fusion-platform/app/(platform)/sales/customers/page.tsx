@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Users, Search, Plus, RefreshCw, Settings, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -33,6 +33,7 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   const [newContact, setNewContact] = useState({
     name: "",
@@ -41,44 +42,32 @@ export default function CustomersPage() {
     company: "",
   });
 
-  useEffect(() => {
-    checkCrmAndFetchData();
-  }, []);
-
-  async function checkCrmAndFetchData() {
-    try {
-      const syncRes = await fetch("/api/crm/sync");
-      const syncData = await syncRes.json();
-      setCrmEnabled(syncData.isConfigured);
-
-      if (syncData.isConfigured) {
-        await fetchCrmContacts();
-      }
-      await fetchLocalCustomers();
-    } catch (error) {
-      console.error("Failed to check CRM status:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchCrmContacts(query?: string) {
+  const fetchCrmContacts = useCallback(async (query?: string) => {
     try {
       const url = query
         ? `/api/crm/customers?query=${encodeURIComponent(query)}`
         : "/api/crm/customers";
       const res = await fetch(url);
-      const data = await res.json();
-      setCrmContacts(data.contacts || []);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not load CRM contacts");
+        return;
+      }
+      setCrmContacts(Array.isArray(data.contacts) ? data.contacts : []);
     } catch (error) {
       console.error("Failed to fetch CRM contacts:", error);
+      toast.error("Could not load CRM contacts");
     }
-  }
+  }, [toast]);
 
-  async function fetchLocalCustomers() {
+  const fetchLocalCustomers = useCallback(async () => {
     try {
       const res = await fetch("/api/sales");
-      const sales = await res.json();
+      const sales = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(sales.error ?? "Could not load customers from sales");
+        return;
+      }
 
       // Group by customer
       const customerMap = new Map<string, LocalCustomer>();
@@ -109,18 +98,52 @@ export default function CustomersPage() {
       setLocalCustomers(Array.from(customerMap.values()));
     } catch (error) {
       console.error("Failed to fetch local customers:", error);
+      toast.error("Could not load customers from sales");
     }
-  }
+  }, [toast]);
+
+  const checkCrmAndFetchData = useCallback(async () => {
+    try {
+      const syncRes = await fetch("/api/crm/sync");
+      const syncData = await syncRes.json().catch(() => ({}));
+      if (!syncRes.ok) {
+        // Without a status we can't tell whether the CRM is set up, but the local
+        // customers still come from sales, so load those anyway.
+        toast.error(syncData.error ?? "Could not check the CRM connection");
+      }
+      const configured = syncRes.ok && syncData.isConfigured === true;
+      setCrmEnabled(configured);
+
+      if (configured) {
+        await fetchCrmContacts();
+      }
+      await fetchLocalCustomers();
+    } catch (error) {
+      console.error("Failed to check CRM status:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [toast, fetchCrmContacts, fetchLocalCustomers]);
+
+  useEffect(() => {
+    checkCrmAndFetchData();
+  }, [checkCrmAndFetchData]);
 
   async function handleSearch() {
+    if (searching) return;
     if (crmEnabled && searchQuery.length >= 2) {
-      await fetchCrmContacts(searchQuery);
+      setSearching(true);
+      try {
+        await fetchCrmContacts(searchQuery);
+      } finally {
+        setSearching(false);
+      }
     }
   }
 
   async function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
-    if (!crmEnabled) return;
+    if (!crmEnabled || addingContact) return;
 
     setAddingContact(true);
     try {
@@ -133,10 +156,11 @@ export default function CustomersPage() {
       if (res.ok) {
         setShowAddForm(false);
         setNewContact({ name: "", email: "", phone: "", company: "" });
+        toast.success("Contact added");
         await fetchCrmContacts();
       } else {
-        const error = await res.json();
-        toast.error("Failed to add contact", { description: error.error });
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to add contact");
       }
     } catch (error) {
       console.error("Failed to add contact:", error);
@@ -156,10 +180,12 @@ export default function CustomersPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/sales">
-            <button className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+          <Link
+            href="/sales"
+            aria-label="Back to sales"
+            className="inline-flex p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
+          >
+            <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
@@ -180,11 +206,12 @@ export default function CustomersPage() {
               Add to CRM
             </button>
           )}
-          <Link href="/settings/integrations">
-            <button className="px-4 py-2 bg-white/5 text-white/70 font-medium rounded-lg hover:bg-white/10 flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Settings
-            </button>
+          <Link
+            href="/settings/integrations"
+            className="px-4 py-2 bg-white/5 text-white/70 font-medium rounded-lg hover:bg-white/10 inline-flex items-center gap-2"
+          >
+            <Settings className="w-4 h-4" />
+            Settings
           </Link>
         </div>
       </div>
@@ -206,9 +233,10 @@ export default function CustomersPage() {
           {crmEnabled && (
             <button
               onClick={handleSearch}
-              className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30"
+              disabled={searching}
+              className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 disabled:opacity-50"
             >
-              Search CRM
+              {searching ? "Searching..." : "Search CRM"}
             </button>
           )}
         </div>
@@ -227,10 +255,11 @@ export default function CustomersPage() {
                 </div>
               </div>
             </div>
-            <Link href="/settings/integrations">
-              <button className="px-4 py-2 bg-yellow-500/20 text-yellow-400 font-medium rounded-lg hover:bg-yellow-500/30">
-                Connect CRM
-              </button>
+            <Link
+              href="/settings/integrations"
+              className="inline-block px-4 py-2 bg-yellow-500/20 text-yellow-400 font-medium rounded-lg hover:bg-yellow-500/30"
+            >
+              Connect CRM
             </Link>
           </div>
         </div>
@@ -355,7 +384,12 @@ export default function CustomersPage() {
           <div className="glass-card p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-white">Add CRM Contact</h2>
-              <button onClick={() => setShowAddForm(false)} className="text-white/50 hover:text-white">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                aria-label="Close"
+                className="text-white/50 hover:text-white"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { type BusinessUnitView } from "@/lib/business-units";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Plus, Trash2, Search, User, Package, ArrowLeft } from "lucide-react";
@@ -47,6 +47,10 @@ export default function NewSalePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [crmContacts, setCrmContacts] = useState<CRMContact[]>([]);
   const [crmEnabled, setCrmEnabled] = useState(false);
+  // Typing fires a search per keystroke otherwise, and the replies can land out
+  // of order; the timer spaces them out and the controller drops stale ones.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchController = useRef<AbortController | null>(null);
 
   const [customerData, setCustomerData] = useState({
     customerName: "",
@@ -62,45 +66,88 @@ export default function NewSalePage() {
     notes: "",
   });
 
-  useEffect(() => {
-    fetchInventory();
-    checkCrmStatus();
-  }, []);
-
-  async function fetchInventory() {
+  const fetchInventory = useCallback(async () => {
     try {
       const res = await fetch("/api/inventory/sales-stock?status=available");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not load inventory");
+        return;
+      }
       setInventory(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch inventory:", error);
+      toast.error("Could not load inventory");
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
 
-  async function checkCrmStatus() {
+  const checkCrmStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/crm/sync");
-      const data = await res.json();
-      setCrmEnabled(data.isConfigured);
+      const data = await res.json().catch(() => ({}));
+      // A failed status check just means no CRM lookup; the sale can still go through.
+      setCrmEnabled(res.ok && data.isConfigured === true);
     } catch (error) {
       console.error("Failed to check CRM status:", error);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchInventory();
+    checkCrmStatus();
+  }, [fetchInventory, checkCrmStatus]);
+
+  useEffect(() => {
+    const timer = searchTimer;
+    const controller = searchController;
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      controller.current?.abort();
+    };
+  }, []);
+
+  function cancelCrmSearch() {
+    if (searchTimer.current) {
+      clearTimeout(searchTimer.current);
+      searchTimer.current = null;
+    }
+    searchController.current?.abort();
+    searchController.current = null;
   }
 
-  async function searchCrmContacts(query: string) {
+  async function runCrmSearch(query: string) {
+    const controller = new AbortController();
+    searchController.current = controller;
+    try {
+      const res = await fetch(`/api/crm/customers?query=${encodeURIComponent(query)}`, {
+        signal: controller.signal,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (searchController.current !== controller) return;
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not search CRM contacts");
+        setCrmContacts([]);
+        return;
+      }
+      setCrmContacts(Array.isArray(data.contacts) ? data.contacts : []);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      console.error("Failed to search CRM contacts:", error);
+    }
+  }
+
+  function searchCrmContacts(query: string) {
+    cancelCrmSearch();
     if (!crmEnabled || query.length < 2) {
       setCrmContacts([]);
       return;
     }
-    try {
-      const res = await fetch(`/api/crm/customers?query=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setCrmContacts(data.contacts || []);
-    } catch (error) {
-      console.error("Failed to search CRM contacts:", error);
-    }
+    searchTimer.current = setTimeout(() => {
+      searchTimer.current = null;
+      runCrmSearch(query);
+    }, 300);
   }
 
   useEffect(() => {
@@ -114,11 +161,14 @@ export default function NewSalePage() {
     const existingIndex = items.findIndex((i) => i.inventoryItemId === inventoryItem.id);
     if (existingIndex !== -1) {
       // Already added, increment quantity
-      const updated = [...items];
-      if (updated[existingIndex].quantity < inventoryItem.quantity) {
-        updated[existingIndex].quantity += 1;
+      const existing = items[existingIndex];
+      if (existing.quantity < inventoryItem.quantity) {
+        setItems(
+          items.map((item, i) =>
+            i === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+          )
+        );
       }
-      setItems(updated);
     } else {
       setItems([
         ...items,
@@ -166,6 +216,7 @@ export default function NewSalePage() {
   }
 
   function selectCrmContact(contact: CRMContact) {
+    cancelCrmSearch();
     setCustomerData({
       ...customerData,
       customerName: contact.name,
@@ -180,9 +231,12 @@ export default function NewSalePage() {
   const tax = parseFloat(saleData.tax) || 0;
   const discount = parseFloat(saleData.discount) || 0;
   const total = subtotal + tax - discount;
+  // Same test the server applies, rounded to cents so float noise can't trip it.
+  const discountTooLarge = Math.round(total * 100) < 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
 
     if (items.length === 0) {
       toast.warning("Add at least one item to the sale");
@@ -194,6 +248,11 @@ export default function NewSalePage() {
         toast.warning("Fill in all item details");
         return;
       }
+    }
+
+    if (discountTooLarge) {
+      toast.warning("The discount is larger than the sale");
+      return;
     }
 
     setSubmitting(true);
@@ -224,10 +283,11 @@ export default function NewSalePage() {
       });
 
       if (res.ok) {
+        toast.success("Sale recorded");
         router.push("/sales");
       } else {
-        const error = await res.json();
-        toast.error("Failed to create sale", { description: error.error });
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to create sale");
       }
     } catch (error) {
       console.error("Failed to create sale:", error);
@@ -246,10 +306,12 @@ export default function NewSalePage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/sales">
-          <button className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+        <Link
+          href="/sales"
+          aria-label="Back to sales"
+          className="inline-flex p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg"
+        >
+          <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
@@ -363,6 +425,7 @@ export default function NewSalePage() {
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
+                        aria-label="Remove item"
                         className="p-1.5 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -488,8 +551,13 @@ export default function NewSalePage() {
               </div>
               <div className="flex justify-between text-xl font-bold pt-3 border-t border-white/10">
                 <span className="text-white">Total</span>
-                <span className="text-accent">${total.toFixed(2)}</span>
+                <span className={discountTooLarge ? "text-red-400" : "text-accent"}>${total.toFixed(2)}</span>
               </div>
+              {discountTooLarge && (
+                <p role="alert" className="text-sm text-red-400">
+                  The discount can&apos;t be more than the subtotal plus tax.
+                </p>
+              )}
             </div>
 
             <div className="mb-4">
@@ -507,7 +575,7 @@ export default function NewSalePage() {
 
             <button
               type="submit"
-              disabled={submitting || items.length === 0}
+              disabled={submitting || items.length === 0 || discountTooLarge}
               className="w-full py-3 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {submitting ? (
@@ -530,7 +598,9 @@ export default function NewSalePage() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-white">Select from Inventory</h2>
               <button
+                type="button"
                 onClick={() => setShowInventoryPicker(false)}
+                aria-label="Close"
                 className="text-white/50 hover:text-white"
               >
                 &times;

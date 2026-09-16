@@ -317,7 +317,7 @@ export default function PhaseDetailPage() {
                                         <option key={emp.id} value={emp.name}>{emp.name}</option>
                                     ))}
                                 </select>
-                                <button type="submit" className="px-4 py-2 bg-secondary/20 text-secondary hover:bg-secondary/30 rounded-xl transition-colors font-bold">
+                                <button type="submit" aria-label="Add task" title="Add task" className="px-4 py-2 bg-secondary/20 text-secondary hover:bg-secondary/30 rounded-xl transition-colors font-bold">
                                     <Plus size={20} />
                                 </button>
                             </div>
@@ -336,6 +336,8 @@ export default function PhaseDetailPage() {
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => toggleTask(task.id, !task.completed)}
+                                                aria-label={task.completed ? `Mark "${task.text}" not done` : `Mark "${task.text}" done`}
+                                                aria-pressed={task.completed}
                                                 className={clsx(
                                                     "w-5 h-5 rounded border flex items-center justify-center transition-colors",
                                                     task.completed ? "bg-secondary border-secondary" : "border-white/30 hover:border-secondary"
@@ -353,7 +355,8 @@ export default function PhaseDetailPage() {
                                             )}
                                             <button
                                                 onClick={() => deleteTask(task.id)}
-                                                className="p-1 rounded hover:bg-red-500/20 text-white/30 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                                aria-label={`Delete "${task.text}"`}
+                                                className="p-1 rounded hover:bg-red-500/20 text-white/30 hover:text-red-400 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all"
                                             >
                                                 <Trash2 size={14} />
                                             </button>

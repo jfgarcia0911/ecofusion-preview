@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Scale, Plus, Edit2, Trash2, Fish, Leaf, X, Package } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Scale, Plus, Trash2, Fish, Leaf, X, Package } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface Zone {
   id: string;
@@ -40,12 +41,14 @@ interface Harvest {
 
 export default function HarvestsPage() {
   const confirmAction = useConfirm();
+  const toast = useToast();
   const [harvests, setHarvests] = useState<Harvest[]>([]);
   const [fishStocks, setFishStocks] = useState<FishStock[]>([]);
   const [plantCrops, setPlantCrops] = useState<PlantCrop[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [filterType, setFilterType] = useState<string>("all");
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     type: "fish",
@@ -60,53 +63,74 @@ export default function HarvestsPage() {
     unitPrice: "",
   });
 
-  useEffect(() => {
-    fetchHarvests();
-    fetchFishStocks();
-    fetchPlantCrops();
-  }, [filterType]);
-
-  async function fetchHarvests() {
+  const fetchHarvests = useCallback(async () => {
     try {
       const url = filterType === "all" ? "/api/inventory/harvests" : `/api/inventory/harvests?type=${filterType}`;
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load harvests");
+        return;
+      }
       setHarvests(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch harvests:", error);
+      toast.error("Couldn't load harvests");
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterType, toast]);
 
-  async function fetchFishStocks() {
+  const fetchFishStocks = useCallback(async () => {
     try {
       const res = await fetch("/api/inventory/fish");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load fish stocks");
+        return;
+      }
       const ready = (Array.isArray(data) ? data : []).filter(
         (f: FishStock & { status: string }) => f.status !== "harvested"
       );
       setFishStocks(ready);
     } catch (error) {
       console.error("Failed to fetch fish stocks:", error);
+      toast.error("Couldn't load fish stocks");
     }
-  }
+  }, [toast]);
 
-  async function fetchPlantCrops() {
+  const fetchPlantCrops = useCallback(async () => {
     try {
       const res = await fetch("/api/inventory/plants");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't load plant crops");
+        return;
+      }
       const ready = (Array.isArray(data) ? data : []).filter(
         (p: PlantCrop & { status: string }) => p.status !== "harvested"
       );
       setPlantCrops(ready);
     } catch (error) {
       console.error("Failed to fetch plant crops:", error);
+      toast.error("Couldn't load plant crops");
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchHarvests();
+  }, [fetchHarvests]);
+
+  // The stock pickers don't depend on the filter, so they load once.
+  useEffect(() => {
+    fetchFishStocks();
+    fetchPlantCrops();
+  }, [fetchFishStocks, fetchPlantCrops]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const payload = {
         type: formData.type,
@@ -121,12 +145,18 @@ export default function HarvestsPage() {
         unitPrice: formData.unitPrice ? parseFloat(formData.unitPrice) : 0,
       };
 
-      await fetch("/api/inventory/harvests", {
+      const res = await fetch("/api/inventory/harvests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't record harvest");
+        return;
+      }
 
+      toast.success("Harvest recorded");
       setShowForm(false);
       resetForm();
       fetchHarvests();
@@ -134,6 +164,9 @@ export default function HarvestsPage() {
       fetchPlantCrops();
     } catch (error) {
       console.error("Failed to record harvest:", error);
+      toast.error("Couldn't record harvest", { description: "Check your connection and try again." });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -145,10 +178,17 @@ export default function HarvestsPage() {
       tone: "danger",
     }))) return;
     try {
-      await fetch(`/api/inventory/harvests?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/inventory/harvests?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Couldn't delete harvest");
+        return;
+      }
+      toast.success("Harvest deleted");
       fetchHarvests();
     } catch (error) {
       console.error("Failed to delete harvest:", error);
+      toast.error("Couldn't delete harvest", { description: "Check your connection and try again." });
     }
   }
 
@@ -237,7 +277,7 @@ export default function HarvestsPage() {
           <div className="glass-card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-white">Record Harvest</h2>
-              <button onClick={() => setShowForm(false)} className="text-white/50 hover:text-white">
+              <button onClick={() => setShowForm(false)} aria-label="Close" className="text-white/50 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -395,9 +435,10 @@ export default function HarvestsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-accent text-primary font-bold rounded-lg hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Record Harvest
+                  {saving ? "Saving..." : "Record Harvest"}
                 </button>
               </div>
             </form>
@@ -468,6 +509,7 @@ export default function HarvestsPage() {
                   </span>
                   <button
                     onClick={() => handleDelete(harvest.id)}
+                    aria-label="Delete harvest"
                     className="p-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                   >
                     <Trash2 className="w-4 h-4" />

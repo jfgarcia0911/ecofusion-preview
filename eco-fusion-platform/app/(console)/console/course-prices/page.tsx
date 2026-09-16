@@ -171,7 +171,7 @@ export default function CoursePricesPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prices, packages: packagePrices }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 toast.error(data.error ?? "Could not save the prices");
                 return;
@@ -193,6 +193,9 @@ export default function CoursePricesPage() {
             setDrafts({});
             setPackageDrafts({});
             toast.success(`Saved ${data.changed} price${data.changed === 1 ? "" : "s"}`);
+        } catch {
+            // The drafts stay as typed, so saving again is one click.
+            toast.error("Could not save the prices", { description: "Check your connection and try again." });
         } finally {
             setSaving(false);
         }

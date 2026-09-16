@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import Link from 'next/link';
 import { authenticate, googleSignIn } from '@/lib/actions';
 import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
 
@@ -37,8 +38,8 @@ export default function LoginForm() {
         <div className="space-y-6">
             <form action={formAction} className="space-y-6">
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-white/70 flex items-center gap-2">
-                        <Mail size={14} /> Email
+                    <label htmlFor="email" className="text-sm font-medium text-white/70 flex items-center gap-2">
+                        <Mail size={14} aria-hidden="true" /> Email
                     </label>
                     <input
                         className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all backdrop-blur-sm"
@@ -46,12 +47,13 @@ export default function LoginForm() {
                         type="email"
                         name="email"
                         placeholder="Enter your email"
+                        autoComplete="email"
                         required
                     />
                 </div>
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-white/70 flex items-center gap-2">
-                        <Lock size={14} /> Password
+                    <label htmlFor="password" className="text-sm font-medium text-white/70 flex items-center gap-2">
+                        <Lock size={14} aria-hidden="true" /> Password
                     </label>
                     <div className="relative">
                         <input
@@ -60,18 +62,17 @@ export default function LoginForm() {
                             type="password"
                             name="password"
                             placeholder="Enter your password"
+                            autoComplete="current-password"
                             required
                             minLength={6}
                         />
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-white/50">
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors">
-                        <input type="checkbox" className="rounded bg-white/10 border-white/10 text-accent focus:ring-accent" />
-                        <span>Remember me</span>
-                    </label>
-                    <a href="#" className="hover:text-accent transition-colors">Forgot password?</a>
+                {/* A "Remember me" box used to sit here that nothing read, so
+                    ticking it changed nothing about how long the session lasts. */}
+                <div className="flex items-center justify-end text-xs text-white/50">
+                    <Link href="/forgot-password" className="hover:text-accent transition-colors">Forgot password?</Link>
                 </div>
 
                 <button

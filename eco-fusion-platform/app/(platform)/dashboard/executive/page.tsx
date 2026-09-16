@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import KpiCard from "@/components/widgets/KpiCard";
 import RevenueChart from "@/components/widgets/RevenueChart";
 import AlertWidget from "@/components/widgets/AlertWidget";
@@ -54,11 +55,8 @@ export default function ExecutiveDashboard() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchStats();
-        const interval = setInterval(fetchStats, 60000); // Refresh every minute
-        return () => clearInterval(interval);
-    }, [fetchStats]);
+    // Refreshes every minute while the tab is visible.
+    useVisibleInterval(fetchStats, 60000);
 
     const handleAlertClick = (alert: Alert) => {
         setSelectedAlert(alert);
@@ -97,11 +95,6 @@ export default function ExecutiveDashboard() {
                     </h1>
                     <p className="text-white/50 mt-1">Real-time overview of business performance</p>
                 </div>
-                <div className="flex gap-3">
-                    <button className="px-4 py-2 bg-accent/10 text-accent rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors cursor-pointer">
-                        Export Report
-                    </button>
-                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -123,7 +116,9 @@ export default function ExecutiveDashboard() {
                             title="System Efficiency"
                             value={stats ? `${stats.kpis.systemEfficiency.value}%` : '0%'}
                             change={`${stats?.kpis.activeZones.value || 0}/${stats?.kpis.activeZones.total || 0} zones`}
-                            trend="up"
+                            // There is no previous efficiency figure to compare
+                            // with, so no arrow either way.
+                            trend="neutral"
                             icon={Activity}
                         />
                         <KpiCard
@@ -140,7 +135,7 @@ export default function ExecutiveDashboard() {
                     <RevenueChart data={stats?.revenueChart} loading={loading} />
                 </div>
                 <AlertWidget
-                    key={refreshKey}
+                    refreshSignal={refreshKey}
                     title="Critical Alerts"
                     limit={5}
                     showOnlyActive={true}

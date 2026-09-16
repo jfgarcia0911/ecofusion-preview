@@ -1,8 +1,8 @@
-import { Bell, Search } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import UserMenu from "./UserMenu";
 import NotificationBell from "./NotificationBell";
+import { MobileNavButton } from "./MobileNav";
 
 export default async function Header() {
     const session = await auth();
@@ -19,16 +19,12 @@ export default async function Header() {
     }
 
     return (
-        <header data-tour="header" className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-6 z-10">
-            <div className="flex items-center gap-4 w-96">
-                <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Search ecosystem..."
-                        className="w-full bg-black/20 border border-white/5 rounded-full pl-10 pr-4 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-accent/50 transition-all"
-                    />
-                </div>
+        <header data-tour="header" className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-4 md:px-6 z-10">
+            {/* A search box used to sit here that searched nothing. The slot now
+                holds the menu button on small screens and is empty otherwise,
+                which keeps the bell and the account menu on the right. */}
+            <div className="flex items-center gap-4">
+                <MobileNavButton />
             </div>
             <div className="flex items-center gap-4">
                 <NotificationBell initialCount={unreadCount} />

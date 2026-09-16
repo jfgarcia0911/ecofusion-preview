@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import SensorWidget from "@/components/widgets/SensorWidget";
 import SensorInputModal from "@/components/modals/SensorInputModal";
-import { useZones } from "@/lib/contexts/ZoneContext";
+import { useZones, type Zone } from "@/lib/contexts/ZoneContext";
 import { Plus, RefreshCw, AlertCircle, PlusCircle } from "lucide-react";
 import { useUnits } from "@/lib/contexts/UnitContext";
 import { temperatureToDisplay, temperatureLabel, round } from "@/lib/units";
@@ -15,11 +15,32 @@ import { OperationsSkeleton } from "@/components/skeletons/DashboardSkeletons";
  */
 const fmtMetric = (value: number, decimals: number) => value.toFixed(decimals);
 
-// Healthy water range, in Celsius - the unit the database stores. Comparisons
-// happen in Celsius so the user's display preference cannot change what counts
-// as a warning.
-const TEMP_MIN_C = 18;
-const TEMP_MAX_C = 30;
+type SensorParameter = "temperature" | "ph" | "dissolvedO2" | "ammonia" | "humidity";
+
+// Default range for each reading, used when the zone has no enabled threshold of
+// its own for that parameter. Keys match the parameter names the configure page
+// saves. Temperature is in Celsius - the unit the database stores - so the
+// user's display preference cannot change what counts as a warning.
+const DEFAULT_RANGES: Record<SensorParameter, { min: number | null; max: number | null }> = {
+    temperature: { min: 18, max: 30 },
+    ph: { min: 6.5, max: 7.5 },
+    dissolvedO2: { min: 6, max: null },
+    ammonia: { min: null, max: 0.05 },
+    humidity: { min: 40, max: null },
+};
+
+// A zone's own thresholds are what the readings route raises alerts from, so the
+// tiles use them too. Otherwise a tile could show a warning the zone was set up
+// not to care about, or stay green while an alert fires.
+function readingStatus(zone: Zone, parameter: SensorParameter, value: number): "good" | "warning" {
+    const configured = zone.alertThresholds?.find(t => t.parameter === parameter && t.enabled);
+    const range = configured
+        ? { min: configured.minValue, max: configured.maxValue }
+        : DEFAULT_RANGES[parameter];
+    if (range.min !== null && value < range.min) return "warning";
+    if (range.max !== null && value > range.max) return "warning";
+    return "good";
+}
 
 // Only non-active states get a badge: if every zone carried one, the one that
 // actually needs attention would not stand out.
@@ -94,12 +115,18 @@ export default function OperationsDashboard() {
                     <p className="text-white/50 mt-1">Real-time facility monitoring and control</p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <button onClick={refreshZones} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white">
+                    <button
+                        onClick={refreshZones}
+                        aria-label="Refresh zones"
+                        title="Refresh zones"
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white"
+                    >
                         <RefreshCw size={16} />
                     </button>
-                    <div className="flex items-center gap-2 text-xs text-white/30">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        System Online • Auto-refresh: 30s
+                    {/* Nothing here checks whether the system is up, so it only
+                        says what it does know: how often the page refreshes. */}
+                    <div className="text-xs text-white/30">
+                        Auto-refresh: 30s
                     </div>
                 </div>
             </div>
@@ -152,21 +179,20 @@ export default function OperationsDashboard() {
                         {zone.metrics ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                                 {zone.metrics.temp !== null && (
-                                    <SensorWidget label="Water Temp" value={round(temperatureToDisplay(zone.metrics.temp, units.temperature), 1)} unit={temperatureLabel(units.temperature)} status={zone.metrics.temp > TEMP_MAX_C || zone.metrics.temp < TEMP_MIN_C ? "warning" : "good"} />
+                                    <SensorWidget label="Water Temp" value={round(temperatureToDisplay(zone.metrics.temp, units.temperature), 1)} unit={temperatureLabel(units.temperature)} status={readingStatus(zone, "temperature", zone.metrics.temp)} />
                                 )}
                                 {zone.metrics.ph !== null && (
-                                    <SensorWidget label="pH Level" value={fmtMetric(zone.metrics.ph, 1)} unit="pH" status={zone.metrics.ph < 6.5 || zone.metrics.ph > 7.5 ? "warning" : "good"} />
+                                    <SensorWidget label="pH Level" value={fmtMetric(zone.metrics.ph, 1)} unit="pH" status={readingStatus(zone, "ph", zone.metrics.ph)} />
                                 )}
                                 {zone.metrics.do !== null && zone.metrics.do !== undefined && (
-                                    <SensorWidget label="Dissolved O2" value={fmtMetric(zone.metrics.do, 1)} unit="mg/L" status={zone.metrics.do < 6 ? "warning" : "good"} />
+                                    <SensorWidget label="Dissolved O2" value={fmtMetric(zone.metrics.do, 1)} unit="mg/L" status={readingStatus(zone, "dissolvedO2", zone.metrics.do)} />
                                 )}
                                 {zone.metrics.ammonia !== null && zone.metrics.ammonia !== undefined && (
-                                    <SensorWidget label="Ammonia" value={fmtMetric(zone.metrics.ammonia, 2)} unit="ppm" status={zone.metrics.ammonia > 0.05 ? "warning" : "good"} />
+                                    <SensorWidget label="Ammonia" value={fmtMetric(zone.metrics.ammonia, 2)} unit="ppm" status={readingStatus(zone, "ammonia", zone.metrics.ammonia)} />
                                 )}
                                 {zone.metrics.humidity !== null && zone.metrics.humidity !== undefined && (
-                                    <SensorWidget label="Humidity" value={fmtMetric(zone.metrics.humidity, 0)} unit="%" status={zone.metrics.humidity < 40 ? "warning" : "good"} />
+                                    <SensorWidget label="Humidity" value={fmtMetric(zone.metrics.humidity, 0)} unit="%" status={readingStatus(zone, "humidity", zone.metrics.humidity)} />
                                 )}
-                                <SensorWidget label="Conn. Status" value="OK" unit="" status="good" />
                             </div>
                         ) : (
                             <div className="glass-card p-6 text-center text-white/50">
@@ -191,10 +217,9 @@ export default function OperationsDashboard() {
             </div>
 
             <div className="glass-panel p-6 rounded-2xl mt-8">
-                <h3 className="text-lg font-bold text-white mb-4">Live Camera Feed</h3>
-                <div className="aspect-video bg-black/40 rounded-lg flex items-center justify-center border border-white/5 relative overflow-hidden">
-                    <div className="absolute top-4 left-4 bg-red-500/80 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">LIVE</div>
-                    <p className="text-white/20 font-mono">CAMERA SIGNAL FEED NOT CONNECTED</p>
+                <h3 className="text-lg font-bold text-white mb-4">Camera Feed</h3>
+                <div className="aspect-video bg-black/40 rounded-lg flex items-center justify-center border border-white/5">
+                    <p className="text-white/30 text-sm">No camera connected</p>
                 </div>
             </div>
 
