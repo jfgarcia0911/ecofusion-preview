@@ -1,23 +1,61 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
+import { canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import {
+  adminOnly,
+  idFromQuery,
+  money,
+  optionalRecordId,
+  optionalText,
+  recordId,
+  requiredDate,
+  requiredNumber,
+  requiredText,
+} from '@/lib/validation/fields';
 
-// GET - Fetch all harvests for user
+const TYPES = ['fish', 'plant'] as const;
+const DESTINATIONS = ['inventory', 'sale', 'waste'] as const;
+
+const createSchema = z.object({
+  type: z.enum(TYPES, 'Type must be "fish" or "plant"'),
+  fishStockId: optionalRecordId,
+  plantCropId: optionalRecordId,
+  quantity: requiredNumber(0.001, 10_000_000),
+  unit: requiredText(20),
+  quality: optionalText(20),
+  destination: z.enum(DESTINATIONS).default('inventory'),
+  notes: optionalText(2000),
+  addToSalesInventory: z.boolean().default(false),
+  unitPrice: money().optional(),
+});
+
+// Only these fields; anything else in the body is dropped before Prisma.
+const updateSchema = z.object({
+  id: recordId,
+  harvestDate: requiredDate.optional(),
+  quantity: requiredNumber(0.001, 10_000_000).optional(),
+  unit: requiredText(20).optional(),
+  quality: optionalText(20),
+  destination: z.enum(DESTINATIONS).optional(),
+  notes: optionalText(2000),
+});
+
+// GET - This business's harvests
 export async function GET(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type'); // Optional filter by "fish" or "plant"
-
-    const where: { organizationId: string; type?: string } = { organizationId: ctx.organizationId };
-    if (type) {
-      where.type = type;
-    }
+    const type = new URL(request.url).searchParams.get('type');
 
     const harvests = await prisma.harvest.findMany({
-      where,
+      where: {
+        organizationId: ctx.organizationId,
+        ...(type === 'fish' || type === 'plant' ? { type } : {}),
+      },
       include: {
         fishStock: {
           include: { zone: true },
@@ -45,57 +83,42 @@ export async function POST(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const data = await request.json();
-    const {
-      type,
-      fishStockId,
-      plantCropId,
-      quantity,
-      unit,
-      quality,
-      destination,
-      notes,
-      addToSalesInventory,
-      unitPrice,
-    } = data;
+    const body = await readJson(request, createSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    if (!type || !quantity || !unit) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    const fishStockId = input.type === 'fish' ? input.fishStockId ?? null : null;
+    const plantCropId = input.type === 'plant' ? input.plantCropId ?? null : null;
+
+    // The batch it came from must be this business's.
+    if (fishStockId) {
+      const source = await prisma.fishStock.findFirst({
+        where: { id: fishStockId, organizationId: ctx.organizationId },
+        select: { id: true },
+      });
+      if (!source) return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
+    }
+    if (plantCropId) {
+      const source = await prisma.plantCrop.findFirst({
+        where: { id: plantCropId, organizationId: ctx.organizationId },
+        select: { id: true },
+      });
+      if (!source) return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
     }
 
-    if (!['fish', 'plant'].includes(type)) {
-      return NextResponse.json({ error: 'Type must be "fish" or "plant"' }, { status: 400 });
-    }
-
-    // Verify ownership of source stock
-    if (type === 'fish' && fishStockId) {
-      const fishStock = await prisma.fishStock.findUnique({ where: { id: fishStockId } });
-      if (!fishStock || fishStock.userId !== ctx.userId) {
-        return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
-      }
-    }
-
-    if (type === 'plant' && plantCropId) {
-      const plantCrop = await prisma.plantCrop.findUnique({ where: { id: plantCropId } });
-      if (!plantCrop || plantCrop.userId !== ctx.userId) {
-        return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
-      }
-    }
-
-    // Create harvest and optionally add to sales inventory
     const result = await prisma.$transaction(async (tx) => {
       const harvest = await tx.harvest.create({
         data: {
           userId: ctx.userId,
-        organizationId: ctx.organizationId,
-          type,
-          fishStockId: type === 'fish' ? fishStockId : null,
-          plantCropId: type === 'plant' ? plantCropId : null,
-          quantity,
-          unit,
-          quality: quality || null,
-          destination: destination || 'inventory',
-          notes: notes || null,
+          organizationId: ctx.organizationId,
+          type: input.type,
+          fishStockId,
+          plantCropId,
+          quantity: input.quantity,
+          unit: input.unit,
+          quality: input.quality ?? null,
+          destination: input.destination,
+          notes: input.notes ?? null,
         },
         include: {
           fishStock: { include: { zone: true } },
@@ -103,36 +126,28 @@ export async function POST(request: Request) {
         },
       });
 
-      // Update source stock status if fully harvested
-      if (type === 'fish' && fishStockId) {
-        await tx.fishStock.update({
-          where: { id: fishStockId },
-          data: { status: 'harvested' },
-        });
+      if (fishStockId) {
+        await tx.fishStock.update({ where: { id: fishStockId }, data: { status: 'harvested' } });
       }
-      if (type === 'plant' && plantCropId) {
-        await tx.plantCrop.update({
-          where: { id: plantCropId },
-          data: { status: 'harvested' },
-        });
+      if (plantCropId) {
+        await tx.plantCrop.update({ where: { id: plantCropId }, data: { status: 'harvested' } });
       }
 
-      // Add to sales inventory if requested
-      if (addToSalesInventory && destination === 'inventory') {
+      if (input.addToSalesInventory && input.destination === 'inventory') {
         const productName =
-          type === 'fish'
+          input.type === 'fish'
             ? harvest.fishStock?.species || 'Fish'
             : harvest.plantCrop?.cropType || 'Produce';
 
         await tx.salesInventory.create({
           data: {
             userId: ctx.userId,
-        organizationId: ctx.organizationId,
+            organizationId: ctx.organizationId,
             productName,
-            productType: type === 'fish' ? 'fish' : 'produce',
-            quantity,
-            unit,
-            unitPrice: unitPrice || 0,
+            productType: input.type === 'fish' ? 'fish' : 'produce',
+            quantity: input.quantity,
+            unit: input.unit,
+            unitPrice: input.unitPrice ?? 0,
             harvestId: harvest.id,
           },
         });
@@ -154,22 +169,28 @@ export async function PATCH(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const data = await request.json();
-    const { id, ...updates } = data;
+    const body = await readJson(request, updateSchema);
+    if (!body.ok) return body.response;
+    const { id, ...changes } = body.data;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing harvest ID' }, { status: 400 });
-    }
-
-    // Verify ownership
-    const harvest = await prisma.harvest.findUnique({ where: { id } });
-    if (!harvest || harvest.userId !== ctx.userId) {
+    const existing = await prisma.harvest.findFirst({
+      where: { id, organizationId: ctx.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
       return NextResponse.json({ error: 'Harvest not found' }, { status: 404 });
     }
 
     const updated = await prisma.harvest.update({
       where: { id },
-      data: updates,
+      data: {
+        harvestDate: changes.harvestDate,
+        quantity: changes.quantity,
+        unit: changes.unit,
+        quality: changes.quality,
+        destination: changes.destination,
+        notes: changes.notes,
+      },
       include: {
         fishStock: { include: { zone: true } },
         plantCrop: { include: { zone: true } },
@@ -188,21 +209,19 @@ export async function DELETE(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('delete harvests');
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
+    const id = idFromQuery(request);
     if (!id) {
       return NextResponse.json({ error: 'Missing harvest ID' }, { status: 400 });
     }
 
-    // Verify ownership
-    const harvest = await prisma.harvest.findUnique({ where: { id } });
-    if (!harvest || harvest.userId !== ctx.userId) {
+    const { count } = await prisma.harvest.deleteMany({
+      where: { id, organizationId: ctx.organizationId },
+    });
+    if (count === 0) {
       return NextResponse.json({ error: 'Harvest not found' }, { status: 404 });
     }
-
-    await prisma.harvest.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

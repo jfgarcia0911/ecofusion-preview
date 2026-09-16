@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import { optionalInt, optionalNumber, optionalText, requiredInt } from '@/lib/validation/fields';
 
-// GET - Fetch growth logs for a plant crop
+const logSchema = z.object({
+  heightCm: optionalNumber(0, 100_000),
+  healthScore: optionalInt(1, 10),
+  // Losses only take plants away; a negative count would have added them.
+  losses: requiredInt(0, 10_000_000).default(0),
+  notes: optionalText(2000),
+});
+
+/** The crop, only if it is this business's. */
+function cropInBusiness(id: string, organizationId: string) {
+  return prisma.plantCrop.findFirst({ where: { id, organizationId }, select: { id: true } });
+}
+
+// GET - Growth logs for one of this business's plant crops
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -12,16 +28,14 @@ export async function GET(
     if (refusal) return refusal;
 
     const { id } = await params;
-
-    // Verify ownership
-    const plantCrop = await prisma.plantCrop.findUnique({ where: { id } });
-    if (!plantCrop || plantCrop.userId !== ctx.userId) {
+    if (!(await cropInBusiness(id, ctx.organizationId))) {
       return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
     }
 
     const growthLogs = await prisma.plantGrowthLog.findMany({
       where: { plantCropId: id },
       orderBy: { recordedAt: 'desc' },
+      take: 500,
     });
 
     return NextResponse.json(growthLogs);
@@ -41,33 +55,31 @@ export async function POST(
     if (refusal) return refusal;
 
     const { id } = await params;
-    const data = await request.json();
-    const { heightCm, healthScore, losses, notes } = data;
+    const body = await readJson(request, logSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    // Verify ownership
-    const plantCrop = await prisma.plantCrop.findUnique({ where: { id } });
-    if (!plantCrop || plantCrop.userId !== ctx.userId) {
+    if (!(await cropInBusiness(id, ctx.organizationId))) {
       return NextResponse.json({ error: 'Plant crop not found' }, { status: 404 });
     }
 
-    // Create growth log and update plant crop in transaction
     const result = await prisma.$transaction(async (tx) => {
       const growthLog = await tx.plantGrowthLog.create({
         data: {
           plantCropId: id,
-          heightCm: heightCm || null,
-          healthScore: healthScore || null,
-          losses: losses || 0,
-          notes: notes || null,
+          heightCm: input.heightCm ?? null,
+          healthScore: input.healthScore ?? null,
+          losses: input.losses,
+          notes: input.notes ?? null,
         },
       });
 
-      // Reduce quantity by losses
-      if (losses && losses > 0) {
-        const newQuantity = Math.max(0, plantCrop.quantity - losses);
+      if (input.losses > 0) {
+        // Read inside the transaction, so two logs at once both count.
+        const crop = await tx.plantCrop.findUniqueOrThrow({ where: { id }, select: { quantity: true } });
         await tx.plantCrop.update({
           where: { id },
-          data: { quantity: newQuantity },
+          data: { quantity: Math.max(0, crop.quantity - input.losses) },
         });
       }
 

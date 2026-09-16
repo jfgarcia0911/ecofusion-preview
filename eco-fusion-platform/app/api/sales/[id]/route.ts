@@ -13,8 +13,9 @@ export async function GET(
 
     const { id } = await params;
 
-    const sale = await prisma.sale.findUnique({
-      where: { id },
+    // The business's sale, whoever recorded it.
+    const sale = await prisma.sale.findFirst({
+      where: { id, organizationId: ctx.organizationId },
       include: {
         items: {
           include: {
@@ -30,7 +31,7 @@ export async function GET(
       },
     });
 
-    if (!sale || sale.userId !== ctx.userId) {
+    if (!sale) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }
 

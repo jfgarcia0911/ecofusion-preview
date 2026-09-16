@@ -1,32 +1,63 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
+import { canAdminister } from '@/lib/tenancy';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import {
+  adminOnly,
+  idFromQuery,
+  money,
+  optionalDate,
+  optionalRecordId,
+  recordId,
+  requiredNumber,
+  requiredText,
+} from '@/lib/validation/fields';
 
-// GET - Fetch all sales inventory for user
+const PRODUCT_TYPES = ['fish', 'produce', 'other'] as const;
+const STATUSES = ['available', 'reserved', 'sold', 'expired'] as const;
+
+const createSchema = z.object({
+  productName: requiredText(160),
+  productType: z.enum(PRODUCT_TYPES),
+  quantity: requiredNumber(0.001, 10_000_000),
+  unit: requiredText(20),
+  unitPrice: money(),
+  harvestId: optionalRecordId,
+  expiryDate: optionalDate,
+});
+
+// Only these fields; anything else in the body is dropped before Prisma.
+const updateSchema = z.object({
+  id: recordId,
+  productName: requiredText(160).optional(),
+  productType: z.enum(PRODUCT_TYPES).optional(),
+  quantity: requiredNumber(0, 10_000_000).optional(),
+  unit: requiredText(20).optional(),
+  unitPrice: money().optional(),
+  expiryDate: optionalDate,
+  status: z.enum(STATUSES).optional(),
+});
+
+// GET - This business's sales inventory
 export async function GET(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status'); // Optional filter
-    const productType = searchParams.get('productType'); // Optional filter
-
-    const where: {
-      organizationId: string;
-      status?: string;
-      productType?: string;
-    } = { organizationId: ctx.organizationId };
-
-    if (status) {
-      where.status = status;
-    }
-    if (productType) {
-      where.productType = productType;
-    }
+    const status = searchParams.get('status');
+    const productType = searchParams.get('productType');
 
     const inventory = await prisma.salesInventory.findMany({
-      where,
+      where: {
+        organizationId: ctx.organizationId,
+        ...(status && (STATUSES as readonly string[]).includes(status) ? { status } : {}),
+        ...(productType && (PRODUCT_TYPES as readonly string[]).includes(productType)
+          ? { productType }
+          : {}),
+      },
       include: {
         harvest: {
           include: {
@@ -54,25 +85,16 @@ export async function POST(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const data = await request.json();
-    const {
-      productName,
-      productType,
-      quantity,
-      unit,
-      unitPrice,
-      harvestId,
-      expiryDate,
-    } = data;
+    const body = await readJson(request, createSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    if (!productName || !productType || !quantity || !unit || unitPrice === undefined) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    // Verify harvest ownership if provided
-    if (harvestId) {
-      const harvest = await prisma.harvest.findUnique({ where: { id: harvestId } });
-      if (!harvest || harvest.userId !== ctx.userId) {
+    if (input.harvestId) {
+      const harvest = await prisma.harvest.findFirst({
+        where: { id: input.harvestId, organizationId: ctx.organizationId },
+        select: { id: true },
+      });
+      if (!harvest) {
         return NextResponse.json({ error: 'Harvest not found' }, { status: 404 });
       }
     }
@@ -81,13 +103,13 @@ export async function POST(request: Request) {
       data: {
         userId: ctx.userId,
         organizationId: ctx.organizationId,
-        productName,
-        productType,
-        quantity,
-        unit,
-        unitPrice,
-        harvestId: harvestId || null,
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
+        productName: input.productName,
+        productType: input.productType,
+        quantity: input.quantity,
+        unit: input.unit,
+        unitPrice: input.unitPrice,
+        harvestId: input.harvestId ?? null,
+        expiryDate: input.expiryDate ?? null,
       },
       include: {
         harvest: true,
@@ -107,27 +129,29 @@ export async function PATCH(request: Request) {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
 
-    const data = await request.json();
-    const { id, ...updates } = data;
+    const body = await readJson(request, updateSchema);
+    if (!body.ok) return body.response;
+    const { id, ...changes } = body.data;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing inventory item ID' }, { status: 400 });
-    }
-
-    // Verify ownership
-    const item = await prisma.salesInventory.findUnique({ where: { id } });
-    if (!item || item.userId !== ctx.userId) {
+    const existing = await prisma.salesInventory.findFirst({
+      where: { id, organizationId: ctx.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
       return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 });
-    }
-
-    // Handle date conversion
-    if (updates.expiryDate) {
-      updates.expiryDate = new Date(updates.expiryDate);
     }
 
     const updated = await prisma.salesInventory.update({
       where: { id },
-      data: updates,
+      data: {
+        productName: changes.productName,
+        productType: changes.productType,
+        quantity: changes.quantity,
+        unit: changes.unit,
+        unitPrice: changes.unitPrice,
+        expiryDate: changes.expiryDate,
+        status: changes.status,
+      },
       include: {
         harvest: true,
       },
@@ -145,21 +169,19 @@ export async function DELETE(request: Request) {
   try {
     const { ctx, refusal } = await activeOrg();
     if (refusal) return refusal;
+    if (!canAdminister(ctx)) return adminOnly('delete stock for sale');
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
+    const id = idFromQuery(request);
     if (!id) {
       return NextResponse.json({ error: 'Missing inventory item ID' }, { status: 400 });
     }
 
-    // Verify ownership
-    const item = await prisma.salesInventory.findUnique({ where: { id } });
-    if (!item || item.userId !== ctx.userId) {
+    const { count } = await prisma.salesInventory.deleteMany({
+      where: { id, organizationId: ctx.organizationId },
+    });
+    if (count === 0) {
       return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 });
     }
-
-    await prisma.salesInventory.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

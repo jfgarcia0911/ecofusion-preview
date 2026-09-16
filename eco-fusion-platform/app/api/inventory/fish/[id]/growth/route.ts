@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { activeOrg } from '@/lib/api-access';
 import { prisma } from '@/lib/prisma';
+import { readJson } from '@/lib/validation/request';
+import { optionalNumber, optionalText, requiredInt, requiredNumber } from '@/lib/validation/fields';
 
-// GET - Fetch growth logs for a fish stock
+const logSchema = z.object({
+  avgWeight: requiredNumber(0.0001, 1_000_000),
+  // Losses only take fish away; a negative count would have added them.
+  mortality: requiredInt(0, 10_000_000).default(0),
+  feedUsed: optionalNumber(0, 10_000_000),
+  notes: optionalText(2000),
+});
+
+/** The stock, only if it is this business's. */
+function stockInBusiness(id: string, organizationId: string) {
+  return prisma.fishStock.findFirst({ where: { id, organizationId }, select: { id: true } });
+}
+
+// GET - Growth logs for one of this business's fish stocks
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -12,16 +28,14 @@ export async function GET(
     if (refusal) return refusal;
 
     const { id } = await params;
-
-    // Verify ownership
-    const fishStock = await prisma.fishStock.findUnique({ where: { id } });
-    if (!fishStock || fishStock.userId !== ctx.userId) {
+    if (!(await stockInBusiness(id, ctx.organizationId))) {
       return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
     }
 
     const growthLogs = await prisma.fishGrowthLog.findMany({
       where: { fishStockId: id },
       orderBy: { recordedAt: 'desc' },
+      take: 500,
     });
 
     return NextResponse.json(growthLogs);
@@ -41,38 +55,32 @@ export async function POST(
     if (refusal) return refusal;
 
     const { id } = await params;
-    const data = await request.json();
-    const { avgWeight, mortality, feedUsed, notes } = data;
+    const body = await readJson(request, logSchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    if (!avgWeight) {
-      return NextResponse.json({ error: 'Average weight is required' }, { status: 400 });
-    }
-
-    // Verify ownership
-    const fishStock = await prisma.fishStock.findUnique({ where: { id } });
-    if (!fishStock || fishStock.userId !== ctx.userId) {
+    if (!(await stockInBusiness(id, ctx.organizationId))) {
       return NextResponse.json({ error: 'Fish stock not found' }, { status: 404 });
     }
 
-    // Create growth log and update fish stock in transaction
     const result = await prisma.$transaction(async (tx) => {
       const growthLog = await tx.fishGrowthLog.create({
         data: {
           fishStockId: id,
-          avgWeight,
-          mortality: mortality || 0,
-          feedUsed: feedUsed || null,
-          notes: notes || null,
+          avgWeight: input.avgWeight,
+          mortality: input.mortality,
+          feedUsed: input.feedUsed ?? null,
+          notes: input.notes ?? null,
         },
       });
 
-      // Update fish stock with latest weight and reduce quantity by mortality
-      const newQuantity = Math.max(0, fishStock.quantity - (mortality || 0));
+      // Read inside the transaction, so two logs at once both count.
+      const stock = await tx.fishStock.findUniqueOrThrow({ where: { id }, select: { quantity: true } });
       await tx.fishStock.update({
         where: { id },
         data: {
-          avgWeight,
-          quantity: newQuantity,
+          avgWeight: input.avgWeight,
+          quantity: Math.max(0, stock.quantity - input.mortality),
         },
       });
 
