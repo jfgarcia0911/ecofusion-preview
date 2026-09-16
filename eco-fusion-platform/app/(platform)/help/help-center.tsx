@@ -69,9 +69,11 @@ EcoFusion runs an integrated farm in one place: the fish and the crops, the read
 - **Train your people** - buy courses in **Classes**, assign them in **Training Management**, and your people take them in the **Academy**
 - **Ask questions** - **Intelligence** answers questions about your own zones; the **AI Assistant** gives general growing advice
 
-## One business per account
+## Your agency and its businesses
 
-Each owner runs one business. Its name is shown at the top of the sidebar, under the EcoFusion logo, so you always know whose farm you are looking at.
+Signing up creates an **agency** with one **business** in it, and makes you both the agency's **master account** and the business's **owner**. A farm on its own simply stays an agency with one business; an agency that looks after other farms adds more from the **Agency view**.
+
+The business you are in is named at the top of the sidebar, under the EcoFusion logo, so you always know whose farm you are looking at. If you can reach more than one, click that name to switch.
                 `,
             },
             {
@@ -89,11 +91,13 @@ You are signed in straight away and land on the Executive dashboard.
 
 ## What you get
 
-- A business, with you as its **owner**
-- A **15-day free trial**
+- An **agency**, with you as its **master account**, on a **14-day free trial** of the Starter plan
+- Your first **business** inside it, with you as its **owner**. It pays nothing: the agency's plan covers it
 - Seven business units to start from, which you can change in **Settings → Business Units**
 
-To rename your business later, email EcoFusion support at support@llayd.com.
+Businesses you add for other people later get **30 days free**, then pay your agency **$99 a month** (unless you make them complimentary).
+
+To rename your business later, use **Edit** on **Agency view → Sub Accounts**.
 
 ## Passwords
 
@@ -101,7 +105,7 @@ A password needs at least 10 characters, with upper and lower case letters, a nu
 
 ## When the trial ends
 
-A banner counts the trial down and turns amber in its last 5 days. See **Settings & Account → Billing and Your Trial** for what happens next.
+In the **Agency view**, a banner counts your agency's trial down and turns amber in its last 5 days. Choose a plan under **Agency view → Billing** to keep going. See **Settings & Account → Billing and Your Trial** for what happens next.
                 `,
             },
             {
@@ -115,25 +119,27 @@ The first time you sign in, a short walkthrough opens and points at each part of
 It walks the sidebar from top to bottom, in the order you see it:
 
 1. **The sidebar** - everything you can reach, in one column
-2. **Executive** - the whole operation on one screen
-3. **Operations** - your zones, their readings and their alerts
-4. **Business Units** - the silos this business runs
-5. **Inventory** - fish, crops, harvests and what you have for sale
-6. **Sales** - what you sold, to whom, and which unit it counts for
-7. **Academy** - the courses assigned to you
-8. **Intelligence** - questions about your own zones
-9. **AI Assistant** - general growing advice
-10. **Employees** - your people, and who has a login
-11. **Scheduling** - the weekly rota and assigned tasks
-12. **Training Management** - assign courses and keep the record
-13. **Classes** - the courses your business holds, and the shop for more
-14. **Tasks** - a shared checklist
-15. **Settings** - your account, and how this business is configured
-16. **Help Center** - this
-17. **The header** - your notifications
-18. **Your account menu** - signing out
+2. **Your business** - the name at the top, and where you switch if you reach more than one
+3. **Executive** - the whole operation on one screen
+4. **Operations** - your zones, their readings and their alerts
+5. **Business Units** - the silos this business runs
+6. **Inventory** - fish, crops, harvests and what you have for sale
+7. **Sales** - what you sold, to whom, and which unit it counts for
+8. **Academy** - the courses assigned to you
+9. **Intelligence** - questions about your own zones
+10. **AI Assistant** - general growing advice
+11. **Employees** - your people, and who has a login
+12. **Scheduling** - the weekly rota and assigned tasks
+13. **Training Management** - assign courses and keep the record
+14. **Classes** - the courses your business holds, and the shop for more
+15. **Tasks** - a shared checklist
+16. **Settings** - your account, and how this business is configured
+17. **Help Center** - this
+18. **Agency view** - your agency's sub accounts, team, plan and Stripe connection
+19. **The header** - your notifications
+20. **Your account menu** - signing out
 
-Steps for screens you cannot open are left out rather than shown and skipped, so the tour is only as long as the sidebar you actually have. Training Management and Classes are the owner's. Supervisors and managers see Employees and Scheduling. Everybody else sees **My Schedule** instead of those.
+Steps for screens you cannot open are left out rather than shown and skipped, so the tour is only as long as the sidebar you actually have. Training Management and Classes are the owner's. Supervisors and managers see Employees and Scheduling. Everybody else sees **My Schedule** instead of those. **Agency view** is shown only to your agency's own team, which includes you if you signed up.
 
 ## Skipping and running it again
 
@@ -147,6 +153,7 @@ Steps for screens you cannot open are left out rather than shown and skipped, so
 2. Add your people under **Employees**, and give a login to anybody who needs one
 3. Pick courses in **Classes** and assign them in **Training Management**
 4. Record a sale, so the Executive dashboard has something to show
+5. Before the 14-day trial ends, choose a plan under **Agency view → Billing**. If you run businesses for clients, connect Stripe there too so they can pay you
                 `,
             },
             {

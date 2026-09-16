@@ -150,7 +150,18 @@ export default function Sidebar({
         ...(isStaff || isOwner ? trainingNavItems : []),
         ...((showClasses ?? isOwner) ? ownerNavItems : []),
         ...commonNavItems,
-        ...(above ? [{ name: above.label, href: above.href, icon: Building2, tourId: undefined }] : []),
+        // Tour steps differ for the two: the agency view is the customer's,
+        // the console EcoFusion's.
+        ...(above
+            ? [
+                  {
+                      name: above.label,
+                      href: above.href,
+                      icon: Building2,
+                      tourId: above.href.startsWith("/console") ? "nav-console" : "nav-agency",
+                  },
+              ]
+            : []),
     ];
 
     // Inside settings the column becomes settings, rather than settings
@@ -173,10 +184,12 @@ export default function Sidebar({
              * else is. For staff it is also the way into another one, which is
              * the same recorded act as entering from the sub account list.
              */}
-            <SubAccountSwitcher
-                business={business ?? null}
-                above={above}
-            />
+            <div data-tour="business-switcher">
+                <SubAccountSwitcher
+                    business={business ?? null}
+                    above={above}
+                />
+            </div>
 
             {inSettings ? (
                 <div className="flex-1 flex flex-col mt-4 min-h-0">

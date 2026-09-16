@@ -33,6 +33,16 @@ const tourSteps: Step[] = [
         placement: 'right',
     },
     {
+        target: '[data-tour="business-switcher"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Your Business</h3>
+                <p>The business these screens are showing. If you can reach more than one, click its name to switch to another.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
         target: '[data-tour="nav-executive"]',
         content: (
             <div>
@@ -177,7 +187,7 @@ const tourSteps: Step[] = [
         content: (
             <div>
                 <h3 className="font-bold mb-2">Settings</h3>
-                <p>Everything that configures rather than runs: your units and password, and for the owner, billing, business units, integrations and the access record.</p>
+                <p>Everything that configures rather than runs: your units and password, and for the owner, this business&apos;s billing, business units, integrations and the access record.</p>
             </div>
         ),
         placement: 'right',
@@ -188,6 +198,33 @@ const tourSteps: Step[] = [
             <div>
                 <h3 className="font-bold mb-2">Help Center</h3>
                 <p>How each screen works, what to do when something goes wrong, and how to reach support.</p>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        // Only there for an agency's own team, including the master account
+        // every new sign-up becomes.
+        target: '[data-tour="nav-agency"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">Agency View</h3>
+                <p className="mb-2">Your agency, above its businesses. From here you:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                    <li><b>Sub Accounts</b> - add businesses for your clients and step into any of them</li>
+                    <li><b>Team Access</b> - give your staff the businesses and permissions they need</li>
+                    <li><b>Billing</b> - choose your plan before the 14-day trial ends, and connect Stripe so each client business pays you $99 a month</li>
+                </ul>
+            </div>
+        ),
+        placement: 'right',
+    },
+    {
+        target: '[data-tour="nav-console"]',
+        content: (
+            <div>
+                <h3 className="font-bold mb-2">EcoFusion Console</h3>
+                <p>EcoFusion&apos;s own side of the platform: every agency, their plans and trials, the team, templates and the Access Log.</p>
             </div>
         ),
         placement: 'right',
