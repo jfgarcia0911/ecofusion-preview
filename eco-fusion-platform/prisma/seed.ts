@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client';
+import { assertSafeTarget } from '../scripts/guard';
+
+assertSafeTarget('prisma/seed');
 
 const prisma = new PrismaClient();
 

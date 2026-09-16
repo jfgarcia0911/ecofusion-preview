@@ -4,7 +4,7 @@
  * Usage:
  *   ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npx tsx scripts/create-admin.ts
  *
- * Optional: ADMIN_NAME, ADMIN_ROLE (master | platform_staff, default master).
+ * Optional: ADMIN_NAME, ADMIN_ROLE (platform_admin | platform_staff, default platform_admin).
  *
  * The credentials are read from the environment and never written down here.
  * A password committed to a repository is a password that has been published:
@@ -21,13 +21,13 @@ interface AdminUser {
     email: string;
     password: string;
     name: string;
-    role: 'master' | 'platform_staff';
+    role: 'platform_admin' | 'platform_staff';
 }
 
 function adminUsersFromEnv(): AdminUser[] {
     const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
     const password = process.env.ADMIN_PASSWORD;
-    const role = (process.env.ADMIN_ROLE ?? 'master') as AdminUser['role'];
+    const role = (process.env.ADMIN_ROLE ?? 'platform_admin') as AdminUser['role'];
 
     if (!email || !password) {
         console.error(
@@ -37,8 +37,8 @@ function adminUsersFromEnv(): AdminUser[] {
         process.exit(1);
     }
 
-    if (role !== 'master' && role !== 'platform_staff') {
-        console.error(`ADMIN_ROLE must be 'master' or 'platform_staff', not '${role}'.`);
+    if (role !== 'platform_admin' && role !== 'platform_staff') {
+        console.error(`ADMIN_ROLE must be 'platform_admin' or 'platform_staff', not '${role}'.`);
         process.exit(1);
     }
 

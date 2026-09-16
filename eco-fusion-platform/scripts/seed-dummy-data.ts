@@ -14,6 +14,9 @@
  *   npm run db:unseed         # remove
  */
 import { PrismaClient } from '@prisma/client'
+import { assertSafeTarget } from './guard'
+
+assertSafeTarget('seed-dummy-data')
 
 const prisma = new PrismaClient()
 

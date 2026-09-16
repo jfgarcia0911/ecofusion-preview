@@ -8,6 +8,9 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { assertSafeTarget } from './guard';
+
+assertSafeTarget('seed-training-courses');
 
 const prisma = new PrismaClient();
 
@@ -2504,17 +2507,19 @@ async function seedTrainingCourses() {
                     }
                 });
 
-                // Delete existing lessons and recreate
-                await prisma.trainingLesson.deleteMany({
-                    where: { courseId: existingCourse.id }
+                // Update lessons in place, by position. Deleting and recreating
+                // them took every learner's completions with them, since those
+                // cascade from the lesson. One transaction per course, so a
+                // failure cannot leave a course half rewritten.
+                const current = await prisma.trainingLesson.findMany({
+                    where: { courseId: existingCourse.id },
+                    orderBy: { sortOrder: 'asc' },
+                    select: { id: true },
                 });
-
-                // Create new lessons
-                for (let i = 0; i < courseData.lessons.length; i++) {
-                    const lesson = courseData.lessons[i];
-                    await prisma.trainingLesson.create({
-                        data: {
-                            courseId: existingCourse.id,
+                await prisma.$transaction(async (tx) => {
+                    for (let i = 0; i < courseData.lessons.length; i++) {
+                        const lesson = courseData.lessons[i];
+                        const data = {
                             title: lesson.title,
                             description: lesson.description,
                             type: lesson.type,
@@ -2522,9 +2527,18 @@ async function seedTrainingCourses() {
                             duration: lesson.duration,
                             sortOrder: i,
                             questions: lesson.questions ? JSON.parse(JSON.stringify(lesson.questions)) : null,
+                        };
+                        if (current[i]) {
+                            await tx.trainingLesson.update({ where: { id: current[i].id }, data });
+                        } else {
+                            await tx.trainingLesson.create({ data: { ...data, courseId: existingCourse.id } });
                         }
-                    });
-                }
+                    }
+                    const extra = current.slice(courseData.lessons.length).map((l) => l.id);
+                    if (extra.length) {
+                        await tx.trainingLesson.deleteMany({ where: { id: { in: extra } } });
+                    }
+                }, { timeout: 60_000 });
 
                 console.log(`  Updated course: ${courseData.title} (${courseData.lessons.length} lessons)`);
             } else {
