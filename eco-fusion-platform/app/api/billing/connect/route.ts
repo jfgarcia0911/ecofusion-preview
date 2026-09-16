@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { cookies } from 'next/headers';
+import { auth } from '@/auth';
 import { resolveScope } from '@/lib/agency';
+import { isStripeCountry } from '@/lib/stripe-countries';
 import { getStripe } from '@/lib/stripe';
 import { logStaffAccess } from '@/lib/staff';
 import { connectClientId, connectOnboardingUrl, connectSignInUrl } from '@/lib/sub-account-billing';
@@ -14,7 +16,7 @@ export const CONNECT_STATE_COOKIE = 'ecofusion_connect_state';
 //
 // The agency's master account only, signed in as itself: where an agency's
 // money goes is not something anybody else sets up for it.
-export async function POST() {
+export async function POST(request: Request) {
     try {
         const scope = await resolveScope();
         if (!scope || scope.kind !== 'agency' || scope.via !== 'member' || !scope.admin) {
@@ -42,7 +44,12 @@ export async function POST() {
             });
             url = connectSignInUrl(state);
         } else {
-            url = await connectOnboardingUrl(scope.agencyId);
+            const body = await request.json().catch(() => ({}));
+            const country = isStripeCountry(body?.country) ? body.country : null;
+            url = await connectOnboardingUrl(scope.agencyId, {
+                email: (await auth())?.user?.email,
+                country,
+            });
         }
         await logStaffAccess(scope.userId, null, 'write', {
             method: 'POST',
@@ -59,6 +66,9 @@ export async function POST() {
             error instanceof Error && 'type' in error && String(error.type).startsWith('Stripe')
                 ? error.message
                 : null;
+        if (error instanceof Error && error.message.startsWith('Choose the country')) {
+            return NextResponse.json({ error: 'Choose the country your business is in.' }, { status: 400 });
+        }
         const message = stripeMessage
             ? /signed up for Connect/i.test(stripeMessage)
                 ? "Stripe Connect is not switched on in EcoFusion's Stripe account yet."

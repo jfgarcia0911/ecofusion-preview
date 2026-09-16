@@ -213,10 +213,16 @@ export async function completeConnectSignIn(agencyId: string, code: string): Pro
  * Start (or continue) connecting an agency's Stripe account, and return the
  * address of Stripe's onboarding for it.
  *
- * The account is a standard one: the agency's own, with its own dashboard,
- * paying its own Stripe fees and carrying its own refunds and disputes.
+ * Created with Stripe's Accounts v2, which Stripe requires of new Connect
+ * platforms. The account is the agency's own: its own full Stripe dashboard,
+ * paying its own Stripe fees and carrying its own refunds and disputes. What
+ * EcoFusion already knows - the agency's name and the owner's email - is
+ * filled in, so Stripe's form asks for less.
  */
-export async function connectOnboardingUrl(agencyId: string): Promise<string> {
+export async function connectOnboardingUrl(
+    agencyId: string,
+    options: { email?: string | null; country?: string | null } = {}
+): Promise<string> {
     const stripe = getStripe();
     if (!stripe) throw new Error('Stripe is not configured');
 
@@ -227,26 +233,57 @@ export async function connectOnboardingUrl(agencyId: string): Promise<string> {
 
     let account = agency.stripeAccountId;
     if (!account) {
-        const created = await stripe.accounts.create({
-            controller: {
-                stripe_dashboard: { type: 'full' },
-                fees: { payer: 'account' },
-                losses: { payments: 'stripe' },
+        // Stripe will not take payments for an account without its country.
+        if (!options.country) throw new Error('Choose the country the agency is in');
+        const created = await stripe.v2.core.accounts.create({
+            display_name: agency.name,
+            ...(options.email ? { contact_email: options.email } : {}),
+            identity: { country: options.country.toLowerCase() },
+            dashboard: 'full',
+            defaults: {
+                responsibilities: { fees_collector: 'stripe', losses_collector: 'stripe' },
             },
-            business_profile: { name: agency.name },
+            configuration: {
+                customer: {},
+                merchant: { capabilities: { card_payments: { requested: true } } },
+            },
             metadata: { agencyId: agency.id },
         });
         account = created.id;
         await prisma.agency.update({ where: { id: agency.id }, data: { stripeAccountId: account } });
     }
 
-    const link = await stripe.accountLinks.create({
+    const link = await stripe.v2.core.accountLinks.create({
         account,
-        type: 'account_onboarding',
-        refresh_url: `${appUrl()}/agency/billing?connect=refresh`,
-        return_url: `${appUrl()}/agency/billing?connect=return`,
+        use_case: {
+            type: 'account_onboarding',
+            account_onboarding: {
+                configurations: ['merchant', 'customer'],
+                refresh_url: `${appUrl()}/agency/billing?connect=refresh`,
+                return_url: `${appUrl()}/agency/billing?connect=return`,
+            },
+        },
     });
     return link.url;
+}
+
+/**
+ * Whether a connected account can take card payments. Asked of Accounts v2
+ * first; an account connected by signing in may be one v2 does not describe,
+ * so the older API answers for it.
+ */
+async function chargesEnabled(stripe: Stripe, accountId: string): Promise<boolean> {
+    try {
+        const account = await stripe.v2.core.accounts.retrieve(accountId, {
+            include: ['configuration.merchant'],
+        });
+        const merchant = account.configuration?.merchant;
+        if (merchant) return merchant.capabilities?.card_payments?.status === 'active';
+    } catch {
+        // Fall through to the older API.
+    }
+    const account = await stripe.accounts.retrieve(accountId);
+    return account.charges_enabled;
 }
 
 /** Read whether an agency's connected account can take payments, and store it. */
@@ -259,14 +296,14 @@ export async function refreshConnectedAccount(agencyId: string): Promise<boolean
     });
     if (!agency?.stripeAccountId) return false;
     try {
-        const account = await stripe.accounts.retrieve(agency.stripeAccountId);
-        if (account.charges_enabled !== agency.stripeChargesEnabled) {
+        const enabled = await chargesEnabled(stripe, agency.stripeAccountId);
+        if (enabled !== agency.stripeChargesEnabled) {
             await prisma.agency.update({
                 where: { id: agencyId },
-                data: { stripeChargesEnabled: account.charges_enabled },
+                data: { stripeChargesEnabled: enabled },
             });
         }
-        return account.charges_enabled;
+        return enabled;
     } catch (error) {
         console.error('Failed to read the connected Stripe account:', error);
         return agency.stripeChargesEnabled;

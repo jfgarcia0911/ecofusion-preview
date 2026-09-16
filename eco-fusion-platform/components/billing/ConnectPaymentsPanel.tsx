@@ -1,7 +1,7 @@
 import { Banknote, CheckCircle2, CircleDashed, ExternalLink } from "lucide-react";
 import ConnectPaymentsButton from "./ConnectPaymentsButton";
 import { prisma } from "@/lib/prisma";
-import { evaluateClientAccess, CLIENT_BILLING_SELECT } from "@/lib/sub-account-billing";
+import { connectClientId, evaluateClientAccess, CLIENT_BILLING_SELECT } from "@/lib/sub-account-billing";
 import { SUB_ACCOUNT_PRICE_LABEL, SUB_ACCOUNT_TRIAL_DAYS } from "@/lib/plans";
 
 /**
@@ -36,6 +36,8 @@ export default async function ConnectPaymentsPanel({
     }
 
     const state = agency.stripeChargesEnabled ? "ready" : agency.stripeAccountId ? "pending" : "none";
+    // Signing in to an existing Stripe account needs no country from us.
+    const signInOnly = Boolean(connectClientId());
 
     return (
         <div className="glass-card border-white/10 p-6 rounded-3xl bg-black/40">
@@ -82,7 +84,10 @@ export default async function ConnectPaymentsPanel({
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
                 {canManage && state !== "ready" && (
-                    <ConnectPaymentsButton label={state === "pending" ? "Finish Stripe setup" : "Connect with Stripe"} />
+                    <ConnectPaymentsButton
+                        label={state === "pending" ? "Finish Stripe setup" : "Connect with Stripe"}
+                        askCountry={state === "none" && !signInOnly}
+                    />
                 )}
                 {state === "ready" && (
                     <a
