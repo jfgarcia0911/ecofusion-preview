@@ -18,7 +18,7 @@ import {
   logStaffWriteIfAny,
 } from '@/lib/staff';
 import { decideBusinessReach, loadReachFacts } from '@/lib/agency';
-import { AGENCY_TRIAL_DAYS, SUB_ACCOUNT_TRIAL_DAYS } from '@/lib/plans';
+import { AGENCY_TRIAL_DAYS, BILLING_GRACE_MS, SUB_ACCOUNT_TRIAL_DAYS } from '@/lib/plans';
 import { CLIENT_BILLING_SELECT, evaluateClientAccess, type ClientAccess } from '@/lib/sub-account-billing';
 import {
   askWhom,
@@ -126,7 +126,7 @@ export function evaluateAccess(org: {
   const daysLeft = trialEndsAt !== null ? Math.ceil((trialEndsAt - now) / 86_400_000) : null;
 
   if (org.subscriptionStatus === 'active') {
-    const lapsed = org.currentPeriodEnd && org.currentPeriodEnd.getTime() < now;
+    const lapsed = org.currentPeriodEnd && org.currentPeriodEnd.getTime() + BILLING_GRACE_MS < now;
     return lapsed
       ? { allowed: false, status: org.subscriptionStatus, daysLeft, trialEndsAt, reason: 'past_due' }
       : { allowed: true, status: org.subscriptionStatus, daysLeft, trialEndsAt, reason: 'active' };

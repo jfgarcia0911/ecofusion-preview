@@ -6,6 +6,7 @@ import {
     applyClientSubscription,
     applyDeauthorization,
 } from '@/lib/sub-account-billing';
+import { report } from '@/lib/monitoring';
 
 // Events from agencies' connected Stripe accounts: sub-accounts paying their
 // agency, and an agency's account becoming able to take payments.
@@ -19,10 +20,10 @@ export async function POST(request: Request) {
     const stripe = getStripe();
     const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
     if (!stripe || !secret) {
-        console.error(
-            'Stripe Connect webhook rejected: %s is not set. Sub-account payments rely on the return from checkout until it is.',
-            !stripe ? 'STRIPE_SECRET_KEY' : 'STRIPE_CONNECT_WEBHOOK_SECRET'
-        );
+        await report({
+            event: 'stripe.connect_webhook.unconfigured',
+            message: `${!stripe ? 'STRIPE_SECRET_KEY' : 'STRIPE_CONNECT_WEBHOOK_SECRET'} is not set. Sub-account payments rely on the return from checkout until it is.`,
+        });
         return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
     }
 
@@ -79,7 +80,11 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ received: true });
     } catch (error) {
-        console.error('Failed to handle Stripe Connect event:', event.type, error);
+        await report({
+            event: 'stripe.connect_webhook.failed',
+            message: `Failed to handle ${event.type}; Stripe will retry.`,
+            detail: { error, eventId: event.id, account: event.account },
+        });
         return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
     }
 }

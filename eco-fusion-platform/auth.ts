@@ -22,10 +22,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         strategy: 'jwt',
     },
     providers: [
-        Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        }),
+        // Only when it is configured: an unconfigured Google provider fails at
+        // the moment somebody presses its button.
+        ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+            ? [
+                  Google({
+                      clientId: process.env.GOOGLE_CLIENT_ID,
+                      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                  }),
+              ]
+            : []),
         Credentials({
             name: 'Credentials',
             credentials: {

@@ -29,7 +29,9 @@ export default async function BillingPage({
     // tunnel, or a delivery Stripe has not retried yet all leave someone who
     // has just paid staring at a trial notice. Reading the live state on the
     // way back from checkout makes the payment take effect regardless.
-    if (checkout === "success") {
+    // Also on any visit while shut: renewal is only learned from the webhook,
+    // and somebody locked out after paying should be let back in by coming here.
+    if (checkout === "success" || (ctx && !ctx.access.allowed)) {
         const live = await syncSubscriptionFromStripe(agencyId);
         if (live) redirect(ctx ? "/dashboard/executive" : "/agency/sub-accounts");
 

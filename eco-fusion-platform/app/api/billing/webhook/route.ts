@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { applySubscription } from '@/lib/billing';
+import { report } from '@/lib/monitoring';
 import {
   expireCheckoutSession,
   fulfilCheckoutSession,
@@ -20,10 +21,10 @@ export async function POST(request: Request) {
     // This is the failure that looks like "I paid and nothing happened": Stripe
     // takes the payment, posts here, gets a 503, and the farm stays on trial.
     // Say so in the log rather than returning a quiet status nobody reads.
-    console.error(
-      'Stripe webhook rejected: %s is not set. Paid subscriptions will NOT be applied until it is.',
-      !stripe ? 'STRIPE_SECRET_KEY' : 'STRIPE_WEBHOOK_SECRET'
-    );
+    await report({
+      event: 'stripe.webhook.unconfigured',
+      message: `${!stripe ? 'STRIPE_SECRET_KEY' : 'STRIPE_WEBHOOK_SECRET'} is not set. Paid subscriptions will NOT be applied until it is.`,
+    });
     return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
   }
 
@@ -95,7 +96,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Failed to handle Stripe event:', event.type, error);
+    await report({
+      event: 'stripe.webhook.failed',
+      message: `Failed to handle ${event.type}; Stripe will retry.`,
+      detail: { error, eventId: event.id },
+    });
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
   }
 }

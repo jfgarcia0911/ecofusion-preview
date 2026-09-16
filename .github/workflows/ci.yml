@@ -1,0 +1,28 @@
+# Checks every push and pull request: lint, types, unit tests and known
+# vulnerabilities. Nothing here needs a database or any secret.
+name: CI
+
+on:
+  push:
+    branches: [main, 'fix/**']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: eco-fusion-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: eco-fusion-platform/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm audit --audit-level=high --omit=dev

@@ -74,3 +74,12 @@ export function isPlanKey(value: unknown): value is PlanKey {
 export function usageLabel(used: number, plan: Plan): string {
     return Number.isFinite(plan.subAccountLimit) ? `${used} of ${plan.subAccountLimit}` : `${used}`;
 }
+
+/**
+ * Days a paid subscription keeps working after its period ends, while the
+ * renewal is still arriving. Renewal is only ever learned from Stripe's
+ * webhook; without this, a late or failed delivery locked a paying customer
+ * out on the day it renewed.
+ */
+export const BILLING_GRACE_DAYS = 3;
+export const BILLING_GRACE_MS = BILLING_GRACE_DAYS * 86_400_000;

@@ -20,7 +20,7 @@ import type Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
 import { appUrl, getStripe } from '@/lib/stripe';
 import { subscriptionPeriodEnd } from '@/lib/billing';
-import { SUB_ACCOUNT_PRICE_CENTS } from '@/lib/plans';
+import { BILLING_GRACE_MS, SUB_ACCOUNT_PRICE_CENTS } from '@/lib/plans';
 
 export interface ClientAccess {
     /** Whether the business's own people may use it past Settings. */
@@ -84,7 +84,7 @@ export function evaluateClientAccess(
     // Owed, and why: a trial that ran out, or a subscription that stopped.
     let owed: 'unpaid' | 'past_due' | 'canceled';
     if (org.clientStatus === 'active') {
-        const lapsed = org.clientPeriodEnd !== null && org.clientPeriodEnd.getTime() < now;
+        const lapsed = org.clientPeriodEnd !== null && org.clientPeriodEnd.getTime() + BILLING_GRACE_MS < now;
         if (!lapsed) return { ...base, allowed: true, reason: 'active' };
         owed = 'past_due';
     } else if (org.clientStatus === 'past_due' || org.clientStatus === 'canceled') {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride';
+import { Joyride, STATUS, type EventData, type Step } from 'react-joyride';
 import { useRouter } from 'next/navigation';
 
 interface OnboardingTourProps {
@@ -20,7 +20,7 @@ const tourSteps: Step[] = [
             </div>
         ),
         placement: 'center',
-        disableBeacon: true,
+        skipBeacon: true,
     },
     {
         target: '[data-tour="sidebar"]',
@@ -250,7 +250,7 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
         return () => clearTimeout(timer);
     }, [showTour]);
 
-    const handleCallback = async (data: CallBackProps) => {
+    const handleEvent = async (data: EventData) => {
         const { status } = data;
         const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
 
@@ -280,21 +280,24 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
             steps={steps}
             run={run}
             continuous
-            showSkipButton
-            showProgress
             scrollToFirstStep
-            disableScrolling
-            spotlightClicks
-            callback={handleCallback}
+            onEvent={handleEvent}
+            // Colours and behaviour live in options since react-joyride 3; the
+            // beacon is skipped on every step, and the target stays clickable.
+            options={{
+                primaryColor: '#00FF9D',
+                backgroundColor: '#1a1a2e',
+                textColor: '#ffffff',
+                arrowColor: '#1a1a2e',
+                overlayColor: 'rgba(0, 0, 0, 0.75)',
+                zIndex: 10000,
+                showProgress: true,
+                skipBeacon: true,
+                blockTargetInteraction: false,
+                spotlightRadius: 12,
+                buttons: ['back', 'skip', 'primary'],
+            }}
             styles={{
-                options: {
-                    primaryColor: '#00FF9D',
-                    backgroundColor: '#1a1a2e',
-                    textColor: '#ffffff',
-                    arrowColor: '#1a1a2e',
-                    overlayColor: 'rgba(0, 0, 0, 0.75)',
-                    zIndex: 10000,
-                },
                 tooltip: {
                     borderRadius: '12px',
                     padding: '20px',
@@ -310,7 +313,7 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
                     fontSize: '14px',
                     lineHeight: '1.6',
                 },
-                buttonNext: {
+                buttonPrimary: {
                     backgroundColor: '#00FF9D',
                     color: '#0a0a0f',
                     borderRadius: '8px',
@@ -323,12 +326,6 @@ export default function OnboardingTour({ showTour, onComplete }: OnboardingTourP
                 },
                 buttonSkip: {
                     color: '#ffffff80',
-                },
-                spotlight: {
-                    borderRadius: '12px',
-                },
-                beacon: {
-                    display: 'none',
                 },
             }}
             locale={{

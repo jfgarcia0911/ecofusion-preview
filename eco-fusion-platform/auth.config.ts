@@ -8,7 +8,7 @@ import type { NextAuthConfig } from 'next-auth';
  * app/(platform) is protected the moment it exists, rather than staying open
  * until someone remembers to add it here.
  *
- * API routes never reach this callback - middleware.ts returns early for
+ * API routes never reach this callback - proxy.ts returns early for
  * /api, and each route checks the session itself.
  */
 const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password', '/reset-password',

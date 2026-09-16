@@ -1,9 +1,10 @@
 /**
  * Stripe client, test mode until live keys are supplied.
  *
- * Deliberately not pinned to an apiVersion: the SDK sends the version the
- * account is pinned to, which is what test and live share. Pinning here is a
- * change to make on purpose, not a default to inherit.
+ * Pinned to an API version. stripe-node sends the version it was built for,
+ * not the account's, so an SDK upgrade used to change the API under the code
+ * without anybody deciding to. This is the version the code was written and
+ * tested against; move it on purpose, together with the SDK.
  */
 
 import Stripe from 'stripe';
@@ -12,13 +13,26 @@ import type { PlanKey } from '@/lib/plans';
 let client: Stripe | null = null;
 
 /** The configured Stripe client, or null when billing is not set up. */
+/** The Stripe API version this code speaks. */
+export const STRIPE_API_VERSION = '2026-08-26.dahlia' as const;
+
+let warnedTestKey = false;
+
 export function getStripe(): Stripe | null {
   if (client) return client;
 
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
 
-  client = new Stripe(key);
+  // A deployment taking real customers on test keys takes no real money.
+  // Said loudly rather than refused, since a preview site runs on test keys
+  // by design.
+  if (process.env.VERCEL_ENV === 'production' && key.startsWith('sk_test_') && !warnedTestKey) {
+    warnedTestKey = true;
+    console.warn('STRIPE_SECRET_KEY is a test key on a production deployment: no payment here is real.');
+  }
+
+  client = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
   return client;
 }
 
