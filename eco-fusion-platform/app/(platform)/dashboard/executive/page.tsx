@@ -2,11 +2,18 @@
 import { useState, useCallback } from "react";
 import { useVisibleInterval } from "@/lib/use-visible-interval";
 import KpiCard from "@/components/widgets/KpiCard";
-import RevenueChart from "@/components/widgets/RevenueChart";
+import dynamic from "next/dynamic";
 import AlertWidget from "@/components/widgets/AlertWidget";
 import AlertDetailModal from "@/components/modals/AlertDetailModal";
 import { DollarSign, Activity, Leaf, AlertTriangle } from "lucide-react";
 import { ExecutiveSkeleton } from "@/components/skeletons/DashboardSkeletons";
+
+// The chart library is the heaviest thing on the first screen after sign-in;
+// it loads after the page rather than with it.
+const RevenueChart = dynamic(() => import("@/components/widgets/RevenueChart"), {
+    ssr: false,
+    loading: () => <div className="h-[300px] rounded-2xl bg-white/[0.03] animate-pulse" />,
+});
 
 interface Alert {
     id: string;

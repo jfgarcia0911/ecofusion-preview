@@ -44,8 +44,9 @@ export default function SalesDashboard() {
   const toast = useToast();
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   // The list below shows ten; the breakdown is over everything, or a silo would
-  // look small only because its last sale was eleven ago.
-  const [allSales, setAllSales] = useState<Sale[]>([]);
+  // look small only because its last sale was eleven ago. It arrives already
+  // summed by product and unit, which is all the breakdown reads.
+  const [saleLines, setSaleLines] = useState<{ productName: string; total: number; phaseId: string | null }[]>([]);
   const [stats, setStats] = useState<SalesStats>({
     totalSales: 0,
     totalRevenue: 0,
@@ -56,44 +57,19 @@ export default function SalesDashboard() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // Every line of every sale. The breakdown is over lines, not sales: one sale
-  // can carry fish and lettuce, and those belong to different silos.
-  const saleLines = allSales.flatMap((sale) =>
-    sale.items.map((item) => ({
-      productName: item.productName,
-      total: item.total,
-      phaseId: item.phaseId,
-    }))
-  );
-
   const fetchSales = useCallback(async () => {
     try {
-      const res = await fetch("/api/sales");
+      // Summed in the database rather than downloading every sale.
+      const res = await fetch("/api/sales/summary");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         // An error body is not an empty sales history; say so instead of showing zeroes as fact.
         toast.error(data.error ?? "Could not load sales");
         return;
       }
-      const sales = Array.isArray(data) ? data : [];
-      setRecentSales(sales.slice(0, 10));
-      setAllSales(sales.filter((s: Sale) => s.status === "completed"));
-
-      // Calculate stats
-      const today = new Date().toISOString().split("T")[0];
-      const todaySales = sales.filter(
-        (s: Sale) => s.saleDate.split("T")[0] === today && s.status === "completed"
-      );
-      const completedSales = sales.filter((s: Sale) => s.status === "completed");
-      const totalRevenue = completedSales.reduce((sum: number, s: Sale) => sum + s.total, 0);
-
-      setStats({
-        totalSales: completedSales.length,
-        totalRevenue,
-        avgSaleValue: completedSales.length > 0 ? totalRevenue / completedSales.length : 0,
-        todaySales: todaySales.length,
-        todayRevenue: todaySales.reduce((sum: number, s: Sale) => sum + s.total, 0),
-      });
+      setRecentSales(Array.isArray(data.recentSales) ? data.recentSales : []);
+      setSaleLines(Array.isArray(data.revenueLines) ? data.revenueLines : []);
+      if (data.stats) setStats(data.stats as SalesStats);
     } catch (error) {
       console.error("Failed to fetch sales:", error);
       toast.error("Could not load sales");

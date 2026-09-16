@@ -62,40 +62,14 @@ export default function CustomersPage() {
 
   const fetchLocalCustomers = useCallback(async () => {
     try {
-      const res = await fetch("/api/sales");
-      const sales = await res.json().catch(() => ({}));
+      // Summed per customer in the database, rather than every sale here.
+      const res = await fetch("/api/sales/customers");
+      const customers = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(sales.error ?? "Could not load customers from sales");
+        toast.error(customers.error ?? "Could not load customers from sales");
         return;
       }
-
-      // Group by customer
-      const customerMap = new Map<string, LocalCustomer>();
-      for (const sale of Array.isArray(sales) ? sales : []) {
-        if (!sale.customerName && !sale.customerEmail) continue;
-
-        const key = sale.customerEmail || sale.customerName;
-        const existing = customerMap.get(key);
-
-        if (existing) {
-          existing.totalSales += 1;
-          existing.totalSpent += sale.total;
-          if (new Date(sale.saleDate) > new Date(existing.lastPurchase)) {
-            existing.lastPurchase = sale.saleDate;
-          }
-        } else {
-          customerMap.set(key, {
-            customerName: sale.customerName || "Unknown",
-            customerEmail: sale.customerEmail,
-            customerPhone: sale.customerPhone,
-            totalSales: 1,
-            totalSpent: sale.total,
-            lastPurchase: sale.saleDate,
-          });
-        }
-      }
-
-      setLocalCustomers(Array.from(customerMap.values()));
+      setLocalCustomers(Array.isArray(customers) ? customers : []);
     } catch (error) {
       console.error("Failed to fetch local customers:", error);
       toast.error("Could not load customers from sales");
@@ -114,10 +88,8 @@ export default function CustomersPage() {
       const configured = syncRes.ok && syncData.isConfigured === true;
       setCrmEnabled(configured);
 
-      if (configured) {
-        await fetchCrmContacts();
-      }
-      await fetchLocalCustomers();
+      // Both at once: neither waits on the other.
+      await Promise.all([configured ? fetchCrmContacts() : Promise.resolve(), fetchLocalCustomers()]);
     } catch (error) {
       console.error("Failed to check CRM status:", error);
     } finally {
