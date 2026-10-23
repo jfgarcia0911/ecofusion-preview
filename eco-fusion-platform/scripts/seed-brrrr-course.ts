@@ -70,7 +70,10 @@ const MODULES: { title: string; videos: Video[]; quiz?: string }[] = [
                 'Benefits of Real Estate Investing Ep 2',
                 'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adbd26e651cc02cde29f8a8.mp4',
             ],
-            'Benefits of Real Estate Investing Ep 3',
+            [
+                'Benefits of Real Estate Investing Ep 3',
+                'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adbd8b479756dcaf071ec00.mp4',
+            ],
             'Risk to Be Aware Of Ep 1',
             'Risk to be Aware Of Ep 2',
             'Risk to Be Aware Of Ep 3',
