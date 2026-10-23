@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     PlayCircle, CheckCircle, Circle, FileText, HelpCircle,
-    ArrowLeft, ArrowRight, Video, Shield, Award, Lock
+    ArrowLeft, ArrowRight, Video, Shield, Award, Lock,
+    ChevronDown, Folder, FolderOpen
 } from 'lucide-react';
 import clsx from 'clsx';
 import LessonContent from '@/components/academy/LessonContent';
@@ -12,6 +13,7 @@ import CourseCompleteModal from '@/components/academy/CourseCompleteModal';
 import CourseResources from '@/components/academy/CourseResources';
 import { useToast } from '@/components/ui/Toast';
 import { videoSource } from '@/lib/lesson-video';
+import { sectionsOf } from '@/lib/lesson-sections';
 
 /**
  * A question as the browser receives it: no answer attached. The quiz is
@@ -36,6 +38,7 @@ interface Lesson {
     id: string;
     title: string;
     description: string | null;
+    module: string | null;
     type: string;
     content: string | null;
     duration: number;
@@ -84,6 +87,20 @@ export default function CoursePlayerPage() {
     const [courseComplete, setCourseComplete] = useState(false);
     // The lesson pane scrolls on its own; the window does not move.
     const lessonPaneRef = useRef<HTMLDivElement>(null);
+    const sections = useMemo(() => sectionsOf(course?.lessons ?? []), [course]);
+    // Which modules are open in the sidebar, by where each starts. Null until
+    // the learner opens, closes or moves, meaning: only the one they are in.
+    const [openSections, setOpenSections] = useState<Set<number> | null>(null);
+    const sectionStartOf = (index: number) =>
+        sections.find((s) => index >= s.start && index < s.start + s.lessons.length)?.start ?? 0;
+    const openNow = openSections ?? new Set([sectionStartOf(activeLessonIndex)]);
+
+    const toggleSection = (start: number) => {
+        const next = new Set(openNow);
+        if (next.has(start)) next.delete(start);
+        else next.add(start);
+        setOpenSections(next);
+    };
 
     const fetchCourse = useCallback(async () => {
         try {
@@ -243,6 +260,9 @@ export default function CoursePlayerPage() {
 
     const navigateTo = (index: number) => {
         setActiveLessonIndex(index);
+        // Moving into a closed module opens it, so the lesson on screen is
+        // always the one lit in the sidebar.
+        setOpenSections(new Set(openNow).add(sectionStartOf(index)));
         resetQuiz();
         toTop();
     };
@@ -268,11 +288,62 @@ export default function CoursePlayerPage() {
     const nextLesson = activeLessonIndex < course.lessons.length - 1 ? course.lessons[activeLessonIndex + 1] : null;
     const currentLessonCompleted = isLessonCompleted(currentLesson.id);
     const video = currentLesson.type === 'video' ? videoSource(currentLesson.content) : null;
-    const progress =Math.round((completedLessons.length / course.lessons.length) * 100);
+    const progress = Math.round((completedLessons.length / course.lessons.length) * 100);
     // Where the learner is up to: the first lesson not yet finished. Everything
     // finished can be revisited, and this one can be opened; what lies past it
     // stays locked until it is done. -1 once every lesson is.
     const upToIndex = course.lessons.findIndex((l) => !isLessonCompleted(l.id));
+
+    /** One lesson in the sidebar; set in from the edge when it sits in a module. */
+    const lessonRow = (lesson: Lesson, idx: number, inModule: boolean) => {
+        const isActive = idx === activeLessonIndex;
+        const isCompleted = isLessonCompleted(lesson.id);
+        const isLocked = !isActive && !isCompleted && idx !== upToIndex;
+
+        return (
+            <button
+                key={lesson.id}
+                onClick={() => navigateTo(idx)}
+                disabled={isLocked}
+                title={isLocked ? 'Finish the lessons above to unlock this one' : undefined}
+                className={clsx(
+                    'w-full text-left py-3 flex items-start gap-3 transition-colors border-l-2',
+                    inModule ? 'pl-9 pr-4' : 'px-4',
+                    isActive ? 'bg-accent/10 border-accent' : 'border-transparent',
+                    isLocked ? 'cursor-not-allowed' : 'hover:bg-white/5'
+                )}
+            >
+                <div className={clsx(
+                    'mt-0.5',
+                    isActive ? 'text-accent' : isCompleted ? 'text-green-500' : isLocked ? 'text-white/20' : 'text-white/30'
+                )}>
+                    {isCompleted ? (
+                        <CheckCircle size={16} />
+                    ) : isActive ? (
+                        <PlayCircle size={16} />
+                    ) : isLocked ? (
+                        <Lock size={16} />
+                    ) : (
+                        <Circle size={16} />
+                    )}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className={clsx(
+                        'text-sm font-medium line-clamp-2',
+                        isActive ? 'text-white' : isLocked ? 'text-white/35' : 'text-white/70'
+                    )}>
+                        {lesson.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                        {lesson.type === 'video' && <Video size={10} className="text-white/40" />}
+                        {lesson.type === 'text' && <FileText size={10} className="text-white/40" />}
+                        {lesson.type === 'quiz' && <HelpCircle size={10} className="text-white/40" />}
+                        <span className="text-[10px] text-white/30">{lesson.duration}m</span>
+                    </div>
+                </div>
+            </button>
+        );
+    };
 
     return (
         <>
@@ -315,52 +386,37 @@ export default function CoursePlayerPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {course.lessons.map((lesson, idx) => {
-                        const isActive = idx === activeLessonIndex;
-                        const isCompleted = isLessonCompleted(lesson.id);
-                        const isLocked = !isActive && !isCompleted && idx !== upToIndex;
+                    {sections.map((section) => {
+                        if (section.module === null) return lessonRow(section.lessons[0], section.start, false);
 
+                        const isOpen = openNow.has(section.start);
+                        const done = section.lessons.filter((l) => isLessonCompleted(l.id)).length;
+                        const FolderIcon = isOpen ? FolderOpen : Folder;
                         return (
-                            <button
-                                key={lesson.id}
-                                onClick={() => navigateTo(idx)}
-                                disabled={isLocked}
-                                title={isLocked ? 'Finish the lessons above to unlock this one' : undefined}
-                                className={clsx(
-                                    'w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-l-2',
-                                    isActive ? 'bg-accent/10 border-accent' : 'border-transparent',
-                                    isLocked ? 'cursor-not-allowed' : 'hover:bg-white/5'
-                                )}
-                            >
-                                <div className={clsx(
-                                    'mt-0.5',
-                                    isActive ? 'text-accent' : isCompleted ? 'text-green-500' : isLocked ? 'text-white/20' : 'text-white/30'
-                                )}>
-                                    {isCompleted ? (
-                                        <CheckCircle size={16} />
-                                    ) : isActive ? (
-                                        <PlayCircle size={16} />
-                                    ) : isLocked ? (
-                                        <Lock size={16} />
-                                    ) : (
-                                        <Circle size={16} />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className={clsx(
-                                        'text-sm font-medium line-clamp-2',
-                                        isActive ? 'text-white' : isLocked ? 'text-white/35' : 'text-white/70'
-                                    )}>
-                                        {lesson.title}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        {lesson.type === 'video' && <Video size={10} className="text-white/40" />}
-                                        {lesson.type === 'text' && <FileText size={10} className="text-white/40" />}
-                                        {lesson.type === 'quiz' && <HelpCircle size={10} className="text-white/40" />}
-                                        <span className="text-[10px] text-white/30">{lesson.duration}m</span>
-                                    </div>
-                                </div>
-                            </button>
+                            <div key={`module-${section.start}`} className="border-b border-white/5">
+                                <button
+                                    type="button"
+                                    onClick={() => toggleSection(section.start)}
+                                    aria-expanded={isOpen}
+                                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                                >
+                                    <FolderIcon
+                                        size={16}
+                                        className={clsx('shrink-0', done === section.lessons.length ? 'text-green-500' : 'text-white/40')}
+                                    />
+                                    <span className="flex-1 min-w-0 text-sm font-semibold text-white line-clamp-2">
+                                        {section.module}
+                                    </span>
+                                    <span className="text-[10px] text-white/35 shrink-0 tabular-nums">
+                                        {done}/{section.lessons.length}
+                                    </span>
+                                    <ChevronDown
+                                        size={14}
+                                        className={clsx('text-white/40 shrink-0 transition-transform', isOpen && 'rotate-180')}
+                                    />
+                                </button>
+                                {isOpen && section.lessons.map((lesson, i) => lessonRow(lesson, section.start + i, true))}
+                            </div>
                         );
                     })}
                 </div>
@@ -371,6 +427,9 @@ export default function CoursePlayerPage() {
                 <div className="p-8 lg:p-12 min-h-full flex flex-col">
                     {/* Content Header */}
                     <div className="mb-8 border-b border-white/10 pb-6">
+                        {currentLesson.module && (
+                            <p className="text-xs text-white/40 mb-2">{currentLesson.module}</p>
+                        )}
                         <div className="flex items-center gap-2 mb-2">
                             <span className="text-accent text-xs font-bold uppercase tracking-wider">
                                 Lesson {activeLessonIndex + 1} of {course.lessons.length}

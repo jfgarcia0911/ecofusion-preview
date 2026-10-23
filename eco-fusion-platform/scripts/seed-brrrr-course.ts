@@ -2,9 +2,8 @@
  * Adds "The BRRRR Method LLAYD WAY" as one of EcoFusion's courses.
  *
  * A video course copying LLAYD's outline module by module: every lesson is an
- * AI presenter video, and most modules end in a quiz. The module a lesson
- * belongs to is its description, which the course player prints under each
- * lesson's title.
+ * AI presenter video, and most modules end in a quiz. Each lesson carries its
+ * module, and the course player gathers the lessons under their modules.
  *
  * A video with no link of its own yet plays a stand-in clip. To put a real one
  * in, turn its title into [title, link] below and run this again. A quiz lands
@@ -239,7 +238,9 @@ const MODULES: { title: string; videos: Video[]; quiz?: string }[] = [
 interface LessonRow {
     sourceKey: string;
     title: string;
-    description: string;
+    module: string;
+    /** Cleared: it held the module before lessons had a module of their own. */
+    description: null;
     type: 'video' | 'quiz';
     content: string | null;
     duration: number;
@@ -256,7 +257,8 @@ function lessonRows(): LessonRow[] {
             rows.push({
                 sourceKey: `video:${String(++videoNumber).padStart(2, '0')}`,
                 title,
-                description: module.title,
+                module: module.title,
+                description: null,
                 type: 'video',
                 content: link,
                 duration: VIDEO_MINUTES,
@@ -267,7 +269,8 @@ function lessonRows(): LessonRow[] {
             rows.push({
                 sourceKey: `quiz:${String(index + 1).padStart(2, '0')}`,
                 title: module.quiz,
-                description: module.title,
+                module: module.title,
+                description: null,
                 type: 'quiz',
                 content: null,
                 duration: QUIZ_MINUTES,

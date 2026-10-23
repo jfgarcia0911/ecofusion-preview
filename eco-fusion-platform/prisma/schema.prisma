@@ -457,6 +457,10 @@ model TrainingLesson {
   courseId    String
   title       String
   description String?
+  /// The module the lesson sits in, for a course taught in modules: the
+  /// course player gathers lessons under it, in a group that opens and
+  /// closes. Null for a course whose lessons are one list.
+  module      String?
   type        String             @default("text")
   content     String?
   duration    Int
