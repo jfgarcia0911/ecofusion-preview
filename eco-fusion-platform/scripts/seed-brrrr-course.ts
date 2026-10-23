@@ -62,7 +62,10 @@ const MODULES: { title: string; videos: Video[]; quiz?: string }[] = [
                 'Types of Real Estate Asset Classes Ep 2',
                 'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adbc551f10175622aa3b542.mp4',
             ],
-            'Benefits of Real Estate Investing Ep 1',
+            [
+                'Benefits of Real Estate Investing Ep 1',
+                'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adbcb24da8a5d61108e865b.mp4',
+            ],
             'Benefits of Real Estate Investing Ep 2',
             'Benefits of Real Estate Investing Ep 3',
             'Risk to Be Aware Of Ep 1',
