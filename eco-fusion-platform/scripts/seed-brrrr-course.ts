@@ -54,7 +54,10 @@ const MODULES: { title: string; videos: Video[]; quiz?: string }[] = [
                 'What is Real Estate Investing? Ep 2',
                 'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adb9df75ea8f691db75dbc9.mp4',
             ],
-            'Types of Real Estate Asset Classes Ep 1',
+            [
+                'Types of Real Estate Asset Classes Ep 1',
+                'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adbbe05651cc02cde2796b8.mp4',
+            ],
             'Types of Real Estate Asset Classes Ep 2',
             'Benefits of Real Estate Investing Ep 1',
             'Benefits of Real Estate Investing Ep 2',
