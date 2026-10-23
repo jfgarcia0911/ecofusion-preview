@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, Search, Clock, Layers, Star } from "lucide-react";
 import clsx from "clsx";
+import { useAcademyViewer } from "@/lib/contexts/AcademyViewerContext";
 
 interface CatalogCourse {
     id: string;
@@ -43,6 +44,9 @@ export default function CatalogPage() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("All");
     const [search, setSearch] = useState("");
+    // Somebody who stepped in from above is looking the courses over for the
+    // business, not taking them, so the page speaks to them as a reviewer.
+    const { entered, businessName } = useAcademyViewer();
 
     useEffect(() => {
         let cancelled = false;
@@ -88,7 +92,9 @@ export default function CatalogPage() {
                     Course Catalog
                 </h1>
                 <p className="text-white/50 mt-1">
-                    Everything this business carries. Start any of them whenever you like.
+                    {entered
+                        ? `Everything ${businessName ?? "this business"} carries. Preview any course to see its lessons.`
+                        : "Everything this business carries. Start any of them whenever you like."}
                 </p>
             </div>
 
@@ -129,9 +135,13 @@ export default function CatalogPage() {
             ) : courses.length === 0 ? (
                 <div className="text-center py-20 border border-white/10 rounded-2xl bg-white/[0.02]">
                     <BookOpen className="mx-auto text-white/20 mb-3" size={28} />
-                    <p className="text-white/50 text-sm">No classes yet.</p>
+                    <p className="text-white/50 text-sm">
+                        {entered ? "This business holds no courses yet." : "No classes yet."}
+                    </p>
                     <p className="text-white/30 text-xs mt-1">
-                        EcoFusion loads classes into a business. Ask them for the ones you need.
+                        {entered
+                            ? "Courses are given to a business, or bought by its owner, from its Classes page."
+                            : "EcoFusion loads classes into a business. Ask them for the ones you need."}
                     </p>
                 </div>
             ) : (
@@ -194,7 +204,7 @@ export default function CatalogPage() {
                                         href={`/academy/course/${course.id}`}
                                         className="block w-full text-center py-2 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent text-sm font-bold border border-accent/20 transition-colors"
                                     >
-                                        Start Learning
+                                        {entered ? "Preview Course" : "Start Learning"}
                                     </Link>
                                 </div>
                             </div>

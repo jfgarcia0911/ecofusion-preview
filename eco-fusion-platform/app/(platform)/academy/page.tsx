@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import RenewButton from '@/components/academy/RenewButton';
 import { AcademySkeleton } from '@/components/skeletons/PageSkeletons';
+import { useAcademyViewer } from '@/lib/contexts/AcademyViewerContext';
 import {
     BookOpen, Trophy, Clock, PlayCircle, Library,
     CheckCircle, AlertCircle, Shield, Download, Award
@@ -71,6 +72,7 @@ export default function AcademyDashboard() {
     const [completions, setCompletions] = useState<Completion[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'assigned' | 'completed'>('assigned');
+    const { entered, businessName } = useAcademyViewer();
 
     useEffect(() => {
         let cancelled = false;
@@ -145,6 +147,36 @@ export default function AcademyDashboard() {
 
     // Show message if no courses assigned
     if (assignments.length === 0 && completions.length === 0) {
+        // Somebody who stepped in from above is not one of the business's
+        // people, so nothing is assigned to them here. "Contact your
+        // supervisor" was written for an employee; what they came to see is
+        // what the business carries.
+        if (entered) {
+            return (
+                <div className="space-y-8">
+                    <div>
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
+                            Training Academy
+                        </h1>
+                        <p className="text-white/50 mt-1">Viewing {businessName ?? 'this business'}</p>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
+                        <Library size={64} className="mx-auto mb-4 text-white/20" />
+                        <h2 className="text-xl font-bold text-white mb-2">Browse this business&apos;s courses</h2>
+                        <p className="text-white/50 max-w-md mx-auto mb-6">
+                            Courses are assigned to the people who work at {businessName ?? 'this business'}, so
+                            none are assigned to you. Preview what it carries, or see who is assigned what
+                            in <Link href="/admin/training" className="text-accent hover:underline">Training Management</Link>.
+                        </p>
+                        <div className="flex justify-center">
+                            <BrowseCatalogLink />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="space-y-8">
                 <div className="flex flex-wrap justify-between items-center gap-4">
