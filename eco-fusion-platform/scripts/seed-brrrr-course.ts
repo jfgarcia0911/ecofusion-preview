@@ -33,7 +33,10 @@ const MODULE = 'Introduction to Real Estate Investing';
 const MINUTES = 10;
 
 const LESSONS: { title: string; video: string }[] = [
-    { title: 'What is Real Estate Investing? Ep 1', video: STAND_IN },
+    {
+        title: 'What is Real Estate Investing? Ep 1',
+        video: 'https://assets.cdn.filesafe.space/UZRZRAnmmFU42ljvjTFO/media/6adb8440eacc239122449daf.mp4',
+    },
     { title: 'What is Real Estate Investing? Ep 2', video: STAND_IN },
     { title: 'Types of Real Estate Asset Classes Ep 1', video: STAND_IN },
     { title: 'Types of Real Estate Asset Classes Ep 2', video: STAND_IN },
