@@ -12,6 +12,7 @@ import LessonContent from '@/components/academy/LessonContent';
 import CourseCompleteModal from '@/components/academy/CourseCompleteModal';
 import CourseResources from '@/components/academy/CourseResources';
 import { useToast } from '@/components/ui/Toast';
+import { useAcademyViewer } from '@/lib/contexts/AcademyViewerContext';
 import { videoSource } from '@/lib/lesson-video';
 import { sectionsOf } from '@/lib/lesson-sections';
 
@@ -70,6 +71,11 @@ export default function CoursePlayerPage() {
     const router = useRouter();
     const toast = useToast();
     const courseId = params?.courseId as string | undefined;
+    // Somebody who stepped in from above - EcoFusion's admin or support, or
+    // the agency's team - is looking the course over, not taking it. Every
+    // lesson is open to them and nothing is recorded: the server takes
+    // lessons in order, so completing one out of turn would only be refused.
+    const { entered: previewing } = useAcademyViewer();
 
     const [course, setCourse] = useState<Course | null>(null);
     const [completedLessons, setCompletedLessons] = useState<LessonCompletion[]>([]);
@@ -298,7 +304,7 @@ export default function CoursePlayerPage() {
     const lessonRow = (lesson: Lesson, idx: number, inModule: boolean) => {
         const isActive = idx === activeLessonIndex;
         const isCompleted = isLessonCompleted(lesson.id);
-        const isLocked = !isActive && !isCompleted && idx !== upToIndex;
+        const isLocked = !previewing && !isActive && !isCompleted && idx !== upToIndex;
 
         return (
             <button
@@ -378,10 +384,20 @@ export default function CoursePlayerPage() {
                     </div>
                     <h2 className="font-bold text-white text-sm line-clamp-2">{course.title}</h2>
                     <p className="text-xs text-white/50 mt-1">{course.code}</p>
-                    <div className="w-full bg-white/10 h-1.5 rounded-full mt-3 overflow-hidden">
-                        <div className="bg-accent h-full transition-all" style={{ width: `${progress}%` }} />
-                    </div>
-                    <p className="text-[10px] text-white/40 mt-1 text-right">{progress}% Complete</p>
+                    {previewing ? (
+                        // Nothing is recorded in a preview, so a bar here would
+                        // only ever read 0%.
+                        <p className="text-[11px] text-white/45 mt-3 leading-relaxed">
+                            Preview: every lesson is open, and nothing you do here is saved.
+                        </p>
+                    ) : (
+                        <>
+                            <div className="w-full bg-white/10 h-1.5 rounded-full mt-3 overflow-hidden">
+                                <div className="bg-accent h-full transition-all" style={{ width: `${progress}%` }} />
+                            </div>
+                            <p className="text-[10px] text-white/40 mt-1 text-right">{progress}% Complete</p>
+                        </>
+                    )}
                     <CourseResources courseId={course.id} />
                 </div>
 
@@ -612,7 +628,11 @@ export default function CoursePlayerPage() {
                                     })}
                                 </div>
 
-                                {!quizGrade ? (
+                                {previewing ? (
+                                    <p className="mt-8 text-sm text-white/45 text-center">
+                                        Preview: answers are not marked here, and nothing is saved.
+                                    </p>
+                                ) : !quizGrade ? (
                                     <button
                                         onClick={handleQuizSubmit}
                                         disabled={completing || Object.keys(quizAnswers).length !== currentLesson.questions.length}
@@ -642,8 +662,9 @@ export default function CoursePlayerPage() {
                         )}
                     </div>
 
-                    {/* Footer Navigation */}
-                    {currentLesson.type !== 'quiz' && (
+                    {/* Footer Navigation. A learner leaves a quiz by passing it;
+                        a preview has no passing, so it moves on from here too. */}
+                    {(currentLesson.type !== 'quiz' || previewing) && (
                         <div className="mt-12 pt-8 border-t border-white/10 flex justify-between items-center">
                             {prevLesson ? (
                                 <button
@@ -660,7 +681,7 @@ export default function CoursePlayerPage() {
                                 </button>
                             ) : <div />}
 
-                            {currentLessonCompleted ? (
+                            {currentLessonCompleted || previewing ? (
                                 nextLesson ? (
                                     <button
                                         onClick={() => navigateTo(activeLessonIndex + 1)}
@@ -668,6 +689,14 @@ export default function CoursePlayerPage() {
                                     >
                                         <span>Next Lesson</span>
                                         <ArrowRight size={16} />
+                                    </button>
+                                ) : previewing ? (
+                                    <button
+                                        onClick={() => router.push('/academy/catalog')}
+                                        className="group flex items-center gap-2 px-6 py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
+                                    >
+                                        <ArrowLeft size={16} />
+                                        <span>Back to Courses</span>
                                     </button>
                                 ) : (
                                     <button
