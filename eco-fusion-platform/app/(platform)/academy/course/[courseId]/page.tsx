@@ -11,6 +11,7 @@ import LessonContent from '@/components/academy/LessonContent';
 import CourseCompleteModal from '@/components/academy/CourseCompleteModal';
 import CourseResources from '@/components/academy/CourseResources';
 import { useToast } from '@/components/ui/Toast';
+import { videoSource } from '@/lib/lesson-video';
 
 /**
  * A question as the browser receives it: no answer attached. The quiz is
@@ -266,7 +267,8 @@ export default function CoursePlayerPage() {
     const prevLesson = activeLessonIndex > 0 ? course.lessons[activeLessonIndex - 1] : null;
     const nextLesson = activeLessonIndex < course.lessons.length - 1 ? course.lessons[activeLessonIndex + 1] : null;
     const currentLessonCompleted = isLessonCompleted(currentLesson.id);
-    const progress = Math.round((completedLessons.length / course.lessons.length) * 100);
+    const video = currentLesson.type === 'video' ? videoSource(currentLesson.content) : null;
+    const progress =Math.round((completedLessons.length / course.lessons.length) * 100);
     // Where the learner is up to: the first lesson not yet finished. Everything
     // finished can be revisited, and this one can be opened; what lies past it
     // stays locked until it is done. -1 once every lesson is.
@@ -388,12 +390,33 @@ export default function CoursePlayerPage() {
                     {/* Dynamic Content Renderer */}
                     <div className="flex-1 space-y-6">
                         {currentLesson.type === 'video' && (
-                            <div className="aspect-video bg-black rounded-2xl border border-white/10 flex items-center justify-center relative overflow-hidden group">
-                                <div className="text-center">
-                                    <PlayCircle size={64} className="text-white/50 group-hover:text-accent transition-colors mx-auto mb-4" />
-                                    <p className="text-white/50 font-mono text-sm">[Video Player Placeholder]</p>
-                                    <p className="text-xs text-white/30 mt-2">{currentLesson.content || 'Video content'}</p>
-                                </div>
+                            <div className="aspect-video bg-black rounded-2xl border border-white/10 flex items-center justify-center relative overflow-hidden">
+                                {video?.kind === 'file' ? (
+                                    <video
+                                        key={currentLesson.id}
+                                        src={video.src}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        className="w-full h-full"
+                                    />
+                                ) : video?.kind === 'embed' ? (
+                                    <iframe
+                                        key={currentLesson.id}
+                                        src={video.src}
+                                        title={currentLesson.title}
+                                        allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                                        allowFullScreen
+                                        sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+                                        referrerPolicy="strict-origin-when-cross-origin"
+                                        className="w-full h-full"
+                                    />
+                                ) : (
+                                    <div className="text-center">
+                                        <PlayCircle size={64} className="text-white/30 mx-auto mb-4" />
+                                        <p className="text-white/50 text-sm">This video is not ready yet</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
