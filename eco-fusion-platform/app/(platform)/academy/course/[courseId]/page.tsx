@@ -424,7 +424,14 @@ export default function CoursePlayerPage() {
                             <LessonContent content={currentLesson.content} />
                         )}
 
-                        {currentLesson.type === 'quiz' && currentLesson.questions && (
+                        {currentLesson.type === 'quiz' && !currentLesson.questions?.length && (
+                            <div className="glass-card p-8 rounded-2xl text-center">
+                                <HelpCircle size={48} className="text-white/30 mx-auto mb-4" />
+                                <p className="text-white/50 text-sm">This quiz is not ready yet</p>
+                            </div>
+                        )}
+
+                        {currentLesson.type === 'quiz' && !!currentLesson.questions?.length && (
                             <div className="glass-card p-8 rounded-2xl">
                                 <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
                                     <HelpCircle size={32} className="text-accent" />
