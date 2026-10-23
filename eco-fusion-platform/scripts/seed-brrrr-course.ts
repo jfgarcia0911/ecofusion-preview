@@ -6,9 +6,10 @@
  * module, and the course player gathers the lessons under their modules.
  *
  * A video with no link of its own yet plays a stand-in clip. To put a real one
- * in, turn its title into [title, link] below and run this again. A quiz lands
- * with no questions, and the player says it is not ready; it cannot be passed
- * until it has some, so the course should not go on sale before then.
+ * in, turn its title into [title, link] below and run this again. A quiz's
+ * questions are written in brrrr-quizzes.ts and given to its module here. A
+ * quiz without any lands empty, and the player says it is not ready; it cannot
+ * be passed until it has some, so the course should not go on sale before then.
  *
  * It sits under "Real Estate" on Course Prices, not for sale. Price it there.
  *
@@ -16,15 +17,18 @@
  *
  * Safe to run again: the course is matched on its code and each lesson on its
  * sourceKey, and both are updated in place. Nothing is deleted, because a
- * lesson's completions cascade from it. The price, whether the course is
- * active, and any quiz questions are left as they were set.
+ * lesson's completions cascade from it. The price and whether the course is
+ * active are left as they were set, and so are the questions of a quiz that
+ * has none written here.
  *
  * Videos are keyed by their number through the whole course and quizzes by
  * their module, so add a new video at the end of the list. One added in the
  * middle would shift every key after it, and with them learners' progress.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import type { StoredQuestion } from '../lib/quiz';
+import { INTRO_QUIZ } from './brrrr-quizzes';
 import { assertSafeTarget } from './guard';
 
 assertSafeTarget('seed-brrrr-course');
@@ -42,7 +46,7 @@ const QUIZ_MINUTES = 5;
 /** A title alone plays the stand-in; [title, link] plays the real video. */
 type Video = string | [title: string, link: string];
 
-const MODULES: { title: string; videos: Video[]; quiz?: string }[] = [
+const MODULES: { title: string; videos: Video[]; quiz?: string; questions?: StoredQuestion[] }[] = [
     {
         title: 'Introduction to Real Estate Investing',
         videos: [
@@ -80,6 +84,7 @@ const MODULES: { title: string; videos: Video[]; quiz?: string }[] = [
             'Reflection and Group Discussion',
         ],
         quiz: 'Intro to Real Estate Investing Quiz',
+        questions: INTRO_QUIZ,
     },
     {
         title: 'Understanding the BRRRR Method',
@@ -263,6 +268,8 @@ interface LessonRow {
     content: string | null;
     duration: number;
     sortOrder: number;
+    /** Only on a quiz with questions written; without it, a quiz keeps what it has. */
+    questions?: Prisma.InputJsonValue;
 }
 
 /** The outline as lessons, in the order a learner meets them. */
@@ -291,8 +298,12 @@ function lessonRows(): LessonRow[] {
                 description: null,
                 type: 'quiz',
                 content: null,
-                duration: QUIZ_MINUTES,
+                // A minute a question, once it has them.
+                duration: module.questions?.length ?? QUIZ_MINUTES,
                 sortOrder: rows.length + 1,
+                // An interface has no index signature, so Prisma's Json type
+                // will not take one as it is.
+                ...(module.questions && { questions: module.questions as unknown as Prisma.InputJsonValue }),
             });
         }
     }
@@ -341,10 +352,12 @@ async function main() {
 
     const videos = lessons.filter((l) => l.type === 'video');
     const standIns = videos.filter((l) => l.content === STAND_IN).length;
+    const quizzes = lessons.filter((l) => l.type === 'quiz');
+    const written = quizzes.filter((l) => l.questions).length;
     console.log(
         `\n${result.created ? 'Added' : 'Updated'} ${result.course.code} ${result.course.title}: ` +
             `${MODULES.length} modules, ${videos.length} videos (${standIns} still on the stand-in clip), ` +
-            `${lessons.length - videos.length} quizzes.`
+            `${quizzes.length} quizzes (${written} with questions written here).`
     );
     console.log('Find it under Real Estate on Course Prices.\n');
 }
